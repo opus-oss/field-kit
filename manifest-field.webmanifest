@@ -1,0 +1,15 @@
+{
+  "name": "Field Kit",
+  "short_name": "Field Kit",
+  "description": "Weather, air quality, UV, radar, sun & moon — anywhere.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0c1113",
+  "theme_color": "#0c1113",
+  "icons": [
+    { "src": "field-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "field-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

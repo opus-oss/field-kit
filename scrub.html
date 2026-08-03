@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#eef1ef">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0c1113">
+<title>Scrub</title>
+<link rel="manifest" href="manifest-scrub.webmanifest">
+<link rel="icon" href="scrub-192.png">
+<link rel="apple-touch-icon" href="scrub-180.png">
+<meta name="apple-mobile-web-app-title" content="Scrub">
+<style>
+/* Opus — Prima Materia */
+:root{
+  --bg:#eef1ef; --card:#f7f9f7; --chip:#e6ebe8; --raised:#ffffff;
+  --ink:#1a2320; --mut:#465350; --faint:#6c7975; --line:#d2d9d5; --line2:#b7c1bc;
+  --acc:#b0631f; --good:#14776a; --warn:#8a6410; --bad:#b23e37;
+  --mono:"SF Mono","JetBrains Mono","Menlo",ui-monospace,"Consolas",monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#0c1113; --card:#12181a; --chip:#171f21; --raised:#1b2426;
+    --ink:#dbe4e0; --mut:#a3b0ab; --faint:#74827d; --line:#212b2c; --line2:#2c3839;
+    --acc:#d98a3d; --good:#4bbfa6; --warn:#c8971f; --bad:#d0655c;
+  }
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{
+  background:var(--bg); color:var(--ink);
+  font:16px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  padding-bottom:calc(24px + env(safe-area-inset-bottom));
+  max-width:680px; margin:0 auto;
+}
+header{padding:16px 16px 4px}
+header h1{font-family:var(--mono); font-size:20px; font-weight:600; letter-spacing:.04em; text-transform:uppercase}
+header p{font-size:13px; color:var(--mut); margin-top:2px}
+main{padding:12px}
+.card{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px 16px; margin-bottom:12px}
+textarea{
+  width:100%; min-height:88px; resize:vertical; padding:12px 13px; font-size:15px;
+  border:1px solid var(--line); border-radius:12px; background:var(--bg); color:var(--ink);
+  font-family:inherit; line-height:1.4;
+}
+textarea:focus{outline:none; border-color:var(--acc)}
+.controls{display:flex; gap:8px; margin-top:10px; align-items:center; flex-wrap:wrap}
+button{cursor:pointer; font-family:inherit}
+.btn{background:var(--acc); color:#fff; border:none; border-radius:10px; padding:10px 16px; font-size:14px; font-weight:600}
+.btn2{background:var(--chip); color:var(--ink); border:1px solid var(--line); border-radius:10px; padding:10px 14px; font-size:14px}
+.toggle{margin-left:auto; display:flex; align-items:center; gap:7px; font-size:13px; color:var(--mut)}
+.sw{width:38px; height:22px; border-radius:12px; background:var(--line2); position:relative; transition:background .15s; flex-shrink:0}
+.sw::after{content:""; position:absolute; top:2px; left:2px; width:18px; height:18px; border-radius:50%; background:#fff; transition:transform .15s}
+.sw.on{background:var(--acc)} .sw.on::after{transform:translateX(16px)}
+
+#out{margin-top:4px}
+.res{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px 13px; margin-bottom:10px}
+.res .url{font-family:var(--mono); font-size:14px; word-break:break-all; line-height:1.5; color:var(--ink); cursor:pointer}
+.res .url:hover{color:var(--acc)}
+.res .foot{display:flex; align-items:center; gap:10px; margin-top:9px; flex-wrap:wrap}
+.res .note{font-size:12px; color:var(--mut); flex:1; min-width:120px}
+.res .note b{color:var(--good); font-weight:600}
+.res .note.clean b{color:var(--mut)}
+.chipbadge{display:inline-block; font-size:11px; font-weight:700; padding:2px 8px; border-radius:9px; background:var(--acc); color:#fff; text-transform:uppercase; letter-spacing:.03em}
+.chipbadge.zero{background:var(--chip); color:var(--mut)}
+.copy{background:var(--chip); color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:7px 14px; font-size:13px; font-weight:600}
+.copy.done{background:var(--good); color:#fff; border-color:var(--good)}
+.copyall{width:100%; margin-top:2px}
+.empty{color:var(--mut); font-size:14px; padding:6px 2px}
+.stripped{font-family:var(--mono); font-size:11px; color:var(--faint); margin-top:5px; word-break:break-all}
+.hosttag{font-family:var(--mono); font-size:11px; color:var(--acc); text-transform:none}
+footer{padding:6px 16px 0; font-size:12px; color:var(--faint)}
+footer a{color:var(--acc)}
+#toast{
+  position:fixed; bottom:24px; left:50%; transform:translateX(-50%);
+  background:var(--ink); color:var(--bg); padding:9px 18px; border-radius:20px;
+  font-size:14px; opacity:0; transition:opacity .25s; pointer-events:none; white-space:nowrap;
+}
+@media (prefers-color-scheme: dark){#toast{background:var(--raised); color:var(--ink); border:1px solid var(--line2)}}
+#toast.show{opacity:1}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Scrub</h1>
+  <p>Strip tracking &amp; personal IDs from share links. Nothing leaves your device.</p>
+</header>
+
+<main>
+  <div class="card">
+    <textarea id="in" placeholder="Paste a link — or a whole share message. Multiple links work." autocomplete="off" autocapitalize="off" spellcheck="false"></textarea>
+    <div class="controls">
+      <button class="btn" id="pasteBtn">Paste &amp; scrub</button>
+      <button class="btn2" id="clearBtn">Clear</button>
+      <label class="toggle" id="ytToggle"><span id="ytSw" class="sw"></span> YouTube → youtu.be</label>
+    </div>
+  </div>
+  <div id="out"></div>
+</main>
+
+<footer>Rules cover Spotify, Apple Music/Podcasts, YouTube, TikTok, X/Twitter, Instagram, Reddit, Facebook, Amazon, plus universal <span style="font-family:var(--mono)">utm_*</span>/<span style="font-family:var(--mono)">fbclid</span>/<span style="font-family:var(--mono)">gclid</span> trackers.</footer>
+
+<div id="toast"></div>
+
+<script>
+'use strict';
+const $=s=>document.querySelector(s);
+const store={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('show'),1600)}
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+
+/* universal tracking params (lowercased) */
+const TRACK=new Set(['utm_source','utm_medium','utm_campaign','utm_term','utm_content','utm_id','utm_name','utm_cid','utm_reader','utm_referrer','utm_social','utm_social-type','utm_brand','utm_pubreferrer','utm_swu',
+'gclid','gclsrc','dclid','gbraid','wbraid','gad_source','gad','fbclid','mibextid','fb_action_ids','fb_action_types','fb_ref','fb_source',
+'msclkid','mc_eid','mc_cid','_hsenc','_hsmi','hsctatracking','__hssc','__hstc','__hsfp','__s',
+'igshid','igsh','ig_rid','ref_src','ref_url','ref','referrer','source','si','pp','feature','spm','scm',
+'share_app_id','share_link_id','share_item_id','share_from','share_iid','sender_device','sender_web_id','is_from_webapp','is_copy_url','u_code','tt_from','social_share_type','ug_source','enable_checksum',
+'_t','_r','_d','xgsr','yclid','_openstat','vero_id','vero_conv','wickedid','oly_anon_id','oly_enc_id','rb_clickid','twclid','ttclid','li_fat_id','trk','trkcampaign',
+'s_cid','cmpid','icid','ncid','wt_mc','pk_campaign','pk_kwd','piwik_campaign','piwik_kwd','mtm_campaign','mtm_keyword','mtm_source','mtm_medium','mtm_content','mtm_cid',
+'hmb_campaign','hmb_medium','hmb_source','guccounter','guce_referrer','guce_referrer_sig','_ga','_gl','wprov','cvid','ei','ved','uact','sxsrf','sourceid','oq','__twitter_impression','wickedsource']);
+
+function cleanOne(raw){
+  let s=raw.trim().replace(/[)\]\.,;!?"'>»]+$/,'');
+  if(!s)return null;
+  try{
+    if(!/^https?:\/\//i.test(s)){
+      if(/^[\w.-]+\.[a-z]{2,}([\/?#]|$)/i.test(s))s='https://'+s; else return null;
+    }
+    var u=new URL(s);
+  }catch(e){return null}
+  if(u.protocol!=='http:'&&u.protocol!=='https:')return null;
+
+  const origParams=[...u.searchParams.keys()];
+  const origPath=u.pathname, origHref=u.href;
+  const host=u.hostname.toLowerCase();
+  const bare=host.replace(/^www\./,'').replace(/^m\./,'');
+  let out=null;
+
+  const isYT=/(^|\.)youtube\.com$/.test(host)||bare==='youtu.be'||bare==='youtube-nocookie.com';
+  if(isYT){
+    let id=null;
+    if(bare==='youtu.be')id=u.pathname.slice(1).split('/')[0];
+    else if(u.pathname==='/watch')id=u.searchParams.get('v');
+    else if(/^\/(shorts|embed|live|v)\//.test(u.pathname))id=u.pathname.split('/')[2];
+    const t=u.searchParams.get('t')||u.searchParams.get('start');
+    const list=u.searchParams.get('list');
+    if(id){
+      if(ytShort){
+        out='https://youtu.be/'+id;
+        const q=[]; if(t)q.push('t='+t); if(list)q.push('list='+list);
+        if(q.length)out+='?'+q.join('&');
+      }else{
+        out='https://www.youtube.com/watch?v='+id;
+        if(t)out+='&t='+t; if(list)out+='&list='+list;
+      }
+    }
+  }
+  else if(bare==='music.apple.com'||bare==='podcasts.apple.com'||bare==='geo.music.apple.com'){
+    const i=u.searchParams.get('i'); u.search=''; if(i)u.searchParams.set('i',i);
+  }
+  else if(bare==='open.spotify.com'||bare.endsWith('.spotify.com')||bare==='spotify.link'){u.search=''}
+  else if(bare.endsWith('tiktok.com')){u.search=''}
+  else if(bare==='twitter.com'||bare==='x.com'||bare==='nitter.net'){u.search=''}
+  else if(bare.endsWith('instagram.com')){u.search=''}
+  else if(bare.endsWith('reddit.com')||bare==='redd.it'){u.search=''}
+  else if(bare.endsWith('facebook.com')||bare==='fb.watch'||bare==='fb.me'){u.search=''}
+  else if(/(^|\.)amazon\.[a-z.]+$/.test(host)||bare==='amzn.to'){
+    const m=u.pathname.match(/\/(?:dp|gp\/product|gp\/aw\/d|gp\/aw\/d)\/([A-Z0-9]{10})/i);
+    if(m)out='https://'+host+'/dp/'+m[1].toUpperCase(); else u.search='';
+  }
+
+  if(out==null){
+    [...u.searchParams.keys()].forEach(k=>{if(TRACK.has(k.toLowerCase()))u.searchParams.delete(k)});
+    out=u.toString();
+  }
+  // tidy trailing artifacts
+  out=out.replace(/\?$/,'').replace(/#$/,'');
+
+  let finalParams=[];
+  try{finalParams=[...new URL(out).searchParams.keys()]}catch(e){}
+  const fset=new Set(finalParams.map(k=>k.toLowerCase()));
+  const removed=origParams.filter(k=>!fset.has(k.toLowerCase()));
+  let pathChanged=false;
+  try{pathChanged=new URL(out).pathname!==origPath}catch(e){}
+  return {clean:out, removed, pathChanged, bare, changed:(out!==origHref&&out!==raw.trim())};
+}
+
+let ytShort=store.get('scrub_yt',false);
+$('#ytSw').classList.toggle('on',ytShort);
+$('#ytToggle').onclick=()=>{ytShort=!ytShort;store.set('scrub_yt',ytShort);$('#ytSw').classList.toggle('on',ytShort);run()};
+
+const ta=$('#in');
+let last=[];
+function run(){
+  const text=ta.value;
+  let matches=text.match(/(?:https?:\/\/|www\.)[^\s<>()"']+/gi)||[];
+  if(!matches.length&&text.trim())matches=[text.trim()];
+  const seen=new Set(), results=[];
+  matches.forEach(m=>{const r=cleanOne(m); if(r&&!seen.has(r.clean)){seen.add(r.clean);results.push(r)}});
+  last=results;
+  render(results);
+}
+function render(results){
+  const out=$('#out');
+  if(!ta.value.trim()){out.innerHTML='';return}
+  if(!results.length){out.innerHTML='<div class="card empty">No valid link found in that text.</div>';return}
+  out.innerHTML=results.map((r,i)=>{
+    const n=r.removed.length;
+    const badge=n?`<span class="chipbadge">${n} stripped</span>`:`<span class="chipbadge zero">clean</span>`;
+    const note=n
+      ? `<span class="note">Removed from <span class="hosttag">${esc(r.bare)}</span>${r.pathChanged?' · path normalized':''}<div class="stripped">${esc(r.removed.join('  '))}</div></span>`
+      : `<span class="note clean">Already clean${r.pathChanged?' · path normalized':''} · <span class="hosttag">${esc(r.bare)}</span></span>`;
+    return `<div class="res">
+      <div class="url" data-i="${i}" title="Tap to copy">${esc(r.clean)}</div>
+      <div class="foot">${badge}${note}<button class="copy" data-i="${i}">Copy</button></div>
+    </div>`;
+  }).join('')+(results.length>1?`<button class="btn copyall" id="copyAll">Copy all ${results.length}</button>`:'');
+
+  out.querySelectorAll('[data-i]').forEach(el=>{
+    el.onclick=()=>copy(results[+el.dataset.i].clean, el.classList.contains('copy')?el:null);
+  });
+  const ca=$('#copyAll');
+  if(ca)ca.onclick=()=>copy(results.map(r=>r.clean).join('\n'),ca,'All '+results.length+' copied');
+}
+async function copy(text,btn,msg){
+  try{await navigator.clipboard.writeText(text); toast(msg||'Copied')}
+  catch(e){
+    // fallback
+    const t=document.createElement('textarea');t.value=text;document.body.appendChild(t);t.select();
+    try{document.execCommand('copy');toast(msg||'Copied')}catch(e2){toast('Copy blocked — long-press to select')}
+    t.remove();
+  }
+  if(btn&&btn.classList.contains('copy')){btn.classList.add('done');btn.textContent='Copied';setTimeout(()=>{btn.classList.remove('done');btn.textContent='Copy'},1200)}
+}
+
+ta.addEventListener('input',()=>{clearTimeout(ta._t);ta._t=setTimeout(run,120)});
+$('#pasteBtn').onclick=async()=>{
+  try{const t=await navigator.clipboard.readText(); if(!t)return toast('Clipboard empty'); ta.value=t; run();
+    // auto-copy the single result for a true one-tap flow
+    if(last.length===1)copy(last[0].clean,null,'Scrubbed & copied');
+  }catch(e){toast('Allow clipboard access, or paste manually');ta.focus()}
+};
+$('#clearBtn').onclick=()=>{ta.value='';render([]);ta.focus()};
+ta.focus();
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){})})}</script>
+</body>
+</html>

@@ -1,0 +1,639 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#eef1ef">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0c1113">
+<title>Watch Deck</title>
+<link rel="manifest" href="manifest-watch.webmanifest">
+<link rel="icon" href="watch-192.png">
+<link rel="apple-touch-icon" href="watch-180.png">
+<meta name="apple-mobile-web-app-title" content="Watch Deck">
+<style>
+/* Opus — Prima Materia (light) : cold slate ground · monospace headers · tempered-amber accent */
+:root{
+  --bg:#eef1ef; --card:#f7f9f7; --chip:#e6ebe8; --raised:#ffffff;
+  --ink:#1a2320; --mut:#465350; --faint:#6c7975; --line:#d2d9d5; --line2:#b7c1bc;
+  --acc:#b0631f; --good:#14776a; --warn:#8a6410; --bad:#b23e37;
+  --mono:"SF Mono","JetBrains Mono","Menlo",ui-monospace,"Consolas",monospace;
+}
+@media (prefers-color-scheme: dark){
+  /* Opus — Prima Materia (dark) */
+  :root{
+    --bg:#0c1113; --card:#12181a; --chip:#171f21; --raised:#1b2426;
+    --ink:#dbe4e0; --mut:#a3b0ab; --faint:#74827d; --line:#212b2c; --line2:#2c3839;
+    --acc:#d98a3d; --good:#4bbfa6; --warn:#c8971f; --bad:#d0655c;
+  }
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{
+  background:var(--bg); color:var(--ink);
+  font:16px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  padding-bottom:calc(64px + env(safe-area-inset-bottom));
+  max-width:680px; margin:0 auto;
+}
+header{padding:14px 16px 10px; display:flex; align-items:baseline; gap:10px; flex-wrap:wrap}
+header h1{font-family:var(--mono); font-size:19px; font-weight:600; letter-spacing:.02em; text-transform:uppercase}
+#sessChip{font-size:13px; color:var(--mut)}
+#sessChip b.open{color:var(--good)} #sessChip b.closed{color:var(--mut)} #sessChip b.ext{color:var(--warn)}
+main{padding:0 12px}
+section{display:none}
+section.active{display:block}
+.card{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px 16px; margin-bottom:12px}
+.card h2{font-family:var(--mono); font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--mut); margin-bottom:10px; font-weight:600; display:flex; justify-content:space-between; align-items:baseline}
+.card h2 .hlink{font-size:11px; text-transform:none; letter-spacing:0; font-weight:500; color:var(--mut)}
+.muted{color:var(--mut); font-size:13px}
+.err{color:var(--bad); font-size:14px}
+button{cursor:pointer; font-family:inherit}
+a{color:var(--acc)}
+.refresh{display:flex; justify-content:space-between; align-items:center; padding:2px 4px 10px}
+.refresh button{border:1px solid var(--line); background:var(--card); color:var(--ink); border-radius:8px; padding:6px 12px; font-size:13px}
+.btn2{background:var(--chip); color:var(--ink); border:1px solid var(--line); border-radius:10px; padding:8px 12px; font-size:14px}
+
+.q{display:flex; align-items:center; gap:10px; padding:9px 0; border-top:1px solid var(--line)}
+.q:first-of-type{border-top:none}
+.q .sym{width:112px; flex-shrink:0}
+.q .sym b{font-size:15px}
+.q .sym span{display:block; font-size:11px; color:var(--mut); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:112px}
+.q .px{flex:1; text-align:right; font-variant-numeric:tabular-nums; font-weight:700; font-size:16px}
+.q .chg{width:104px; text-align:right; font-variant-numeric:tabular-nums; font-size:14px; flex-shrink:0}
+.up{color:var(--good)} .dn{color:var(--bad)}
+.q .rm{border:none; background:none; color:var(--mut); font-size:15px; padding:2px 4px}
+.wlbar{display:flex; gap:8px; margin-top:12px}
+.wlbar input{flex:1; min-width:80px; padding:8px 10px; border:1px solid var(--line); border-radius:8px; background:var(--bg); color:var(--ink); font-size:14px; text-transform:uppercase}
+.tiny{font-size:12px; color:var(--mut); margin-top:8px}
+
+/* ---- war room ---- */
+.banner{border-radius:14px; padding:12px 16px; margin-bottom:12px; font-weight:700; font-size:15px; border:1px solid var(--line); background:var(--card)}
+.banner .sub{display:block; font-weight:500; font-size:12px; margin-top:3px; opacity:.85}
+.b-warn{background:var(--warn); color:#fff; border-color:var(--warn)}
+.b-bad{background:var(--bad); color:#fff; border-color:var(--bad)}
+.pill{display:inline-block; padding:3px 10px; border-radius:20px; font-size:11px; font-weight:700; white-space:nowrap}
+.p-fired{background:var(--bad); color:#fff}
+.p-armed{background:var(--warn); color:#fff}
+.p-quiet{background:var(--chip); color:var(--mut)}
+.p-inv{background:var(--acc); color:#fff}
+.p-zone{background:var(--good); color:#fff}
+#tab-war .q .sym{width:44%}
+#tab-war .q .sym span{max-width:none; white-space:normal}
+#tab-war .q .chg{width:auto}
+#tab-war .ck{padding:8px 0; border-top:1px solid var(--line); font-size:14px}
+#tab-war .ck:first-of-type{border-top:none}
+#tab-war .ck b{color:var(--acc)}
+#tab-war label.lad{display:flex; gap:10px; align-items:flex-start; padding:9px 0; border-top:1px solid var(--line); font-size:14px}
+#tab-war label.lad:first-of-type{border-top:none}
+#tab-war label.lad input{margin-top:3px}
+#tab-war label.lad.done{text-decoration:line-through; color:var(--mut)}
+.cal-d{font-variant-numeric:tabular-nums; font-weight:700}
+
+.link{display:block; padding:11px 0; border-top:1px solid var(--line); text-decoration:none}
+.link:first-of-type{border-top:none}
+.link b{display:block; font-size:15px; color:var(--acc)}
+.link span{font-size:13px; color:var(--mut)}
+
+nav{
+  position:fixed; bottom:0; left:0; right:0; display:flex;
+  background:var(--card); border-top:1px solid var(--line);
+  padding-bottom:env(safe-area-inset-bottom); max-width:680px; margin:0 auto;
+}
+nav button{flex:1; padding:11px 0 9px; background:none; border:none; color:var(--mut); font-family:var(--mono); font-size:10px; font-weight:600; letter-spacing:.03em; text-transform:uppercase}
+nav button .ic{display:block; font-size:18px; margin-bottom:1px}
+nav button.on{color:var(--acc)}
+#toast{
+  position:fixed; bottom:84px; left:50%; transform:translateX(-50%);
+  background:var(--ink); color:var(--bg); padding:9px 18px; border-radius:20px;
+  font-size:14px; opacity:0; transition:opacity .25s; pointer-events:none; white-space:nowrap;
+}
+#toast.show{opacity:1}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Watch Deck</h1>
+  <div id="sessChip">…</div>
+</header>
+
+<main>
+
+<section id="tab-war" class="active">
+  <div class="refresh">
+    <span class="muted" id="warUpdated"></span>
+    <button data-reload="war">Refresh</button>
+  </div>
+  <div id="warBanner"></div>
+  <div class="card">
+    <h2>Trigger board <span class="hlink">intraday preview — closes decide</span></h2>
+    <div id="warBody" class="muted">Loading…</div>
+  </div>
+  <div class="card">
+    <h2>Close checklist — 4:00 pm ET / 3:00 CST</h2>
+    <div id="warChecklist"></div>
+  </div>
+  <div class="card">
+    <h2>Deployment ladder</h2>
+    <div id="warLadder"></div>
+  </div>
+  <div class="card">
+    <h2>Dates that matter</h2>
+    <div id="warCal"></div>
+  </div>
+</section>
+
+<section id="tab-metals" data-list="1"></section>
+<section id="tab-indus" data-list="1"></section>
+<section id="tab-agri" data-list="1"></section>
+<section id="tab-tech" data-list="1"></section>
+
+<section id="tab-bonds">
+  <div class="refresh">
+    <span class="muted" id="bondsUpdated"></span>
+    <button data-reload="bonds">Refresh</button>
+  </div>
+  <div class="card">
+    <h2>US yields — intraday <span class="hlink">CBOE / CME</span></h2>
+    <div id="usLive" class="muted">Loading…</div>
+  </div>
+  <div class="card">
+    <h2>US Treasury curve — official close <span class="hlink" id="curveDate"></span></h2>
+    <div id="curve" class="muted">Loading…</div>
+  </div>
+  <div class="card">
+    <h2>Abroad</h2>
+    <div id="abroad" class="muted">Loading…</div>
+    <div id="abroadLinks"></div>
+  </div>
+</section>
+
+<section id="tab-more">
+  <div class="card">
+    <h2>Market links</h2>
+    <div id="linkList"></div>
+  </div>
+  <div class="card">
+    <h2>Companion</h2>
+    <a class="link" href="./index.html"><b>Field Kit</b><span>Weather, compass, GPS, sun &amp; moon</span></a>
+  </div>
+  <div class="card">
+    <h2>Notes</h2>
+    <div class="muted">Futures &amp; index quotes ride free public relays to Yahoo's chart API — 5-minute delayed-ish, and if a relay hiccups, hit refresh. Treasury curve is the official prior-close par yield. Euro yields are the ECB AAA curve (≈ Germany), prior business day. Add any Yahoo symbol to a tab: <span style="font-family:ui-monospace,Menlo,monospace">GC=F</span>, <span style="font-family:ui-monospace,Menlo,monospace">^SOX</span>, <span style="font-family:ui-monospace,Menlo,monospace">NVDA</span>, <span style="font-family:ui-monospace,Menlo,monospace">BTC-USD</span>…</div>
+  </div>
+</section>
+
+</main>
+
+<nav>
+  <button data-tab="war" class="on"><span class="ic">⚑</span>War</button>
+  <button data-tab="metals"><span class="ic">◆</span>Metals</button>
+  <button data-tab="indus"><span class="ic">⚙</span>Indust</button>
+  <button data-tab="agri"><span class="ic">☘</span>Agri</button>
+  <button data-tab="tech"><span class="ic">▤</span>Tech</button>
+  <button data-tab="bonds"><span class="ic">％</span>Bonds</button>
+  <button data-tab="more"><span class="ic">⛓</span>More</button>
+</nav>
+
+<div id="toast"></div>
+
+<script>
+'use strict';
+const $=s=>document.querySelector(s), $$=s=>document.querySelectorAll(s);
+const store={
+  get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}},
+  set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+};
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('show'),2200)}
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+
+/* ---------- relay fetch: corsproxy.io primary, allorigins fallback ---------- */
+async function relay(u,ms){
+  const proxies=[
+    x=>'https://corsproxy.io/?url='+encodeURIComponent(x),
+    x=>'https://api.allorigins.win/raw?url='+encodeURIComponent(x)
+  ];
+  let lastErr;
+  for(const P of proxies){
+    try{
+      const c=new AbortController(); const t=setTimeout(()=>c.abort(),ms||9000);
+      const r=await fetch(P(u),{signal:c.signal}); clearTimeout(t);
+      if(r.ok)return r;
+      lastErr=new Error('HTTP '+r.status);
+    }catch(e){lastErr=e}
+  }
+  throw lastErr||new Error('relays unreachable');
+}
+
+/* ---------- market session ---------- */
+function session(){
+  const p=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',weekday:'short',hour:'2-digit',minute:'2-digit',hour12:false}).formatToParts(new Date());
+  const g=t=>{const x=p.find(x=>x.type===t);return x?x.value:''};
+  const wd=g('weekday'), t=(+g('hour')%24)*60+(+g('minute'));
+  if(wd==='Sat'||wd==='Sun')return['closed','Closed','weekend'];
+  if(t>=570&&t<960)return['open','Open','closes 4:00 PM ET'];
+  if(t>=240&&t<570)return['ext','Pre-market','opens 9:30 AM ET'];
+  if(t>=960&&t<1200)return['ext','After-hours','until 8:00 PM ET'];
+  return['closed','Closed','pre-market from 4:00 AM ET'];
+}
+function renderSession(){
+  const [cls,name,sub]=session();
+  $('#sessChip').innerHTML=`NYSE: <b class="${cls}">${name}</b> · ${sub}`;
+}
+renderSession(); setInterval(renderSession,60000);
+
+/* ---------- symbol metadata ---------- */
+const META={
+  'GC=F':['Gold','$/oz'],'SI=F':['Silver','$/oz'],'PL=F':['Platinum','$/oz'],'PA=F':['Palladium','$/oz'],'HG=F':['Copper','$/lb'],
+  'CL=F':['WTI crude','$/bbl'],'BZ=F':['Brent crude','$/bbl'],'NG=F':['Natural gas','$/MMBtu'],'RB=F':['Gasoline RBOB','$/gal'],'ALI=F':['Aluminum','$/tonne'],'LBR=F':['Lumber','$/kbf'],
+  'ZC=F':['Corn','¢/bu'],'ZW=F':['Wheat','¢/bu'],'ZS=F':['Soybeans','¢/bu'],'KC=F':['Coffee','¢/lb'],'SB=F':['Sugar #11','¢/lb'],'CT=F':['Cotton','¢/lb'],'LE=F':['Live cattle','¢/lb'],'HE=F':['Lean hogs','¢/lb'],
+  '^SOX':['PHLX Semiconductor','index'],'^NDX':['Nasdaq 100','index'],'^GSPC':['S&P 500','index'],'^DJI':['Dow Jones','index'],'^IXIC':['Nasdaq Composite','index'],'^VIX':['VIX','volatility'],
+  'NVDA':['Nvidia',''],'AMD':['AMD',''],'TSM':['TSMC',''],'MSFT':['Microsoft',''],'AAPL':['Apple',''],'AVGO':['Broadcom',''],
+  'BTC-USD':['Bitcoin','$'],'ETH-USD':['Ethereum','$'],
+  '^IRX':['13-week bill','yield'],'^FVX':['5-year','yield'],'^TNX':['10-year','yield'],'^TYX':['30-year','yield'],'2YY=F':['2-year (CME fut)','yield']
+};
+const YIELDSYM={'^IRX':1,'^FVX':1,'^TNX':1,'^TYX':1,'2YY=F':1}; // Yahoo quotes these as the yield itself
+const TABS={
+  metals:{title:'Common metals',def:['GC=F','SI=F','PL=F','PA=F','HG=F']},
+  indus:{title:'Industrial',def:['CL=F','BZ=F','NG=F','RB=F','ALI=F','LBR=F','HG=F']},
+  agri:{title:'Agriculture',def:['ZC=F','ZW=F','ZS=F','KC=F','SB=F','CT=F','LE=F','HE=F']},
+  tech:{title:'Tech & indexes',def:['^SOX','^NDX','^GSPC','^DJI','^VIX','NVDA','AMD','TSM','MSFT','AAPL']}
+};
+const lists={};
+Object.keys(TABS).forEach(k=>lists[k]=store.get('wd2_'+k,TABS[k].def));
+
+/* ---------- quotes via Yahoo spark (batched, one relay call per tab) ---------- */
+const qCache={};
+async function sparkQuotes(symbols,cacheKey,ms){
+  const c=qCache[cacheKey];
+  if(c&&Date.now()-c.ts<45000)return c.rows;
+  const u=`https://query1.finance.yahoo.com/v8/finance/spark?symbols=${encodeURIComponent(symbols.join(','))}&range=1d&interval=5m`;
+  const d=await (await relay(u,ms||9000)).json();
+  const rows=symbols.map(s=>{
+    const e=d[s]; if(!e)return{s,p:null,pc:null};
+    const cl=(e.close||[]).filter(x=>x!=null);
+    return {s,p:cl.length?cl[cl.length-1]:null,pc:e.chartPreviousClose!=null?e.chartPreviousClose:e.previousClose};
+  });
+  qCache[cacheKey]={ts:Date.now(),rows};
+  return rows;
+}
+const fmtP=p=>p>=1000?p.toLocaleString(undefined,{maximumFractionDigits:1})
+  :p>=100?p.toFixed(2):p>=1?p.toFixed(2):p.toFixed(3);
+function quoteRow(r,removable){
+  const meta=META[r.s]||['',''];
+  const sub=[meta[0],meta[1]].filter(Boolean).join(' · ')||'&nbsp;';
+  const rm=removable?`<button class="rm" data-rm="${esc(r.s)}">✕</button>`:'';
+  if(r.p==null)return `<div class="q"><div class="sym"><b>${esc(r.s)}</b><span>${sub}</span></div>
+    <div class="px muted">no data</div><div class="chg"></div>${rm}</div>`;
+  if(YIELDSYM[r.s]){
+    const y=r.p, ypc=r.pc;
+    const bp=ypc!=null?Math.round((y-ypc)*100):null;
+    const cls=bp==null?'':bp>=0?'up':'dn';
+    return `<div class="q"><div class="sym"><b>${esc(r.s)}</b><span>${sub}</span></div>
+      <div class="px">${y.toFixed(2)}%</div>
+      <div class="chg ${cls}">${bp==null?'—':(bp>=0?'+':'')+bp+' bp'}</div>${rm}</div>`;
+  }
+  const dp=r.pc?((r.p-r.pc)/r.pc*100):null;
+  const cls=dp==null?'':dp>=0?'up':'dn';
+  return `<div class="q"><div class="sym"><b>${esc(r.s)}</b><span>${sub}</span></div>
+    <div class="px">${fmtP(r.p)}</div>
+    <div class="chg ${cls}">${dp==null?'—':(dp>=0?'+':'')+dp.toFixed(2)+'%'}</div>${rm}</div>`;
+}
+
+/* ---------- list tabs (metals / indus / agri / tech) ---------- */
+function listTabHTML(key){
+  return `<div class="refresh"><span class="muted" id="${key}Updated"></span><button data-reload="${key}">Refresh</button></div>
+    <div class="card"><h2>${TABS[key].title}</h2>
+      <div id="${key}Body" class="muted">Loading…</div>
+      <div class="wlbar">
+        <input id="${key}New" placeholder="Add Yahoo symbol" autocapitalize="characters">
+        <button class="btn2" data-add="${key}">Add</button>
+      </div>
+    </div>`;
+}
+Object.keys(TABS).forEach(k=>{$('#tab-'+k).innerHTML=listTabHTML(k)});
+const busy={};
+async function loadList(key,force){
+  if(busy[key])return; busy[key]=true;
+  if(force)delete qCache[key];
+  try{
+    const rows=await sparkQuotes(lists[key],key);
+    $('#'+key+'Body').innerHTML=rows.map(r=>quoteRow(r,true)).join('')
+      ||'<div class="muted">Empty — add a symbol below.</div>';
+    $$('#'+key+'Body [data-rm]').forEach(b=>b.onclick=()=>{
+      lists[key]=lists[key].filter(x=>x!==b.dataset.rm);
+      store.set('wd2_'+key,lists[key]); delete qCache[key]; loadList(key);
+    });
+    $('#'+key+'Updated').textContent='Updated '+new Date().toLocaleTimeString([],{hour:'numeric',minute:'2-digit',second:'2-digit'});
+  }catch(e){
+    $('#'+key+'Body').innerHTML=`<div class="err">Quotes failed (${esc(e.message)}) — relays may be busy, try refresh.</div>`;
+  }
+  busy[key]=false;
+}
+$$('[data-add]').forEach(b=>{
+  const key=b.dataset.add;
+  const inp=$('#'+key+'New');
+  const add=()=>{
+    const s=inp.value.trim().toUpperCase();
+    if(!s)return;
+    if(!/^[A-Z0-9^=.\-]{1,12}$/.test(s))return toast('Symbol looks off');
+    if(!lists[key].includes(s))lists[key].push(s);
+    store.set('wd2_'+key,lists[key]); inp.value=''; delete qCache[key]; loadList(key);
+  };
+  b.onclick=add;
+  inp.addEventListener('keydown',e=>{if(e.key==='Enter')add()});
+});
+
+/* ---------- bonds ---------- */
+async function loadUSLive(force){
+  if(force)delete qCache.uslive;
+  const rows=await sparkQuotes(['^IRX','^FVX','^TNX','^TYX'],'uslive');
+  $('#usLive').innerHTML=rows.map(r=>quoteRow(r,false)).join('');
+}
+const MATS=[['1M','m1'],['3M','m3'],['6M','m6'],['1Y','y1'],['2Y','y2'],['3Y','y3'],['5Y','y5'],['7Y','y7'],['10Y','y10'],['20Y','y20'],['30Y','y30']];
+async function tsyMonth(ym){
+  const u=`https://home.treasury.gov/resource-center/data-chart-center/interest-rates/pages/xml?data=daily_treasury_yield_curve&field_tdr_date_value_month=${ym}`;
+  const x=new DOMParser().parseFromString(await (await relay(u,12000)).text(),'text/xml');
+  return [...x.getElementsByTagNameNS('*','properties')].map(p=>{
+    const g=t=>{const n=p.getElementsByTagNameNS('*',t)[0];return n&&n.textContent?+n.textContent:null};
+    const dn=p.getElementsByTagNameNS('*','NEW_DATE')[0];
+    return {date:dn?dn.textContent.slice(0,10):null,
+      m1:g('BC_1MONTH'),m3:g('BC_3MONTH'),m6:g('BC_6MONTH'),y1:g('BC_1YEAR'),y2:g('BC_2YEAR'),
+      y3:g('BC_3YEAR'),y5:g('BC_5YEAR'),y7:g('BC_7YEAR'),y10:g('BC_10YEAR'),y20:g('BC_20YEAR'),y30:g('BC_30YEAR')};
+  }).filter(e=>e.date).sort((a,b)=>a.date.localeCompare(b.date));
+}
+async function loadCurve(force){
+  const cached=store.get('wd2_curve',null);
+  if(!force&&cached&&Date.now()-cached.ts<6*3600e3){renderCurve(cached.last,cached.prev);return}
+  const now=new Date();
+  const ym=d=>d.getFullYear()+String(d.getMonth()+1).padStart(2,'0');
+  let entries=await tsyMonth(ym(now));
+  if(entries.length<2){
+    const pm=new Date(now.getFullYear(),now.getMonth()-1,15);
+    entries=(await tsyMonth(ym(pm))).concat(entries);
+  }
+  const last=entries[entries.length-1], prev=entries[entries.length-2]||null;
+  store.set('wd2_curve',{ts:Date.now(),last,prev});
+  renderCurve(last,prev);
+}
+function renderCurve(last,prev){
+  $('#curveDate').textContent=last.date;
+  $('#curve').innerHTML=MATS.map(([lb,k])=>{
+    const v=last[k]; if(v==null)return '';
+    const pv=prev?prev[k]:null;
+    const bp=pv!=null?Math.round((v-pv)*100):null;
+    const cls=bp==null?'':bp>=0?'up':'dn';
+    return `<div class="q"><div class="sym"><b>${lb}</b></div>
+      <div class="px">${v.toFixed(2)}%</div>
+      <div class="chg ${cls}">${bp==null?'—':(bp>=0?'+':'')+bp+' bp'}</div></div>`;
+  }).join('');
+}
+async function ecbSeries(series){
+  const u=`https://data-api.ecb.europa.eu/service/data/YC/B.U2.EUR.4F.G_N_A.SV_C_YM.${series}?lastNObservations=2&format=jsondata`;
+  const r=await fetch(u); if(!r.ok)throw new Error('ECB HTTP '+r.status);
+  const d=await r.json();
+  const sk=Object.keys(d.dataSets[0].series)[0];
+  const obs=d.dataSets[0].series[sk].observations;
+  const keys=Object.keys(obs).map(Number).sort((a,b)=>a-b);
+  const vals=keys.map(k=>obs[k][0]);
+  return {v:vals[vals.length-1],prev:vals.length>1?vals[vals.length-2]:null};
+}
+async function loadAbroad(force){
+  const cached=store.get('wd2_ecb',null);
+  let e10,e30;
+  if(!force&&cached&&Date.now()-cached.ts<6*3600e3){e10=cached.e10;e30=cached.e30}
+  else{
+    [e10,e30]=await Promise.all([ecbSeries('SR_10Y'),ecbSeries('SR_30Y')]);
+    store.set('wd2_ecb',{ts:Date.now(),e10,e30});
+  }
+  const row=(lb,e)=>{
+    const bp=e.prev!=null?Math.round((e.v-e.prev)*100):null;
+    const cls=bp==null?'':bp>=0?'up':'dn';
+    return `<div class="q"><div class="sym"><b>${lb}</b><span>ECB AAA curve</span></div>
+      <div class="px">${e.v.toFixed(2)}%</div>
+      <div class="chg ${cls}">${bp==null?'—':(bp>=0?'+':'')+bp+' bp'}</div></div>`;
+  };
+  $('#abroad').innerHTML=row('Euro 10Y',e10)+row('Euro 30Y',e30);
+  $('#abroadLinks').innerHTML='<div class="tiny">Country-specific 10Y/30Y (no free live feed): '+
+    ['germany','united-kingdom','japan'].map(c=>
+      `<a target="_blank" rel="noopener" href="https://www.worldgovernmentbonds.com/country/${c}/">${c.replace('united-kingdom','UK').replace(/^\w/,x=>x.toUpperCase())}</a>`
+    ).join(' · ')+'</div>';
+}
+async function loadBonds(force){
+  $('#bondsUpdated').textContent='Loading…';
+  await Promise.allSettled([
+    loadUSLive(force).catch(e=>$('#usLive').innerHTML=`<div class="err">Live yields failed (${esc(e.message)}) — try refresh.</div>`),
+    loadCurve(force).catch(e=>$('#curve').innerHTML=`<div class="err">Treasury feed failed (${esc(e.message)}) — <a target="_blank" rel="noopener" href="https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve">official page</a></div>`),
+    loadAbroad(force).catch(e=>$('#abroad').innerHTML=`<div class="err">ECB feed failed (${esc(e.message)})</div>`)
+  ]);
+  $('#bondsUpdated').textContent='Updated '+new Date().toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});
+}
+
+/* ---------- WAR ROOM (the campaign trigger board) ---------- */
+const WAR={
+  syms:['NVDA','^GSPC','^VIX','^TYX','JPY=X','HYG','RSP','SPY','^SOX','GC=F','^MOVE'],
+  t:{nvda:193.45, nvdaVoid:200, spx:7334, ath:7620.9, vixGo:20, vixGap:25, vixSell:40, vixFlip:55,
+     y30:5.05, move:90, hygPx:78.57, hygDay:-2, goldLo:3600, goldHi:3800}
+};
+async function sparkDaily(symbols,cacheKey){
+  const c=qCache[cacheKey];
+  if(c&&Date.now()-c.ts<300000)return c.map;
+  const u=`https://query1.finance.yahoo.com/v8/finance/spark?symbols=${encodeURIComponent(symbols.join(','))}&range=10d&interval=1d`;
+  const d=await (await relay(u,14000)).json();
+  const map={};
+  symbols.forEach(s=>{const e=d[s]; map[s]=e?(e.close||[]).filter(x=>x!=null):[]});
+  qCache[cacheKey]={ts:Date.now(),map};
+  return map;
+}
+const pill=(cls,txt)=>`<span class="pill ${cls}">${txt}</span>`;
+const warRow=(code,desc,val,p)=>`<div class="q"><div class="sym"><b>${code}</b><span>${desc}</span></div>
+  <div class="px">${val}</div><div class="chg">${p}</div></div>`;
+async function loadWar(force){
+  if(busy.war)return; busy.war=true;
+  if(force){delete qCache.war; delete qCache.warDaily;}
+  try{
+    let rows;
+    try{rows=await sparkQuotes(WAR.syms,'war',14000)}
+    catch(e1){await new Promise(r=>setTimeout(r,1200)); rows=await sparkQuotes(WAR.syms,'war',14000)}
+    let daily={};
+    try{daily=await sparkDaily(['JPY=X'],'warDaily')}catch(e2){daily={'JPY=X':[]}}
+    const m={}; rows.forEach(r=>m[r.s]=r);
+    const day=r=>(r&&r.p!=null&&r.pc)?((r.p-r.pc)/r.pc*100):null;
+    const T=WAR.t, out=[], fired=[];
+    const nvda=m['NVDA'], spx=m['^GSPC'], vix=m['^VIX'], y30=m['^TYX'], jpy=m['JPY=X'],
+          hyg=m['HYG'], rsp=m['RSP'], spy=m['SPY'], sox=m['^SOX'], gold=m['GC=F'], move=m['^MOVE'];
+    const spxDay=day(spx), vixDay=day(vix), hygDay=day(hyg), rspDay=day(rsp), spyDay=day(spy), soxDay=day(sox);
+
+    // 1 · Leadership — NVDA
+    let p1=pill('p-quiet','QUIET');
+    if(nvda&&nvda.p!=null){
+      if(nvda.p<T.nvda){p1=pill('p-fired','BELOW LINE');fired.push('leadership')}
+      else if(nvda.p<T.nvda+3)p1=pill('p-armed','AT THE LINE');
+      else if(nvda.p>T.nvdaVoid)p1=pill('p-inv','VOID WATCH');
+    }
+    out.push(warRow('NVDA',`close &lt;${T.nvda} ×2 = stage two · void: 2 closes &gt;${T.nvdaVoid} heavy vol, then &gt;205`,
+      nvda&&nvda.p!=null?fmtP(nvda.p):'—',p1));
+
+    // 2 · Duration — 30Y + MOVE
+    const y=y30&&y30.p!=null?y30.p:null, mv=move&&move.p!=null?move.p:null;
+    let p2=pill('p-quiet','QUIET');
+    if(y!=null){
+      const yHot=y>T.y30, mHot=mv!=null&&mv>T.move;
+      if(yHot&&mHot){p2=pill('p-fired','FIRED');fired.push('duration')}
+      else if(yHot||y>5.0||mHot)p2=pill('p-armed','ARMED');
+    }
+    out.push(warRow('30Y + MOVE',`close &gt;${T.y30}% AND MOVE &gt;${T.move} on a red day`,
+      (y!=null?y.toFixed(2)+'%':'—')+' · '+(mv!=null?'MOVE '+mv.toFixed(0):'MOVE n/a'),p2));
+
+    // 3 · Vol structure — VIX + curve (curve is manual)
+    let p3=pill('p-quiet','QUIET');
+    if(vix&&vix.p!=null){
+      const interim=vixDay!=null&&spxDay!=null&&vixDay>=15&&spxDay>=-1;
+      if(vix.p>T.vixGo){p3=pill('p-fired','CHECK CURVE');fired.push('vol')}
+      else if(vix.p>18||interim)p3=pill('p-armed',interim?'INTERIM TELL':'ARMED');
+    }
+    out.push(warRow('VIX',`close &gt;${T.vixGo} + VX1&gt;VX2 (vixcentral) · ladder: ${T.vixGap} gap / ${T.vixSell} sell / ${T.vixFlip} flip`,
+      vix&&vix.p!=null?vix.p.toFixed(2):'—',p3));
+
+    // 4 · Yen speed rule (daily closes)
+    const cl=daily['JPY=X']||[], last=cl[cl.length-1];
+    const c3=cl.length>=4?cl[cl.length-4]:null, c5=cl.length>=6?cl[cl.length-6]:null;
+    const yen3=(c3&&last)?((c3-last)/c3*100):null, yen5=(c5&&last)?((c5-last)/c5*100):null;
+    let p4=pill('p-quiet','DORMANT');
+    if(yen3!=null){
+      if(yen3>=2||(yen5!=null&&yen5>=3)){p4=pill('p-fired','UNWIND');fired.push('yen')}
+      else if(yen3>=1)p4=pill('p-armed','TWITCHING');
+    }
+    out.push(warRow('USDJPY',`speed rule: yen +2%/3 sessions or +3%/week (closes)`,
+      (last?fmtP(last):'—')+(yen3!=null?` · 3d yen ${yen3>=0?'+':''}${yen3.toFixed(1)}%`:''),p4));
+
+    // 5 · Credit — HYG (real-time proxy)
+    let p5=pill('p-quiet','BENIGN');
+    if(hyg&&hyg.p!=null){
+      if(hygDay!=null&&hygDay<=T.hygDay||hyg.p<T.hygPx){p5=pill('p-fired','CRACKING');fired.push('credit')}
+      else if(hygDay!=null&&hygDay<=-1)p5=pill('p-armed','SOFT');
+    }
+    out.push(warRow('HYG',`−2% day or &lt;${T.hygPx} = credit confirming (never the gate)`,
+      hyg&&hyg.p!=null?fmtP(hyg.p)+(hygDay!=null?` (${hygDay>=0?'+':''}${hygDay.toFixed(1)}%)`:''):'—',p5));
+
+    // 6 · Index pivot + gap day
+    let p6=pill('p-quiet','HOLDING');
+    const gap=spxDay!=null&&spxDay<=-3&&vix&&vix.p>T.vixGap;
+    if(spx&&spx.p!=null){
+      if(gap)p6=pill('p-fired','GAP DAY');
+      else if(spx.p<T.spx){p6=pill('p-fired','BELOW PIVOT');fired.push('index')}
+      else if(spx.p<T.spx*1.01)p6=pill('p-armed','NEAR PIVOT');
+      else if(spx.p>T.ath)p6=pill('p-inv','INVALIDATION');
+    }
+    out.push(warRow('SPX',`close &lt;${T.spx.toLocaleString()} + failed retest · gap: ≤−3% w/ VIX&gt;${T.vixGap} · void &gt;${T.ath.toLocaleString()}`,
+      spx&&spx.p!=null?fmtP(spx.p)+(spxDay!=null?` (${spxDay>=0?'+':''}${spxDay.toFixed(1)}%)`:''):'—',p6));
+
+    // 7 · Cross-section — RSP vs SPY
+    let p7=pill('p-quiet','ROTATION');
+    if(rspDay!=null&&spyDay!=null&&spyDay<0&&rspDay<=spyDay-0.1)p7=pill('p-armed','ROT. DYING?');
+    out.push(warRow('RSP vs SPY',`rotation dies when RSP falls as hard, day AND week`,
+      (rspDay!=null?`RSP ${rspDay>=0?'+':''}${rspDay.toFixed(1)}%`:'—')+(spyDay!=null?` / SPY ${spyDay>=0?'+':''}${spyDay.toFixed(1)}%`:''),p7));
+
+    // 8 · Context: SOX + gold add zone
+    out.push(warRow('SOX',`the leadership complex — context row`,
+      sox&&sox.p!=null?fmtP(sox.p)+(soxDay!=null?` (${soxDay>=0?'+':''}${soxDay.toFixed(1)}%)`:''):'—',pill('p-quiet','—')));
+    let p9=pill('p-quiet','WAIT');
+    if(gold&&gold.p!=null){
+      if(gold.p<=T.goldHi)p9=pill('p-zone','FAT TRANCHE');
+      else if(gold.p<=4050)p9=pill('p-zone','ADD ⅓');
+    }
+    out.push(warRow('GOLD',`ladder: ⅓ at 4,000–4,050 · fat tranche ${T.goldLo.toLocaleString()}–${T.goldHi.toLocaleString()} (likely arrives WITH the equity flush)`,
+      gold&&gold.p!=null?fmtP(gold.p):'—',p9));
+
+    $('#warBody').innerHTML=out.join('');
+
+    // banner: the count + T1 logic (preview — closes decide)
+    const yenF=fired.includes('yen'), volF=fired.includes('vol');
+    const t1=yenF||volF||(fired.length>=2&&spxDay!=null&&spxDay<0);
+    let b;
+    if(gap)b=`<div class="banner b-bad">GAP DAY (preview) — both tranches authorized on this CLOSE<span class="sub">SPX ≤−3% with VIX &gt;${T.vixGap}. Verify the 4pm print, then act same day.</span></div>`;
+    else if(t1)b=`<div class="banner b-warn">T1 CANDIDATE (preview): ${fired.join(' + ')}<span class="sub">If these hold at the 4pm ET close → send the pre-staged $50K SQQQ for next open. Closes decide, not this preview.</span></div>`;
+    else b=`<div class="banner">${fired.length} of 5 leading axes fired — powder dry<span class="sub">Intraday preview. Orders act on official 4pm ET closes only. Trigger: yen OR vol-structure OR any 2 axes on a red day.</span></div>`;
+    $('#warBanner').innerHTML=b;
+    $('#warUpdated').textContent='Updated '+new Date().toLocaleTimeString([],{hour:'numeric',minute:'2-digit',second:'2-digit'});
+  }catch(e){
+    $('#warBody').innerHTML=`<div class="err">War board failed (${esc(e.message)}) — relays busy, try refresh.</div>`;
+  }
+  busy.war=false;
+}
+function renderWarStatic(){
+  $('#warChecklist').innerHTML=[
+    ['1','NVDA close &lt; 193.45 — leadership (needs ×2 closes)'],
+    ['2','30Y close &gt; 5.05% AND MOVE &gt; 90 — <a target="_blank" rel="noopener" href="https://finance.yahoo.com/quote/%5EMOVE/">^MOVE</a>'],
+    ['3','VIX close &gt; 20 AND VX1&gt;VX2 — <a target="_blank" rel="noopener" href="https://vixcentral.com">vixcentral</a>'],
+    ['4','SPX close &lt; 7,334 · or ≤−3% w/ VIX&gt;25 = <b>gap day, act same day</b>'],
+    ['5','<b>Count ≥2 on a red day → T1 $50K SQQQ next open</b>'],
+    ['+','Scale-out: NVDA 180P at +75–100% → sell 2 of 6 (live chain decides)']
+  ].map(([n,t])=>`<div class="ck"><b>${n}</b> · ${t}</div>`).join('');
+  const lad=[['t1','T1 — $50K SQQQ (Roth): yen OR vol OR any 2 axes, red day'],
+             ['t2','T2 — +$50K (Individual): SPX &lt;7,334 + failed retest, or gap day'],
+             ['rs','Reserve ~$157K — NEVER shorts. Deploys at VIX 55+ buying the bottom + gold 3,600–3,800']];
+  $('#warLadder').innerHTML=lad.map(([k,t])=>{
+    if(k==='rs')return `<label class="lad"><span>◆</span><span>${t}</span></label>`;
+    const on=store.get('war_'+k,false);
+    return `<label class="lad${on?' done':''}"><input type="checkbox" data-lad="${k}"${on?' checked':''}><span>${t}</span></label>`;
+  }).join('');
+  $$('#warLadder [data-lad]').forEach(c=>c.onchange=()=>{store.set('war_'+c.dataset.lad,c.checked);renderWarStatic()});
+  const CAL=[['2026-07-14','CPI — the stagflation-trap test'],
+             ['2026-07-27','Hyperscaler Q2s week — the funding tell'],
+             ['2026-07-28','FOMC (28–29)'],
+             ['2026-08-26','NVDA earnings (~date) — good-news test'],
+             ['2026-11-16','ROLL-OR-KILL: all Jan’27 legs + Dec VIX']];
+  const dd=d=>Math.ceil((new Date(d+'T16:00:00-04:00')-new Date())/864e5);
+  $('#warCal').innerHTML=CAL.map(([d,t])=>{
+    const n=dd(d), late=d==='2026-11-16';
+    return `<div class="ck"><span class="cal-d${late?' err':''}">${n>=0?n+'d':'past'}</span> · ${t} <span class="muted">(${d.slice(5)})</span></div>`;
+  }).join('');
+}
+renderWarStatic();
+
+/* ---------- tabs & refresh ---------- */
+let activeTab='war';
+const loaded={};
+function loadTab(key,force){
+  if(TABS[key])loadList(key,force);
+  else if(key==='bonds')loadBonds(force);
+  else if(key==='war')loadWar(force);
+  loaded[key]=true;
+}
+$$('nav button').forEach(b=>b.onclick=()=>{
+  activeTab=b.dataset.tab;
+  $$('nav button').forEach(x=>x.classList.toggle('on',x===b));
+  $$('main section').forEach(s=>s.classList.toggle('active',s.id==='tab-'+activeTab));
+  if(activeTab!=='more'&&!loaded[activeTab])loadTab(activeTab);
+});
+document.addEventListener('click',e=>{
+  const b=e.target.closest('[data-reload]'); if(b)loadTab(b.dataset.reload,true);
+});
+setInterval(()=>{
+  if(document.hidden)return;
+  if(TABS[activeTab])loadList(activeTab,true);
+  else if(activeTab==='war')loadWar(true);
+},60000);
+
+/* ---------- links ---------- */
+const LINKS=[
+  ['Finviz futures','Every futures market at a glance','https://finviz.com/futures.ashx'],
+  ['Finviz heatmap','Equity market map','https://finviz.com/map.ashx'],
+  ['TradingView','Full charting','https://www.tradingview.com/chart/?symbol=SP%3ASPX'],
+  ['CME FedWatch','Rate-cut odds from futures','https://www.cmegroup.com/markets/interest-rates/cme-fedwatch-tool.html'],
+  ['Fear & Greed','CNN sentiment index','https://www.cnn.com/markets/fear-and-greed'],
+  ['Treasury yields','Official daily par yield curve','https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve'],
+  ['World Government Bonds','Sovereign yields, all maturities, all countries','https://www.worldgovernmentbonds.com/'],
+  ['Econ calendar','This week’s data releases','https://tradingeconomics.com/calendar']
+];
+$('#linkList').innerHTML=LINKS.map(([n,d,u])=>
+  `<a class="link" target="_blank" rel="noopener" href="${u}"><b>${n}</b><span>${d}</span></a>`).join('');
+
+/* ---------- boot ---------- */
+loadTab('war');
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){})})}</script>
+</body>
+</html>
