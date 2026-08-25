@@ -147,6 +147,7 @@ body.sheet-open #sheet{transform:translateY(0)}
 const $=s=>document.querySelector(s), $$=s=>document.querySelectorAll(s);
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('show'),2400)}
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+function to12h(str){return String(str||'').replace(/([01]?\d|2[0-4]):([0-5]\d)/g,(m,h,mm)=>{h=+h;if(h===24)return '12:'+mm+' AM';const ap=h<12?'AM':'PM';let hh=h%12;if(hh===0)hh=12;return hh+':'+mm+' '+ap;})}
 const dark=matchMedia('(prefers-color-scheme: dark)').matches;
 
 /* ---- map (Esri gray canvas — lighter, cleaner than the near-black dark tiles) ---- */
@@ -263,7 +264,7 @@ function renderList(){
   if(userLoc)curEls.forEach(e=>e._d=hav(userLoc,[e.lat,e.lon]));
   $('#list').innerHTML=curEls.map((e,i)=>{
     const t=e.tags, d=e._d!=null?`${e._d.toFixed(1)} mi`:'';
-    const sub=[catLabel(t), t.cuisine?t.cuisine.replace(/_/g,' '):'', t.opening_hours?'· '+t.opening_hours:''].filter(Boolean).join(' ');
+    const sub=[catLabel(t), t.cuisine?t.cuisine.replace(/_/g,' '):'', t.opening_hours?'· '+to12h(t.opening_hours):''].filter(Boolean).join(' ');
     const q=encodeURIComponent(`${t.name||''} ${[t['addr:street'],t['addr:city']].filter(Boolean).join(' ')||'Evansville'}`);
     return `<div class="li${i===selIdx?' sel':''}" data-i="${i}">
       <div class="n"><span>${esc(t.name)}</span><span class="d">${d}</span></div>
@@ -290,7 +291,7 @@ function openDetail(place){
   $('#shName').textContent=t.name||'Unnamed place';
   $('#shCat').textContent=catLabel(t);
   const rows=[];
-  if(t.opening_hours)rows.push(['Hours', esc(t.opening_hours)]);
+  if(t.opening_hours)rows.push(['Hours', esc(to12h(t.opening_hours))]);
   const addr=[t['addr:housenumber'],t['addr:street']].filter(Boolean).join(' ')||t['addr:street']||'';
   const city=[t['addr:city'],t['addr:state']].filter(Boolean).join(', ');
   const full=[addr,city].filter(Boolean).join(', ');
