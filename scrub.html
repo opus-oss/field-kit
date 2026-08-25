@@ -33,7 +33,19 @@ body{
   background:var(--bg); color:var(--ink);
   font:16px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
   padding-bottom:calc(24px + env(safe-area-inset-bottom));
-  max-width:680px; margin:0 auto;
+  max-width:900px; margin:0 auto;
+}
+/* ---- suite bar (shared across the toolkit) ---- */
+.suitebar{position:sticky; top:0; z-index:60; display:flex; align-items:center; gap:10px; background:var(--card); border-bottom:1px solid var(--line); padding:7px 12px; margin:0 0 12px; overflow-x:auto; scrollbar-width:none}
+.suitebar::-webkit-scrollbar{display:none}
+.suitebar .brand{font-family:var(--mono); font-weight:700; font-size:13px; letter-spacing:.05em; color:var(--acc); text-decoration:none; white-space:nowrap; flex-shrink:0}
+.suitebar .switch{display:flex; gap:3px}
+.suitebar .switch a{font-family:var(--mono); font-size:12.5px; padding:5px 10px; border-radius:8px; color:var(--mut); text-decoration:none; white-space:nowrap}
+.suitebar .switch a:hover{color:var(--ink)}
+.suitebar .switch a.on{background:var(--acc); color:#fff}
+@media(min-width:820px){
+  main{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:14px; align-items:start}
+  main>.card{position:sticky; top:60px}
 }
 header{padding:16px 16px 4px}
 header h1{font-family:var(--mono); font-size:20px; font-weight:600; letter-spacing:.04em; text-transform:uppercase}
@@ -83,6 +95,17 @@ footer a{color:var(--acc)}
 </style>
 </head>
 <body>
+
+<div class="suitebar">
+  <a class="brand" href="./index.html">◆&nbsp;FIELD KIT</a>
+  <div class="switch">
+    <a href="./index.html">Weather</a>
+    <a href="./markets.html">Markets</a>
+    <a href="./tax.html">Tax</a>
+    <a href="./scrub.html" class="on">Scrub</a>
+    <a href="./tickers.html">Watch</a>
+  </div>
+</div>
 
 <header>
   <h1>Scrub</h1>

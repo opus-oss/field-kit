@@ -31,7 +31,15 @@
 html{-webkit-text-size-adjust:100%}
 body{background:var(--bg); color:var(--ink);
   font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
-  max-width:1140px; margin:0 auto; padding:0 12px calc(24px + env(safe-area-inset-bottom))}
+  max-width:1360px; margin:0 auto; padding:0 12px calc(24px + env(safe-area-inset-bottom))}
+/* ---- suite bar (shared across the toolkit) ---- */
+.suitebar{position:sticky; top:0; z-index:60; display:flex; align-items:center; gap:10px; background:var(--card); border-bottom:1px solid var(--line); padding:7px 12px; margin:0 0 12px; overflow-x:auto; scrollbar-width:none}
+.suitebar::-webkit-scrollbar{display:none}
+.suitebar .brand{font-family:var(--mono); font-weight:700; font-size:13px; letter-spacing:.05em; color:var(--acc); text-decoration:none; white-space:nowrap; flex-shrink:0}
+.suitebar .switch{display:flex; gap:3px}
+.suitebar .switch a{font-family:var(--mono); font-size:12.5px; padding:5px 10px; border-radius:8px; color:var(--mut); text-decoration:none; white-space:nowrap}
+.suitebar .switch a:hover{color:var(--ink)}
+.suitebar .switch a.on{background:var(--acc); color:#fff}
 header{padding:14px 4px 8px; display:flex; align-items:baseline; gap:10px; flex-wrap:wrap}
 header h1{font-family:var(--mono); font-size:19px; font-weight:600; letter-spacing:.04em; text-transform:uppercase}
 #sess{font-size:13px; color:var(--mut)}
@@ -121,6 +129,17 @@ footer{padding:14px 6px 0; font-size:11px; color:var(--faint)}
 </head>
 <body>
 
+<div class="suitebar">
+  <a class="brand" href="./index.html">◆&nbsp;FIELD KIT</a>
+  <div class="switch">
+    <a href="./index.html">Weather</a>
+    <a href="./markets.html" class="on">Markets</a>
+    <a href="./tax.html">Tax</a>
+    <a href="./scrub.html">Scrub</a>
+    <a href="./tickers.html">Watch</a>
+  </div>
+</div>
+
 <header>
   <h1>Market Board</h1>
   <div id="sess">…</div>
@@ -200,11 +219,6 @@ footer{padding:14px 6px 0; font-size:11px; color:var(--faint)}
   <div class="dstats" id="dStats"></div>
 </aside>
 
-<nav>
-  <a href="./index.html">☂ Field Kit</a>
-  <a href="./tickers.html">▲ Watch Deck</a>
-  <a href="./scrub.html">✦ Scrub</a>
-</nav>
 <footer>Quotes are delayed, via public relays to Yahoo Finance — for a glance, not execution. Congressional filings from the public House disclosure mirror; filings lag the actual trades by weeks (that's the law, not the app).</footer>
 
 <script>

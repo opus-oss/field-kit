@@ -31,7 +31,19 @@
 html{-webkit-text-size-adjust:100%}
 body{background:var(--bg); color:var(--ink);
   font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
-  max-width:560px; margin:0 auto; padding:0 14px calc(28px + env(safe-area-inset-bottom))}
+  max-width:940px; margin:0 auto; padding:0 14px calc(28px + env(safe-area-inset-bottom))}
+/* ---- suite bar (shared across the toolkit) ---- */
+.suitebar{position:sticky; top:0; z-index:60; display:flex; align-items:center; gap:10px; background:var(--card); border-bottom:1px solid var(--line); padding:7px 12px; margin:0 -14px 12px; overflow-x:auto; scrollbar-width:none}
+.suitebar::-webkit-scrollbar{display:none}
+.suitebar .brand{font-family:var(--mono); font-weight:700; font-size:13px; letter-spacing:.05em; color:var(--acc); text-decoration:none; white-space:nowrap; flex-shrink:0}
+.suitebar .switch{display:flex; gap:3px}
+.suitebar .switch a{font-family:var(--mono); font-size:12.5px; padding:5px 10px; border-radius:8px; color:var(--mut); text-decoration:none; white-space:nowrap}
+.suitebar .switch a:hover{color:var(--ink)}
+.suitebar .switch a.on{background:var(--acc); color:#fff}
+@media(min-width:820px){
+  .taxwrap{display:grid; grid-template-columns:minmax(0,440px) minmax(0,1fr); gap:14px; align-items:start}
+  .taxwrap #result{position:sticky; top:62px}
+}
 header{padding:16px 2px 6px}
 header h1{font-family:var(--mono); font-size:19px; font-weight:600; letter-spacing:.05em; text-transform:uppercase}
 header p{font-size:12px; color:var(--mut); margin-top:3px}
@@ -80,11 +92,23 @@ footer{text-align:center; font-size:12px; color:var(--faint); padding-top:4px}
 </head>
 <body>
 
+<div class="suitebar">
+  <a class="brand" href="./index.html">◆&nbsp;FIELD KIT</a>
+  <div class="switch">
+    <a href="./index.html">Weather</a>
+    <a href="./markets.html">Markets</a>
+    <a href="./tax.html" class="on">Tax</a>
+    <a href="./scrub.html">Scrub</a>
+    <a href="./tickers.html">Watch</a>
+  </div>
+</div>
+
 <header>
   <h1>Tax Estimator</h1>
   <p>2025 federal + state income tax. Runs entirely on your device — no tracking, no accounts, nothing sent anywhere.</p>
 </header>
 
+<div class="taxwrap">
 <div class="card">
   <div class="field">
     <label>Filing status</label>
@@ -139,6 +163,7 @@ footer{text-align:center; font-size:12px; color:var(--faint); padding-top:4px}
   <div class="bar" id="bar"></div>
   <div class="legend" id="legend"></div>
   <div class="rows" id="rows"></div>
+</div>
 </div>
 
 <div class="card">
