@@ -1,0 +1,354 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#eef1ef">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0c1113">
+<title>Tax Estimator</title>
+<link rel="manifest" href="manifest-tax.webmanifest">
+<link rel="icon" href="tax-192.png">
+<link rel="apple-touch-icon" href="tax-180.png">
+<meta name="apple-mobile-web-app-title" content="Tax Estimator">
+<style>
+/* Opus — Prima Materia */
+:root{
+  --bg:#eef1ef; --card:#f7f9f7; --chip:#e6ebe8; --raised:#ffffff;
+  --ink:#1a2320; --mut:#465350; --faint:#6c7975; --line:#d2d9d5; --line2:#b7c1bc;
+  --acc:#b0631f; --good:#14776a; --bad:#b23e37; --state:#7c5bd6; --contrib:#2f6fb0;
+  --mono:"SF Mono","JetBrains Mono","Menlo",ui-monospace,"Consolas",monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#0c1113; --card:#12181a; --chip:#171f21; --raised:#1b2426;
+    --ink:#dbe4e0; --mut:#a3b0ab; --faint:#74827d; --line:#212b2c; --line2:#2c3839;
+    --acc:#d98a3d; --good:#4bbfa6; --bad:#d0655c; --state:#a98cff; --contrib:#5b9cff;
+  }
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{background:var(--bg); color:var(--ink);
+  font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  max-width:560px; margin:0 auto; padding:0 14px calc(28px + env(safe-area-inset-bottom))}
+header{padding:16px 2px 6px}
+header h1{font-family:var(--mono); font-size:19px; font-weight:600; letter-spacing:.05em; text-transform:uppercase}
+header p{font-size:12px; color:var(--mut); margin-top:3px}
+.card{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; margin-bottom:14px}
+label{display:block; font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--mut); font-weight:600; margin-bottom:7px; font-family:var(--mono)}
+.field{margin-bottom:16px}
+.field:last-child{margin-bottom:0}
+.seg{display:flex; border:1px solid var(--line); border-radius:10px; overflow:hidden}
+.seg button{flex:1; border:none; background:var(--chip); color:var(--mut); padding:9px 4px; font-size:13px; font-weight:600; cursor:pointer; border-right:1px solid var(--line)}
+.seg button:last-child{border-right:none}
+.seg button.on{background:var(--acc); color:#fff}
+select,input[type=text]{width:100%; padding:11px 12px; border:1px solid var(--line); border-radius:10px; background:var(--bg); color:var(--ink); font-size:16px; font-family:inherit; -webkit-appearance:none}
+select:focus,input:focus{outline:none; border-color:var(--acc)}
+.money{position:relative}
+.money span{position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--mut); font-size:16px}
+.money input{padding-left:26px; font-variant-numeric:tabular-nums; font-family:var(--mono)}
+.maxbtn{position:absolute; right:8px; top:50%; transform:translateY(-50%); border:1px solid var(--line); background:var(--chip); color:var(--mut); border-radius:7px; padding:5px 11px; font-size:12px; font-weight:600; font-family:var(--mono); cursor:pointer}
+.maxbtn.on{background:var(--acc); color:#fff; border-color:var(--acc)}
+.seg.small button{padding:7px 4px; font-size:12px}
+.dedrow{display:flex; gap:8px; align-items:center; margin-top:8px}
+.hint{font-size:12px; color:var(--faint); margin-top:6px}
+#itemWrap{display:none} #itemWrap.show{display:block}
+
+/* result */
+.big{text-align:center; padding:4px 0 2px}
+.big .lbl{font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--mut); font-family:var(--mono)}
+.big .val{font-family:var(--mono); font-size:38px; font-weight:700; letter-spacing:-.02em; margin:2px 0}
+.big .sub{font-size:13px; color:var(--mut)}
+.bar{display:flex; height:14px; border-radius:7px; overflow:hidden; margin:16px 0 10px; background:var(--chip)}
+.bar i{display:block; height:100%}
+.legend{display:flex; flex-wrap:wrap; gap:12px; font-size:12px; color:var(--mut); margin-bottom:4px}
+.legend b{display:inline-block; width:10px; height:10px; border-radius:3px; vertical-align:-1px; margin-right:5px}
+.rows{margin-top:6px}
+.r{display:flex; justify-content:space-between; padding:9px 0; border-top:1px solid var(--line); font-size:14px}
+.r:first-child{border-top:none}
+.r span{color:var(--mut)}
+.r b{font-family:var(--mono); font-variant-numeric:tabular-nums; font-weight:600}
+.r.tot b{font-size:16px}
+.r.tot span{color:var(--ink); font-weight:600}
+.pill{font-family:var(--mono); font-size:12px; background:var(--chip); border:1px solid var(--line); border-radius:8px; padding:2px 8px; margin-left:6px}
+.disc{font-size:11.5px; color:var(--faint); line-height:1.5; margin-top:2px}
+.disc b{color:var(--mut)}
+a{color:var(--acc)}
+footer{text-align:center; font-size:12px; color:var(--faint); padding-top:4px}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Tax Estimator</h1>
+  <p>2025 federal + state income tax. Runs entirely on your device — no tracking, no accounts, nothing sent anywhere.</p>
+</header>
+
+<div class="card">
+  <div class="field">
+    <label>Filing status</label>
+    <div class="seg" id="status">
+      <button data-v="single" class="on">Single</button>
+      <button data-v="mfj">Married joint</button>
+      <button data-v="hoh">Head of house</button>
+      <button data-v="mfs">Married sep.</button>
+    </div>
+  </div>
+  <div class="field">
+    <label>State</label>
+    <select id="state"></select>
+  </div>
+  <div class="field">
+    <label>Total income (gross)</label>
+    <div class="money"><span>$</span><input id="income" type="text" inputmode="numeric" placeholder="85,000" autocomplete="off"></div>
+    <div class="hint">Wages, salary, and other taxable income before deductions.</div>
+  </div>
+  <div class="field">
+    <label>Deduction</label>
+    <div class="seg" id="ded">
+      <button data-v="std" class="on">Standard</button>
+      <button data-v="item">Itemized</button>
+    </div>
+    <div id="stdWrap" class="hint">Standard deduction for your status: <b id="stdAmt"></b></div>
+    <div id="itemWrap" class="money" style="margin-top:8px"><span>$</span><input id="item" type="text" inputmode="numeric" placeholder="Expected itemized total" autocomplete="off"></div>
+  </div>
+  <div class="field">
+    <label>Pre-tax retirement (401k / 403b / TSP)</label>
+    <div class="money"><span>$</span><input id="retire" type="text" inputmode="numeric" placeholder="0" autocomplete="off"><button class="maxbtn" data-t="retire">Max</button></div>
+    <div class="hint">2025 limit $23,500 ($31,000 if 50+, enter manually). Lowers income tax, not FICA.</div>
+  </div>
+  <div class="field">
+    <label>HSA contribution</label>
+    <div class="seg small" id="hsaCov"><button data-v="self" class="on">Self-only</button><button data-v="family">Family</button></div>
+    <div class="money" style="margin-top:8px"><span>$</span><input id="hsa" type="text" inputmode="numeric" placeholder="0" autocomplete="off"><button class="maxbtn" data-t="hsa">Max</button></div>
+    <div class="hint">2025 limit $4,300 self / $8,550 family. Lowers income tax and FICA (payroll HSA).</div>
+  </div>
+  <div class="field">
+    <label>Options</label>
+    <div class="dedrow"><input type="checkbox" id="fica" checked style="width:auto"> <label for="fica" style="margin:0;text-transform:none;letter-spacing:0;font-family:inherit;font-size:14px;color:var(--ink);font-weight:400">Include payroll tax (FICA) — for W-2 wages</label></div>
+  </div>
+</div>
+
+<div class="card" id="result">
+  <div class="big">
+    <div class="lbl">Estimated take-home</div>
+    <div class="val" id="takeHome">$0</div>
+    <div class="sub" id="effLine">enter an income to start</div>
+  </div>
+  <div class="bar" id="bar"></div>
+  <div class="legend" id="legend"></div>
+  <div class="rows" id="rows"></div>
+</div>
+
+<div class="card">
+  <div class="disc">
+    <b>This is an estimate, not tax advice.</b> It uses 2025 federal brackets and standard deductions and each state's 2025 income-tax schedule. It does <b>not</b> include tax credits (child, EITC, education), state-specific deductions or exemptions, local/city income taxes, the QBI deduction, capital-gains rates, AMT, or above-the-line adjustments. State figures for married-joint and head-of-household are approximated from single-filer schedules. Pre-tax retirement is treated as traditional (pre-tax) and HSA as a payroll contribution; a few states differ (PA taxes 401(k) contributions; CA and NJ tax HSA contributions) and that isn't modeled. Verify with a professional or the IRS/state site before filing.
+  </div>
+</div>
+
+<footer>Part of the <a href="./index.html">Field Kit</a> suite.</footer>
+
+<script>
+'use strict';
+const $=s=>document.querySelector(s), $$=s=>document.querySelectorAll(s);
+const fmt=n=>'$'+Math.round(n).toLocaleString();
+const pct=n=>(n*100).toFixed(1)+'%';
+
+/* ---- 2025 federal ---- */
+const FED={
+  single:[[11925,.10],[48475,.12],[103350,.22],[197300,.24],[250525,.32],[626350,.35],[Infinity,.37]],
+  mfj:[[23850,.10],[96950,.12],[206700,.22],[394600,.24],[501050,.32],[751600,.35],[Infinity,.37]],
+  mfs:[[11925,.10],[48475,.12],[103350,.22],[197300,.24],[250525,.32],[375800,.35],[Infinity,.37]],
+  hoh:[[17000,.10],[64850,.12],[103350,.22],[197300,.24],[250500,.32],[626350,.35],[Infinity,.37]]
+};
+const STD={single:15000,mfj:30000,mfs:15000,hoh:22500};
+const ADDMED={single:200000,mfj:250000,mfs:125000,hoh:200000};
+const SS_BASE=176100;
+
+/* ---- 2025 state income tax (estimate) ----
+   type: 'none' | flat rate number | array of [upperBound, rate] single-filer brackets.
+   m = multiplier applied to bracket thresholds for married-joint (2 = brackets double). */
+const S={
+ AL:{n:'Alabama',b:[[500,.02],[3000,.04],[Infinity,.05]],m:2},
+ AK:{n:'Alaska',t:'none'},
+ AZ:{n:'Arizona',f:.025},
+ AR:{n:'Arkansas',b:[[4400,.02],[8800,.03],[Infinity,.039]],m:1},
+ CA:{n:'California',b:[[10412,.01],[24684,.02],[38959,.04],[54081,.06],[68350,.08],[349137,.093],[418961,.103],[698271,.113],[1000000,.123],[Infinity,.133]],m:2},
+ CO:{n:'Colorado',f:.044},
+ CT:{n:'Connecticut',b:[[10000,.03],[50000,.05],[100000,.055],[200000,.06],[250000,.065],[500000,.069],[Infinity,.0699]],m:2},
+ DE:{n:'Delaware',b:[[2000,0],[5000,.022],[10000,.039],[20000,.048],[25000,.052],[60000,.0555],[Infinity,.066]],m:1},
+ DC:{n:'D.C.',b:[[10000,.04],[40000,.06],[60000,.065],[250000,.085],[500000,.0925],[1000000,.0975],[Infinity,.1075]],m:1},
+ FL:{n:'Florida',t:'none'},
+ GA:{n:'Georgia',f:.0539},
+ HI:{n:'Hawaii',b:[[2400,.014],[4800,.032],[9600,.055],[14400,.064],[19200,.068],[24000,.072],[36000,.076],[48000,.079],[150000,.0825],[175000,.09],[200000,.10],[Infinity,.11]],m:2},
+ ID:{n:'Idaho',f:.05695},
+ IL:{n:'Illinois',f:.0495},
+ IN:{n:'Indiana',f:.03},
+ IA:{n:'Iowa',f:.038},
+ KS:{n:'Kansas',b:[[23000,.052],[Infinity,.0558]],m:2},
+ KY:{n:'Kentucky',f:.04},
+ LA:{n:'Louisiana',f:.03},
+ ME:{n:'Maine',b:[[26050,.058],[61600,.0675],[Infinity,.0715]],m:2},
+ MD:{n:'Maryland',b:[[1000,.02],[2000,.03],[3000,.04],[100000,.0475],[125000,.05],[150000,.0525],[250000,.055],[Infinity,.0575]],m:1},
+ MA:{n:'Massachusetts',b:[[1000000,.05],[Infinity,.09]],m:1},
+ MI:{n:'Michigan',f:.0425},
+ MN:{n:'Minnesota',b:[[31690,.0535],[104090,.068],[193240,.0785],[Infinity,.0985]],m:2},
+ MS:{n:'Mississippi',f:.044},
+ MO:{n:'Missouri',b:[[1273,0],[2546,.02],[3819,.025],[5092,.03],[6365,.035],[7638,.04],[8911,.045],[Infinity,.048]],m:1},
+ MT:{n:'Montana',b:[[20500,.047],[Infinity,.059]],m:2},
+ NE:{n:'Nebraska',b:[[3700,.0246],[22170,.0351],[35730,.0501],[Infinity,.0584]],m:2},
+ NV:{n:'Nevada',t:'none'},
+ NH:{n:'New Hampshire',t:'none'},
+ NJ:{n:'New Jersey',b:[[20000,.014],[35000,.0175],[40000,.035],[75000,.05525],[500000,.0637],[1000000,.0897],[Infinity,.1075]],m:1},
+ NM:{n:'New Mexico',b:[[5500,.017],[11000,.032],[16000,.047],[210000,.049],[Infinity,.059]],m:2},
+ NY:{n:'New York',b:[[8500,.04],[11700,.045],[13900,.0525],[80650,.055],[215400,.06],[1077550,.0685],[5000000,.0965],[25000000,.103],[Infinity,.109]],m:2},
+ NC:{n:'North Carolina',f:.0425},
+ ND:{n:'North Dakota',b:[[44725,0],[225975,.0195],[Infinity,.025]],m:2},
+ OH:{n:'Ohio',b:[[26050,0],[100000,.0275],[Infinity,.035]],m:1},
+ OK:{n:'Oklahoma',b:[[1000,.0025],[2500,.0075],[3750,.0175],[4900,.0275],[7200,.0375],[Infinity,.0475]],m:2},
+ OR:{n:'Oregon',b:[[4300,.0475],[10750,.0675],[125000,.0875],[Infinity,.099]],m:2},
+ PA:{n:'Pennsylvania',f:.0307},
+ RI:{n:'Rhode Island',b:[[77450,.0375],[176050,.0475],[Infinity,.0599]],m:1},
+ SC:{n:'South Carolina',b:[[3460,0],[17330,.03],[Infinity,.062]],m:1},
+ SD:{n:'South Dakota',t:'none'},
+ TN:{n:'Tennessee',t:'none'},
+ TX:{n:'Texas',t:'none'},
+ UT:{n:'Utah',f:.0455},
+ VT:{n:'Vermont',b:[[45400,.0335],[110050,.066],[229550,.076],[Infinity,.0875]],m:2},
+ VA:{n:'Virginia',b:[[3000,.02],[5000,.03],[17000,.05],[Infinity,.0575]],m:1},
+ WA:{n:'Washington',t:'none'},
+ WV:{n:'West Virginia',b:[[10000,.0236],[25000,.0315],[40000,.0354],[60000,.0472],[Infinity,.0512]],m:1},
+ WI:{n:'Wisconsin',b:[[14320,.035],[28640,.044],[315310,.053],[Infinity,.0765]],m:2},
+ WY:{n:'Wyoming',t:'none'}
+};
+
+/* ---- helpers ---- */
+function bracketTax(base, br){
+  let t=0, prev=0;
+  for(const [upTo,rate] of br){
+    if(base<=prev)break;
+    t += (Math.min(base,upTo)-prev)*rate; prev=upTo;
+  }
+  return t;
+}
+function marginal(base, br){let r=0,prev=0;for(const[u,rate]of br){if(base>prev)r=rate;prev=u;}return r;}
+function scale(br,m){return m===1?br:br.map(([u,r])=>[u===Infinity?Infinity:u*m,r]);}
+function stateCalc(taxable, code, status){
+  const st=S[code]; if(!st||st.t==='none')return {tax:0,marg:0};
+  if(st.f!=null)return {tax:taxable*st.f, marg:st.f};
+  const br=scale(st.b, status==='mfj'?st.m:1);
+  return {tax:bracketTax(taxable,br), marg:marginal(taxable,br)};
+}
+function fica(income, status){
+  const ss=Math.min(income,SS_BASE)*.062;
+  let med=income*.0145;
+  if(income>ADDMED[status])med+=(income-ADDMED[status])*.009;
+  return ss+med;
+}
+const num=s=>{const n=parseFloat(String(s).replace(/[^0-9.]/g,''));return isNaN(n)?0:n;};
+
+/* ---- state ---- */
+let status='single', dedMode='std', hsaCov='self';
+const LIMITS={retire:23500, hsaSelf:4300, hsaFamily:8550};
+const hsaMax=()=>hsaCov==='family'?LIMITS.hsaFamily:LIMITS.hsaSelf;
+const stateSel=$('#state');
+Object.keys(S).sort((a,b)=>S[a].n.localeCompare(S[b].n)).forEach(k=>{
+  const o=document.createElement('option'); o.value=k; o.textContent=S[k].n; stateSel.appendChild(o);
+});
+stateSel.value='IN';
+
+$$('#status button').forEach(b=>b.onclick=()=>{status=b.dataset.v;$$('#status button').forEach(x=>x.classList.toggle('on',x===b));compute();});
+$$('#ded button').forEach(b=>b.onclick=()=>{dedMode=b.dataset.v;$$('#ded button').forEach(x=>x.classList.toggle('on',x===b));
+  $('#itemWrap').classList.toggle('show',dedMode==='item'); $('#stdWrap').style.display=dedMode==='item'?'none':'block'; compute();});
+['#income','#item'].forEach(id=>$(id).addEventListener('input',compute));
+$('#state').addEventListener('change',compute);
+$('#fica').addEventListener('change',compute);
+
+/* Max toggles + HSA coverage */
+$$('.maxbtn').forEach(b=>b.onclick=()=>{
+  const t=b.dataset.t, field=$('#'+t), on=!b.classList.contains('on');
+  b.classList.toggle('on',on);
+  field.value= on ? (t==='hsa'?hsaMax():LIMITS.retire).toLocaleString() : '';
+  compute();
+});
+$$('#hsaCov button').forEach(b=>b.onclick=()=>{
+  hsaCov=b.dataset.v; $$('#hsaCov button').forEach(x=>x.classList.toggle('on',x===b));
+  const mb=document.querySelector('.maxbtn[data-t="hsa"]');
+  if(mb.classList.contains('on'))$('#hsa').value=hsaMax().toLocaleString();
+  compute();
+});
+
+/* thousands formatting */
+function groom(el){const raw=el.value.replace(/[^0-9]/g,''); el.value=raw?(+raw).toLocaleString():'';}
+$('#income').addEventListener('input',e=>groom(e.target));
+$('#item').addEventListener('input',e=>groom(e.target));
+['retire','hsa'].forEach(t=>{
+  const el=$('#'+t);
+  el.addEventListener('input',()=>{
+    groom(el);
+    const mb=document.querySelector(`.maxbtn[data-t="${t}"]`);
+    mb.classList.toggle('on', num(el.value)===(t==='hsa'?hsaMax():LIMITS.retire));
+    compute();
+  });
+});
+
+function compute(){
+  const gross=num($('#income').value);
+  $('#stdAmt').textContent=fmt(STD[status]);
+  const retire=Math.min(num($('#retire').value), gross);
+  const hsa=Math.min(num($('#hsa').value), Math.max(0, gross-retire));
+  const preTax=retire+hsa;
+  const ded=dedMode==='item'?num($('#item').value):STD[status];
+  const taxable=Math.max(0, gross-preTax-ded);
+  const fed=bracketTax(taxable, FED[status]);
+  const st=stateCalc(taxable, stateSel.value, status);
+  const ficaWages=Math.max(0, gross-hsa);            // HSA is FICA-exempt, 401k is not
+  const fic=$('#fica').checked?fica(ficaWages,status):0;
+  const total=fed+st.tax+fic;
+  const takeCash=Math.max(0, gross-total-preTax);
+
+  if(gross<=0){
+    $('#takeHome').textContent='$0';
+    $('#effLine').textContent='enter an income to start';
+    $('#bar').innerHTML=''; $('#legend').innerHTML=''; $('#rows').innerHTML='';
+    return;
+  }
+  $('#takeHome').textContent=fmt(takeCash);
+  $('#effLine').textContent = preTax>0
+    ? `${pct(total/gross)} to tax · ${fmt(preTax)} to your 401k/HSA · ${pct(takeCash/gross)} take-home cash`
+    : `${pct(total/gross)} of gross to tax · ${pct(takeCash/gross)} kept`;
+
+  const segs=[['Take-home',takeCash,'var(--good)'],['401k/HSA',preTax,'var(--contrib)'],['Federal',fed,'var(--acc)'],['State',st.tax,'var(--state)'],['FICA',fic,'var(--faint)']].filter(x=>x[1]>0);
+  $('#bar').innerHTML=segs.map(([_,v,c])=>`<i style="width:${(v/gross*100).toFixed(2)}%;background:${c}"></i>`).join('');
+  $('#legend').innerHTML=segs.map(([l,v,c])=>`<span><b style="background:${c}"></b>${l} ${pct(v/gross)}</span>`).join('');
+
+  // tax saved vs contributing nothing
+  let saved=0;
+  if(preTax>0){
+    const t0=Math.max(0, gross-ded);
+    const s0=bracketTax(t0,FED[status])+stateCalc(t0,stateSel.value,status).tax+($('#fica').checked?fica(gross,status):0);
+    saved=Math.max(0, s0-total);
+  }
+
+  const fedMarg=marginal(taxable,FED[status]);
+  const stName=S[stateSel.value].n;
+  const rows=[];
+  if(retire>0)rows.push(['Pre-tax retirement', '−'+fmt(retire), '']);
+  if(hsa>0)rows.push(['HSA contribution', '−'+fmt(hsa), '']);
+  rows.push(['Taxable income', fmt(taxable), '']);
+  rows.push(['Federal income tax', fmt(fed), pct(fed/gross)]);
+  rows.push([`${stName} income tax`, fmt(st.tax), pct(st.tax/gross)]);
+  if(fic>0)rows.push(['FICA (payroll)', fmt(fic), pct(fic/gross)]);
+  let html=rows.map(([l,v,p])=>`<div class="r"><span>${l}${p?` <span class="pill">${p}</span>`:''}</span><b>${v}</b></div>`).join('');
+  html+=`<div class="r tot"><span>Total tax</span><b>${fmt(total)}</b></div>`;
+  if(saved>0)html+=`<div class="r"><span>Tax saved by contributing</span><b style="color:var(--good)">${fmt(saved)}</b></div>`;
+  html+=`<div class="r"><span>Effective rate <span class="pill">income tax only</span></span><b>${pct((fed+st.tax)/gross)}</b></div>`;
+  html+=`<div class="r"><span>Marginal rate</span><b>${pct(fedMarg)} fed + ${pct(st.marg)} state</b></div>`;
+  $('#rows').innerHTML=html;
+}
+compute();
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){})})}</script>
+</body>
+</html>

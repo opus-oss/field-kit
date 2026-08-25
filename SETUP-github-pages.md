@@ -38,6 +38,8 @@ Change a file → in the repo, open that file → pencil (Edit) or re-upload →
 | `index.html` | Field Kit (weather) — this is the landing page |
 | `tickers.html` | Watch Deck (markets) |
 | `scrub.html` | Scrub (link cleaner) |
+| `markets.html` | Market Board (heatmap, vol tape, bonds, metals, congress flow) |
+| `tax.html` | Tax Estimator (2025 federal + state, pre-tax contributions) |
 | `sw.js` | Service worker — the offline caching |
 | `manifest-*.webmanifest` | Install metadata for each app |
 | `*-192/512/180.png` | App icons |

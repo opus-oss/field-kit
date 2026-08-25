@@ -1,14 +1,15 @@
 /* Field Kit suite — offline service worker.
    HTML is network-first (always loads the latest when online, falls back to cache offline),
    static assets are cache-first. Bump CACHE on any change so clients refresh. */
-const CACHE = 'fieldkit-v3';
+const CACHE = 'fieldkit-v4';
 const ASSETS = [
   './',
-  './index.html', './tickers.html', './scrub.html', './markets.html',
-  './manifest-field.webmanifest', './manifest-watch.webmanifest', './manifest-scrub.webmanifest', './manifest-markets.webmanifest',
+  './index.html', './tickers.html', './scrub.html', './markets.html', './tax.html',
+  './manifest-field.webmanifest', './manifest-watch.webmanifest', './manifest-scrub.webmanifest', './manifest-markets.webmanifest', './manifest-tax.webmanifest',
   './field-192.png', './field-512.png', './field-180.png',
   './watch-192.png', './watch-512.png', './watch-180.png',
-  './scrub-192.png', './scrub-512.png', './scrub-180.png'
+  './scrub-192.png', './scrub-512.png', './scrub-180.png',
+  './tax-192.png', './tax-512.png', './tax-180.png'
 ];
 
 self.addEventListener('install', e => {
