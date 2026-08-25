@@ -245,7 +245,7 @@ async function loadCat(i){
 }
 
 /* ---- draw pins + list, keep them in sync ---- */
-const R=6371,hav=(a,b)=>{const dl=(b[0]-a[0])*Math.PI/180,dn=(b[1]-a[1])*Math.PI/180,la1=a[0]*Math.PI/180,la2=b[0]*Math.PI/180;const x=Math.sin(dl/2)**2+Math.cos(la1)*Math.cos(la2)*Math.sin(dn/2)**2;return R*2*Math.asin(Math.sqrt(x))};
+const R=3958.8,hav=(a,b)=>{const dl=(b[0]-a[0])*Math.PI/180,dn=(b[1]-a[1])*Math.PI/180,la1=a[0]*Math.PI/180,la2=b[0]*Math.PI/180;const x=Math.sin(dl/2)**2+Math.cos(la1)*Math.cos(la2)*Math.sin(dn/2)**2;return R*2*Math.asin(Math.sqrt(x))};
 function catLabel(t){return (t.amenity||t.shop||t.tourism||t.leisure||'place').replace(/_/g,' ')}
 function drawResults(){
   poi.clearLayers(); clearRoute(); curMarkers=[]; selIdx=-1;
@@ -262,7 +262,7 @@ function renderList(){
   if(!curEls.length){$('#list').innerHTML='<div class="listempty">Pick a category or search a place.</div>';return}
   if(userLoc)curEls.forEach(e=>e._d=hav(userLoc,[e.lat,e.lon]));
   $('#list').innerHTML=curEls.map((e,i)=>{
-    const t=e.tags, d=e._d!=null?`${e._d.toFixed(1)} km`:'';
+    const t=e.tags, d=e._d!=null?`${e._d.toFixed(1)} mi`:'';
     const sub=[catLabel(t), t.cuisine?t.cuisine.replace(/_/g,' '):'', t.opening_hours?'· '+t.opening_hours:''].filter(Boolean).join(' ');
     const q=encodeURIComponent(`${t.name||''} ${[t['addr:street'],t['addr:city']].filter(Boolean).join(' ')||'Evansville'}`);
     return `<div class="li${i===selIdx?' sel':''}" data-i="${i}">
@@ -297,7 +297,7 @@ function openDetail(place){
   if(full)rows.push(['Address', esc(full)]);
   if(t.cuisine)rows.push(['Cuisine', esc(t.cuisine.replace(/_/g,' '))]);
   const ph=t.phone||t['contact:phone']; if(ph)rows.push(['Phone', `<a href="tel:${esc(ph)}">${esc(ph)}</a>`]);
-  if(userLoc)rows.push(['Distance', hav(userLoc,[place.lat,place.lon]).toFixed(1)+' km away']);
+  if(userLoc)rows.push(['Distance', hav(userLoc,[place.lat,place.lon]).toFixed(1)+' mi away']);
   $('#shRows').innerHTML=rows.map(([k,v])=>`<div class="sh-row"><span class="k">${k}</span><span>${v}</span></div>`).join('')||'<div class="sh-row"><span>No extra details in OpenStreetMap for this one.</span></div>';
   const web=t.website||t['contact:website'];
   const q=encodeURIComponent(`${t.name||''} ${full||'Evansville'}`);
@@ -327,8 +327,8 @@ async function route(place){
     const col=getComputedStyle(document.documentElement).getPropertyValue('--acc').trim()||'#d98a3d';
     routeLine=L.polyline(coords,{color:col,weight:5,opacity:.85}).addTo(map);
     map.fitBounds(routeLine.getBounds(),{padding:[50,50]});
-    const km=(rt.distance/1000).toFixed(1), min=Math.round(rt.duration/60);
-    $('#shBtns').innerHTML=`<div class="routebar"><b>${km} km · ${min} min</b> driving<button id="shClear">Clear</button></div>`;
+    const mi=(rt.distance/1609.34).toFixed(1), min=Math.round(rt.duration/60);
+    $('#shBtns').innerHTML=`<div class="routebar"><b>${mi} mi · ${min} min</b> driving<button id="shClear">Clear</button></div>`;
     $('#shClear').onclick=()=>{clearRoute();openDetail(curPlace)};
   }catch(e){toast('Routing failed (OSRM busy)')}
 }
