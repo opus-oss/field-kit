@@ -150,7 +150,7 @@ footer{text-align:center; font-size:12px; color:var(--faint); padding-top:4px}
   </div>
   <div class="field">
     <label>Options</label>
-    <div class="dedrow"><input type="checkbox" id="fica" checked style="width:auto"> <label for="fica" style="margin:0;text-transform:none;letter-spacing:0;font-family:inherit;font-size:14px;color:var(--ink);font-weight:400">Include payroll tax (FICA) — for W-2 wages</label></div>
+    <div class="dedrow"><input type="checkbox" id="fica" checked style="width:auto"> <label for="fica" style="margin:0;text-transform:none;letter-spacing:0;font-family:inherit;font-size:14px;color:var(--ink);font-weight:400">Include Boomer Daycare (SS + Medicare payroll tax) — for W-2 wages</label></div>
   </div>
 </div>
 
@@ -344,7 +344,7 @@ function compute(){
     ? `${pct(total/gross)} to tax · ${fmt(preTax)} to your 401k/HSA · ${pct(takeCash/gross)} take-home cash`
     : `${pct(total/gross)} of gross to tax · ${pct(takeCash/gross)} kept`;
 
-  const segs=[['Take-home',takeCash,'var(--good)'],['401k/HSA',preTax,'var(--contrib)'],['Federal',fed,'var(--acc)'],['State',st.tax,'var(--state)'],['FICA',fic,'var(--faint)']].filter(x=>x[1]>0);
+  const segs=[['Take-home',takeCash,'var(--good)'],['401k/HSA',preTax,'var(--contrib)'],['Federal',fed,'var(--acc)'],['State',st.tax,'var(--state)'],['Boomer Daycare',fic,'var(--faint)']].filter(x=>x[1]>0);
   $('#bar').innerHTML=segs.map(([_,v,c])=>`<i style="width:${(v/gross*100).toFixed(2)}%;background:${c}"></i>`).join('');
   $('#legend').innerHTML=segs.map(([l,v,c])=>`<span><b style="background:${c}"></b>${l} ${pct(v/gross)}</span>`).join('');
 
@@ -364,7 +364,7 @@ function compute(){
   rows.push(['Taxable income', fmt(taxable), '']);
   rows.push(['Federal income tax', fmt(fed), pct(fed/gross)]);
   rows.push([`${stName} income tax`, fmt(st.tax), pct(st.tax/gross)]);
-  if(fic>0)rows.push(['FICA (payroll)', fmt(fic), pct(fic/gross)]);
+  if(fic>0)rows.push(['Boomer Daycare (SS)', fmt(fic), pct(fic/gross)]);
   let html=rows.map(([l,v,p])=>`<div class="r"><span>${l}${p?` <span class="pill">${p}</span>`:''}</span><b>${v}</b></div>`).join('');
   html+=`<div class="r tot"><span>Total tax</span><b>${fmt(total)}</b></div>`;
   if(saved>0)html+=`<div class="r"><span>Tax saved by contributing</span><b style="color:var(--good)">${fmt(saved)}</b></div>`;
