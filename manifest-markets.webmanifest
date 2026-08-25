@@ -1,0 +1,15 @@
+{
+  "name": "Market Board",
+  "short_name": "Markets",
+  "description": "Heat map, indices, bonds, metals, rare earths, semis, banks + congressional flow.",
+  "start_url": "./markets.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0c1113",
+  "theme_color": "#0c1113",
+  "icons": [
+    { "src": "watch-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "watch-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

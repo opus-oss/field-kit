@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#eef1ef">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0c1113">
+<title>Market Board</title>
+<link rel="manifest" href="manifest-markets.webmanifest">
+<link rel="icon" href="watch-192.png">
+<link rel="apple-touch-icon" href="watch-180.png">
+<meta name="apple-mobile-web-app-title" content="Market Board">
+<style>
+/* Opus — Prima Materia */
+:root{
+  --bg:#eef1ef; --card:#f7f9f7; --chip:#e6ebe8; --raised:#ffffff;
+  --ink:#1a2320; --mut:#465350; --faint:#6c7975; --line:#d2d9d5; --line2:#b7c1bc;
+  --acc:#b0631f; --good:#14776a; --bad:#b23e37;
+  --mono:"SF Mono","JetBrains Mono","Menlo",ui-monospace,"Consolas",monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#0c1113; --card:#12181a; --chip:#171f21; --raised:#1b2426;
+    --ink:#dbe4e0; --mut:#a3b0ab; --faint:#74827d; --line:#212b2c; --line2:#2c3839;
+    --acc:#d98a3d; --good:#4bbfa6; --bad:#d0655c;
+  }
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{background:var(--bg); color:var(--ink);
+  font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  max-width:1140px; margin:0 auto; padding:0 12px calc(24px + env(safe-area-inset-bottom))}
+header{padding:14px 4px 8px; display:flex; align-items:baseline; gap:10px; flex-wrap:wrap}
+header h1{font-family:var(--mono); font-size:19px; font-weight:600; letter-spacing:.04em; text-transform:uppercase}
+#sess{font-size:13px; color:var(--mut)}
+#sess b.open{color:var(--good)} #sess b.closed{color:var(--mut)} #sess b.ext{color:var(--acc)}
+.bar{display:flex; align-items:center; gap:10px; padding:0 4px 10px}
+.bar .upd{font-size:12px; color:var(--mut)}
+.bar button{margin-left:auto; border:1px solid var(--line); background:var(--card); color:var(--ink); border-radius:8px; padding:6px 13px; font-size:13px}
+a{color:var(--acc)}
+
+.wrap{display:grid; gap:14px}
+@media(min-width:920px){
+  .wrap{grid-template-columns:minmax(0,1fr) 340px; align-items:start}
+  .side{position:sticky; top:10px; max-height:calc(100vh - 20px); overflow:auto}
+}
+.card{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:13px 14px; margin-bottom:14px}
+.card:last-child{margin-bottom:0}
+h2{font-family:var(--mono); font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--mut); font-weight:600; margin-bottom:10px; display:flex; justify-content:space-between; align-items:baseline}
+h2 .sub{font-size:10px; font-weight:500; letter-spacing:.02em; color:var(--faint); text-transform:none}
+.muted{color:var(--mut); font-size:13px}
+.err{color:var(--bad); font-size:13px}
+
+/* heat grid */
+.heatgrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(90px,1fr)); gap:6px}
+.heat{border-radius:9px; padding:11px 8px 9px; text-align:center; overflow:hidden}
+.heat .hl{font-size:11px; opacity:.9; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.heat .hv{font-size:16px; font-weight:700; font-variant-numeric:tabular-nums; margin-top:3px; font-family:var(--mono)}
+
+/* quote tiles */
+.qtgrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(120px,1fr)); gap:8px}
+.qt{background:var(--chip); border-radius:10px; padding:9px 11px}
+.qt .ql{font-size:11px; color:var(--mut); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.qt .qp{font-size:17px; font-weight:700; font-variant-numeric:tabular-nums; font-family:var(--mono); margin:1px 0}
+.qt .qc{font-size:12px; font-variant-numeric:tabular-nums}
+.idxgrid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr))}
+.idxgrid .qp{font-size:20px}
+.up{color:var(--good)} .dn{color:var(--bad)}
+
+.spread{display:flex; gap:8px; align-items:baseline; margin-top:10px; font-size:13px; color:var(--mut); flex-wrap:wrap}
+.spread b{font-family:var(--mono); font-variant-numeric:tabular-nums; font-size:15px}
+
+/* congress side */
+.capbar{display:flex; gap:6px; margin-bottom:10px}
+.capbar button{flex:1; border:1px solid var(--line); background:var(--chip); color:var(--mut); border-radius:8px; padding:6px 4px; font-size:12px; font-weight:600}
+.capbar button.on{background:var(--acc); color:#fff; border-color:var(--acc)}
+.cap{padding:9px 0; border-top:1px solid var(--line)}
+.cap:first-child{border-top:none}
+.cap .r1{display:flex; align-items:center; gap:8px}
+.cap .tk{font-family:var(--mono); font-weight:700; font-size:14px}
+.cap .tag{font-size:10px; font-weight:700; padding:1px 7px; border-radius:8px; color:#fff; letter-spacing:.03em}
+.cap .tag.buy{background:var(--good)} .cap .tag.sell{background:var(--bad)}
+.cap .amt{margin-left:auto; font-size:12px; color:var(--mut); font-variant-numeric:tabular-nums}
+.cap .who{font-size:13px; margin-top:2px}
+.cap .meta{font-size:11px; color:var(--faint); margin-top:1px}
+.legend{display:flex; gap:12px; font-size:11px; color:var(--faint); margin-top:8px; align-items:center; flex-wrap:wrap}
+.legend i{display:inline-block; width:11px; height:11px; border-radius:3px; vertical-align:-1px; margin-right:3px}
+
+/* broadcast tape */
+.tape{overflow:hidden; border:1px solid var(--line); border-radius:12px; background:var(--card); margin:0 0 12px}
+.tapetrack{display:flex; gap:24px; white-space:nowrap; width:max-content; padding:9px 14px; animation:tape 70s linear infinite}
+.tape:hover .tapetrack,.tape:active .tapetrack{animation-play-state:paused}
+@keyframes tape{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+.ti{cursor:pointer; font-size:13px; font-variant-numeric:tabular-nums; color:var(--ink)}
+.ti b{font-family:var(--mono); font-weight:600; margin-right:6px; color:var(--mut)}
+@media(prefers-reduced-motion:reduce){.tape{overflow-x:auto}.tapetrack{animation:none}}
+.heat,.qt,.tk{cursor:pointer}
+/* chart drawer */
+#scrim{position:fixed; inset:0; background:rgba(0,0,0,.5); opacity:0; pointer-events:none; transition:opacity .2s; z-index:99}
+body.drawer-open #scrim{opacity:1; pointer-events:auto}
+#drawer{position:fixed; top:0; right:0; height:100%; width:min(440px,92vw); background:var(--bg); border-left:1px solid var(--line2); transform:translateX(100%); transition:transform .22s ease; z-index:100; display:flex; flex-direction:column; padding:14px 16px calc(16px + env(safe-area-inset-bottom)); overflow:auto}
+body.drawer-open #drawer{transform:translateX(0)}
+.dhead{display:flex; align-items:flex-start; gap:10px}
+.dttl{font-family:var(--mono); font-size:18px; font-weight:600}
+.dsub{font-size:12px; color:var(--mut); margin-top:2px}
+#dClose{margin-left:auto; border:1px solid var(--line); background:var(--chip); color:var(--ink); border-radius:8px; width:32px; height:32px; font-size:15px; flex-shrink:0}
+.dchart{margin:14px 0 10px; background:var(--card); border:1px solid var(--line); border-radius:12px; overflow:hidden; min-height:172px}
+.dranges{display:flex; gap:6px}
+.dranges button{flex:1; border:1px solid var(--line); background:var(--chip); color:var(--mut); border-radius:8px; padding:7px 0; font-size:13px; font-weight:600}
+.dranges button.on{background:var(--acc); color:#fff; border-color:var(--acc)}
+.dstats{display:grid; grid-template-columns:1fr 1fr; gap:8px 14px; margin-top:14px}
+.dstats div{display:flex; justify-content:space-between; border-bottom:1px solid var(--line); padding-bottom:6px}
+.dstats span{color:var(--mut); font-size:13px}
+.dstats b{font-variant-numeric:tabular-nums; font-family:var(--mono); font-size:14px}
+nav{display:flex; gap:8px; padding:12px 4px 2px; flex-wrap:wrap}
+nav a{font-size:12px; text-decoration:none; color:var(--mut); border:1px solid var(--line); border-radius:16px; padding:5px 12px}
+footer{padding:14px 6px 0; font-size:11px; color:var(--faint)}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Market Board</h1>
+  <div id="sess">…</div>
+</header>
+<div class="bar">
+  <span class="upd" id="upd"></span>
+  <button id="refresh">Refresh</button>
+</div>
+
+<div class="tape"><div class="tapetrack" id="tape"></div></div>
+
+<div class="wrap">
+  <main>
+    <div class="card">
+      <h2>Indices</h2>
+      <div id="indices" class="qtgrid idxgrid"><span class="muted">Loading…</span></div>
+    </div>
+    <div class="card">
+      <h2>Sector heat map <span class="sub">where the day is · % change</span></h2>
+      <div id="sectors" class="heatgrid"></div>
+      <h2 style="margin-top:14px">Mega caps</h2>
+      <div id="megacap" class="heatgrid"></div>
+      <div class="legend"><span><i style="background:var(--bad)"></i>down</span><span><i style="background:var(--chip)"></i>flat</span><span><i style="background:var(--good)"></i>up</span><span>· intensity = size of move (capped ±3%)</span></div>
+    </div>
+    <div class="card">
+      <h2>Bonds &amp; rates <span class="sub">yields · bp change on the day</span></h2>
+      <div id="yields" class="qtgrid"></div>
+      <div class="spread" id="spread"></div>
+      <h2 style="margin-top:14px">Credit &amp; duration</h2>
+      <div id="credit" class="qtgrid"></div>
+    </div>
+    <div class="card">
+      <h2>Precious metals</h2>
+      <div id="metals" class="qtgrid"></div>
+    </div>
+    <div class="card">
+      <h2>Rare earths &amp; critical materials</h2>
+      <div id="rare" class="qtgrid"></div>
+    </div>
+    <div class="card">
+      <h2>Semiconductors</h2>
+      <div id="semis" class="qtgrid"></div>
+    </div>
+    <div class="card">
+      <h2>Banks</h2>
+      <div id="banks" class="qtgrid"></div>
+    </div>
+  </main>
+
+  <aside class="side">
+    <div class="card">
+      <h2>Capitol flow <span class="sub">House · &gt;$15k · stocks only</span></h2>
+      <div class="capbar">
+        <button data-f="all" class="on">All</button>
+        <button data-f="buy">Buys</button>
+        <button data-f="sell">Sells</button>
+      </div>
+      <div id="cap"><span class="muted">Loading filings…</span></div>
+      <div class="legend" id="capnote"></div>
+    </div>
+  </aside>
+</div>
+
+<div id="scrim"></div>
+<aside id="drawer" aria-hidden="true">
+  <div class="dhead">
+    <div><div class="dttl" id="dTitle">—</div><div class="dsub" id="dSub"></div></div>
+    <button id="dClose" aria-label="Close chart">✕</button>
+  </div>
+  <div class="dchart" id="dChart"></div>
+  <div class="dranges" id="dRanges">
+    <button data-r="1d" data-i="5m">1D</button>
+    <button data-r="1mo" data-i="1d" class="on">1M</button>
+    <button data-r="6mo" data-i="1d">6M</button>
+    <button data-r="1y" data-i="1d">1Y</button>
+  </div>
+  <div class="dstats" id="dStats"></div>
+</aside>
+
+<nav>
+  <a href="./index.html">☂ Field Kit</a>
+  <a href="./tickers.html">▲ Watch Deck</a>
+  <a href="./scrub.html">✦ Scrub</a>
+</nav>
+<footer>Quotes are delayed, via public relays to Yahoo Finance — for a glance, not execution. Congressional filings from the public House disclosure mirror; filings lag the actual trades by weeks (that's the law, not the app).</footer>
+
+<script>
+'use strict';
+const $=s=>document.querySelector(s), $$=s=>document.querySelectorAll(s);
+const store={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+async function relay(u,ms){
+  const P=[x=>'https://corsproxy.io/?url='+encodeURIComponent(x), x=>'https://api.allorigins.win/raw?url='+encodeURIComponent(x)];
+  let e;for(const p of P){try{const c=new AbortController();const t=setTimeout(()=>c.abort(),ms||10000);const r=await fetch(p(u),{signal:c.signal});clearTimeout(t);if(r.ok)return r;e=new Error('HTTP '+r.status)}catch(x){e=x}}throw e||new Error('relay down');
+}
+
+/* ---- session ---- */
+function session(){
+  const p=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',weekday:'short',hour:'2-digit',minute:'2-digit',hour12:false}).formatToParts(new Date());
+  const g=t=>{const x=p.find(x=>x.type===t);return x?x.value:''};
+  const wd=g('weekday'),m=(+g('hour')%24)*60+(+g('minute'));
+  if(wd==='Sat'||wd==='Sun')return['closed','Closed','weekend'];
+  if(m>=570&&m<960)return['open','Open','closes 4:00 ET'];
+  if(m>=240&&m<570)return['ext','Pre-market','opens 9:30 ET'];
+  if(m>=960&&m<1200)return['ext','After-hours','to 8:00 ET'];
+  return['closed','Closed','pre from 4:00 ET'];
+}
+function renderSess(){const[c,n,s]=session();$('#sess').innerHTML=`NYSE <b class="${c}">${n}</b> · ${s}`}
+renderSess();setInterval(renderSess,60000);
+
+/* ---- symbol universe ---- */
+const INDICES=[['^GSPC','S&P 500'],['^IXIC','Nasdaq'],['^DJI','Dow'],['^RUT','Russell 2000'],['^VIX','VIX']];
+const SECTORS=[['XLK','Technology'],['XLC','Comm Svcs'],['XLY','Cons Disc'],['XLP','Cons Staples'],['XLE','Energy'],['XLF','Financials'],['XLV','Health Care'],['XLI','Industrials'],['XLB','Materials'],['XLU','Utilities'],['XLRE','Real Estate']];
+const MEGA=[['AAPL','Apple'],['MSFT','Microsoft'],['NVDA','Nvidia'],['GOOGL','Alphabet'],['AMZN','Amazon'],['META','Meta'],['TSLA','Tesla'],['AVGO','Broadcom']];
+const YIELDS=[['^IRX','3-month'],['^FVX','5-year'],['^TNX','10-year'],['^TYX','30-year']];
+const CREDIT=[['TLT','20Y+ Treasuries'],['HYG','High yield'],['LQD','Inv-grade']];
+const METALS=[['GC=F','Gold'],['SI=F','Silver'],['PL=F','Platinum'],['PA=F','Palladium'],['HG=F','Copper'],['GDX','Gold miners']];
+const RARE=[['REMX','Rare-earth ETF'],['MP','MP Materials'],['ALB','Albemarle'],['LAC','Lithium Americas'],['TMC','TMC metals'],['UUUU','Energy Fuels']];
+const SEMIS=[['^SOX','PHLX Semi'],['SMH','Semi ETF'],['NVDA','Nvidia'],['AMD','AMD'],['TSM','TSMC'],['AVGO','Broadcom'],['ASML','ASML'],['MU','Micron']];
+const BANKS=[['XLF','Financials ETF'],['KRE','Regional banks'],['JPM','JPMorgan'],['BAC','Bank of America'],['GS','Goldman'],['WFC','Wells Fargo'],['C','Citi'],['MS','Morgan Stanley']];
+const TAPE=[['^VIX','VIX'],['^MOVE','MOVE'],['^VVIX','VVIX'],['TLT','TLT'],['DX-Y.NYB','DXY'],['^GSPC','S&P'],['^IXIC','Nasdaq'],['^DJI','Dow'],['^RUT','Russell'],['^TNX','10Y'],['GC=F','Gold'],['SI=F','Silver'],['^SOX','SOX'],['BTC-USD','BTC']];
+const YIELDSET=new Set(YIELDS.map(y=>y[0]));
+const ALL=[...new Set([].concat(TAPE,INDICES,SECTORS,MEGA,YIELDS,CREDIT,METALS,RARE,SEMIS,BANKS).map(x=>x[0]))];
+
+let Q={};
+async function fetchQuotes(){
+  // Yahoo's spark endpoint caps symbols per call (~20); keep batches small & sequential.
+  const chunks=[]; for(let i=0;i<ALL.length;i+=15)chunks.push(ALL.slice(i,i+15));
+  const q={}; let ok=0, first=true;
+  for(const ch of chunks){
+    if(!first)await new Promise(r=>setTimeout(r,280)); first=false; // ease off the free relay's rate limit
+    try{
+      const u='https://query1.finance.yahoo.com/v8/finance/spark?symbols='+encodeURIComponent(ch.join(','))+'&range=1d&interval=5m';
+      const d=await (await relay(u)).json();
+      if(d && !d.spark){ // flat {SYM:{...}} on success; {spark:{error}} when over the cap
+        for(const s in d){const e=d[s]; if(!e||typeof e!=='object')continue;
+          const cl=(e.close||[]).filter(x=>x!=null);
+          q[s]={p:cl.length?cl[cl.length-1]:null, pc:e.chartPreviousClose!=null?e.chartPreviousClose:e.previousClose};}
+        ok++;
+      }
+    }catch(e){}
+  }
+  if(!ok) throw new Error('all quote batches failed');
+  return q;
+}
+const fmtP=p=>p==null?'—':p>=1000?p.toLocaleString(undefined,{maximumFractionDigits:0}):p.toFixed(2);
+function dpct(q){return (q&&q.pc)?((q.p-q.pc)/q.pc*100):null}
+function heatBg(dp){if(dp==null)return 'var(--chip)';const m=Math.min(Math.abs(dp),3)/3;return `color-mix(in srgb, var(${dp>=0?'--good':'--bad'}) ${Math.round(12+m*72)}%, var(--card))`}
+function heatFg(dp){return (dp!=null&&Math.min(Math.abs(dp),3)/3>0.45)?'#fff':'var(--ink)'}
+function da([s,l]){return `data-sym="${esc(s)}" data-label="${esc(l)}"`}
+function htile([s,l]){const dp=dpct(Q[s]);return `<div class="heat" ${da([s,l])} style="background:${heatBg(dp)};color:${heatFg(dp)}"><div class="hl">${esc(l)}</div><div class="hv">${dp==null?'—':(dp>=0?'+':'')+dp.toFixed(2)+'%'}</div></div>`}
+function qtile([s,l]){
+  const q=Q[s];
+  if(!q||q.p==null)return `<div class="qt" ${da([s,l])}><div class="ql">${esc(l)}</div><div class="qp muted">—</div><div class="qc"></div></div>`;
+  if(YIELDSET.has(s)){const bp=q.pc!=null?Math.round((q.p-q.pc)*100):null,cls=bp==null?'':bp>=0?'up':'dn';
+    return `<div class="qt" ${da([s,l])}><div class="ql">${esc(l)}</div><div class="qp">${q.p.toFixed(2)}%</div><div class="qc ${cls}">${bp==null?'':(bp>=0?'+':'')+bp+' bp'}</div></div>`;}
+  const dp=dpct(q),cls=dp==null?'':dp>=0?'up':'dn';
+  return `<div class="qt" ${da([s,l])}><div class="ql">${esc(l)}</div><div class="qp">${fmtP(q.p)}</div><div class="qc ${cls}">${dp==null?'':(dp>=0?'+':'')+dp.toFixed(2)+'%'}</div></div>`;
+}
+function tapeItem([s,l]){
+  const q=Q[s];
+  if(!q||q.p==null)return `<span class="ti" ${da([s,l])}><b>${esc(l)}</b><span class="muted">—</span></span>`;
+  if(YIELDSET.has(s)){const bp=q.pc!=null?Math.round((q.p-q.pc)*100):null,cls=bp==null?'':bp>=0?'up':'dn';
+    return `<span class="ti" ${da([s,l])}><b>${esc(l)}</b>${q.p.toFixed(2)}% <span class="${cls}">${bp==null?'':(bp>=0?'+':'')+bp+'bp'}</span></span>`;}
+  const dp=dpct(q),cls=dp==null?'':dp>=0?'up':'dn';
+  return `<span class="ti" ${da([s,l])}><b>${esc(l)}</b>${fmtP(q.p)} <span class="${cls}">${dp==null?'':(dp>=0?'+':'')+dp.toFixed(1)+'%'}</span></span>`;
+}
+function renderTape(){const it=TAPE.map(tapeItem).join('');$('#tape').innerHTML=it+it;}
+function renderMarkets(){
+  renderTape();
+  $('#indices').innerHTML=INDICES.map(qtile).join('');
+  $('#sectors').innerHTML=SECTORS.map(htile).join('');
+  $('#megacap').innerHTML=MEGA.map(htile).join('');
+  $('#yields').innerHTML=YIELDS.map(qtile).join('');
+  $('#credit').innerHTML=CREDIT.map(qtile).join('');
+  $('#metals').innerHTML=METALS.map(qtile).join('');
+  $('#rare').innerHTML=RARE.map(qtile).join('');
+  $('#semis').innerHTML=SEMIS.map(qtile).join('');
+  $('#banks').innerHTML=BANKS.map(qtile).join('');
+  // 10Y-3M spread (recession watch)
+  const t=Q['^TNX'],i=Q['^IRX'];
+  if(t&&i&&t.p!=null&&i.p!=null){const sp=t.p-i.p;
+    $('#spread').innerHTML=`<span>10Y–3M spread</span><b class="${sp>=0?'up':'dn'}">${sp>=0?'+':''}${sp.toFixed(2)}%</b><span>${sp<0?'inverted — recession signal':'positive — normal-ish'}</span>`;}
+}
+let busy=false;
+async function loadMarkets(){
+  if(busy)return;busy=true;$('#upd').textContent='Loading quotes…';
+  try{Q=await fetchQuotes();renderMarkets();$('#upd').textContent='Quotes updated '+new Date().toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});}
+  catch(e){$('#upd').textContent='';$('#indices').innerHTML=`<span class="err">Quotes failed (${esc(e.message)}) — relays busy, hit Refresh.</span>`;}
+  busy=false;
+}
+$('#refresh').onclick=()=>{loadMarkets();loadCongress(true)};
+setInterval(()=>{if(!document.hidden)loadMarkets()},60000);
+
+/* ---- Capitol flow (public House disclosure mirror, CORS-open) ---- */
+const CONGRESS_URL='https://raw.githubusercontent.com/TattooedHead/house-stock-watcher-data/main/data/all_transactions.json';
+let capItems=[], capFilter='all';
+function parseD(s){const m=String(s||'').match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);return m?new Date(+m[3],+m[1]-1,+m[2]).getTime():0}
+async function loadCongress(force){
+  const cached=store.get('mb_congress2',null);
+  if(!force&&cached&&Date.now()-cached.ts<12*3600e3){capItems=cached.items;renderCap();return}
+  if(cached){capItems=cached.items;renderCap();}
+  try{
+    const c=new AbortController();const to=setTimeout(()=>c.abort(),30000);
+    const r=await fetch(CONGRESS_URL,{signal:c.signal});clearTimeout(to);
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const raw=await r.json();
+    const cleanTk=/^[A-Z]{1,5}$/;
+    // cash-equivalent / bond ETFs that show up as "stock" trades but are really parked cash or bond positions
+    const CASHBOND=new Set(['BIL','SGOV','SHV','SHY','USFR','TFLO','ICSH','JPST','GBIL','CLTL','MINT','NEAR','FLOT','VGSH','VGIT','VGLT','BND','AGG','BNDX','GOVT','IEF','IEI','TLH','TLT','MUB','TIP','VTIP','SCHO','SCHR','SPTL','SPTS','STIP','SUB','BSV','BIV','BLV','MBB','VCSH','VCIT','VCLT','IGSB','IGIB','USHY','HYG','JNK','LQD','SPAXX','FDRXX','VMFXX']);
+    const items=raw.filter(x=> x.ticker && cleanTk.test(x.ticker) && !CASHBOND.has(x.ticker)
+        && /purchase|sale|sell/i.test(x.type||'')
+        && x.amount_mid!=null && x.amount_mid>15000)         // drop the $1–15k noise tier
+      .map(x=>({tk:x.ticker,ty:/purchase/i.test(x.type)?'buy':'sell',
+        who:x.representative||'',amt:x.amount||'',td:x.transaction_date,dd:x.disclosure_date,_s:parseD(x.disclosure_date)}))
+      .sort((a,b)=>b._s-a._s).slice(0,150);
+    capItems=items;store.set('mb_congress2',{ts:Date.now(),items});renderCap();
+  }catch(e){
+    if(!capItems.length)$('#cap').innerHTML=`<span class="err">Filings unavailable (${esc(e.message)}).</span>`;
+  }
+}
+function renderCap(){
+  const list=capItems.filter(x=>capFilter==='all'||x.ty===capFilter).slice(0,60);
+  $('#cap').innerHTML=list.map(x=>`<div class="cap">
+    <div class="r1"><span class="tk" data-sym="${esc(x.tk)}" data-label="${esc(x.tk)}">${esc(x.tk)}</span>
+      <span class="tag ${x.ty}">${x.ty==='buy'?'BUY':'SELL'}</span>
+      <span class="amt">${esc(x.amt)}</span></div>
+    <div class="who">${esc(x.who)}</div>
+    <div class="meta">traded ${esc(x.td||'—')} · filed ${esc(x.dd||'—')}</div>
+  </div>`).join('')||'<span class="muted">No filings match.</span>';
+  const cached=store.get('mb_congress2',null);
+  $('#capnote').textContent=cached?('House disclosures · cached '+new Date(cached.ts).toLocaleDateString()):'';
+}
+$$('.capbar button').forEach(b=>b.onclick=()=>{capFilter=b.dataset.f;$$('.capbar button').forEach(x=>x.classList.toggle('on',x===b));renderCap()});
+
+/* ---- chart drawer (self-drawn SVG from Yahoo chart data) ---- */
+let curSym=null, curLabel=null, curRange={r:'1mo',i:'1d'};
+function openChart(sym,label){curSym=sym;curLabel=label||sym;document.body.classList.add('drawer-open');$('#drawer').setAttribute('aria-hidden','false');loadChart();}
+function closeChart(){document.body.classList.remove('drawer-open');$('#drawer').setAttribute('aria-hidden','true');}
+$('#dClose').onclick=closeChart; $('#scrim').onclick=closeChart;
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeChart()});
+$$('#dRanges button').forEach(b=>b.onclick=()=>{$$('#dRanges button').forEach(x=>x.classList.toggle('on',x===b));curRange={r:b.dataset.r,i:b.dataset.i};loadChart();});
+async function loadChart(){
+  $('#dTitle').textContent=curLabel; $('#dSub').textContent=curSym;
+  $('#dChart').innerHTML='<div class="muted" style="padding:64px 0;text-align:center">Loading chart…</div>';
+  $('#dStats').innerHTML='';
+  try{
+    const u=`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(curSym)}?range=${curRange.r}&interval=${curRange.i}`;
+    const d=await (await relay(u)).json();
+    const r=d.chart&&d.chart.result&&d.chart.result[0];
+    if(!r)throw new Error((d.chart&&d.chart.error&&d.chart.error.description)||'no data');
+    const ts=r.timestamp||[], cl=(r.indicators&&r.indicators.quote&&r.indicators.quote[0].close)||[];
+    const pts=[]; for(let k=0;k<ts.length;k++){if(cl[k]!=null)pts.push(cl[k]);}
+    if(pts.length<2)throw new Error('no data for this range');
+    drawChart(pts, r.meta);
+  }catch(e){$('#dChart').innerHTML=`<div class="err" style="padding:24px">Chart unavailable (${esc(e.message)}). Relay may be busy — try again.</div>`;}
+}
+function drawChart(cs, meta){
+  const min=Math.min(...cs), max=Math.max(...cs), span=(max-min)||1;
+  const first=cs[0], last=cs[cs.length-1], up=last>=first;
+  const stroke=up?'var(--good)':'var(--bad)';
+  const W=100,H=44,pad=3, gid='g'+Math.floor(Math.random()*1e6);
+  const X=i=>(i/(cs.length-1))*W, Y=c=>H-pad-((c-min)/span)*(H-pad*2);
+  const line='M'+cs.map((c,i)=>X(i).toFixed(2)+' '+Y(c).toFixed(2)).join(' L');
+  const area=`M0 ${H} L`+cs.map((c,i)=>X(i).toFixed(2)+' '+Y(c).toFixed(2)).join(' L')+` L${W} ${H} Z`;
+  $('#dChart').innerHTML=`<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:172px;display:block">
+    <defs><linearGradient id="${gid}" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="${stroke}" stop-opacity="0.28"/><stop offset="1" stop-color="${stroke}" stop-opacity="0"/></linearGradient></defs>
+    <path d="${area}" fill="url(#${gid})"/>
+    <path d="${line}" fill="none" stroke="${stroke}" stroke-width="1.4" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/>
+  </svg>`;
+  const isY=YIELDSET.has(curSym);
+  const fmtV=v=>isY?v.toFixed(2)+'%':(v>=1000?v.toLocaleString(undefined,{maximumFractionDigits:2}):v.toFixed(2));
+  const chg=(last-first)/first*100, ccls=chg>=0?'up':'dn';
+  $('#dSub').textContent=`${curSym} · ${fmtV(last)}`;
+  $('#dStats').innerHTML=`
+    <div><span>Last</span><b>${fmtV(last)}</b></div>
+    <div><span>Range Δ</span><b class="${ccls}">${chg>=0?'+':''}${chg.toFixed(2)}%</b></div>
+    <div><span>High</span><b>${fmtV(max)}</b></div>
+    <div><span>Low</span><b>${fmtV(min)}</b></div>`;
+}
+document.addEventListener('click',e=>{const el=e.target.closest('[data-sym]');if(el){openChart(el.dataset.sym, el.dataset.label);}});
+
+/* ---- boot ---- */
+loadMarkets();
+loadCongress(false);
+if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){})})}
+</script>
+</body>
+</html>
