@@ -14,7 +14,6 @@
 <meta name="apple-mobile-web-app-title" content="Places">
 <link rel="stylesheet" href="leaflet.css">
 <style>
-/* Opus — Prima Materia */
 :root{
   --bg:#eef1ef; --card:#f7f9f7; --chip:#e6ebe8; --raised:#ffffff;
   --ink:#1a2320; --mut:#465350; --faint:#6c7975; --line:#d2d9d5; --line2:#b7c1bc;
@@ -34,14 +33,12 @@ body{background:var(--bg); color:var(--ink);
   font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
   max-width:1360px; margin:0 auto; padding:0 12px calc(12px + env(safe-area-inset-bottom))}
 a{color:var(--acc)}
-/* suite bar */
 .suitebar{position:sticky; top:0; z-index:60; display:flex; align-items:center; gap:10px; background:var(--card); border-bottom:1px solid var(--line); padding:7px 12px; margin:0 -12px 10px; overflow-x:auto; scrollbar-width:none}
 .suitebar::-webkit-scrollbar{display:none}
 .suitebar .brand{font-family:var(--mono); font-weight:700; font-size:13px; letter-spacing:.05em; color:var(--acc); text-decoration:none; white-space:nowrap; flex-shrink:0}
 .suitebar .switch{display:flex; gap:3px}
 .suitebar .switch a{font-family:var(--mono); font-size:12.5px; padding:5px 10px; border-radius:8px; color:var(--mut); text-decoration:none; white-space:nowrap}
 .suitebar .switch a.on{background:var(--acc); color:#fff}
-/* controls */
 .ctrls{display:flex; gap:8px; margin-bottom:8px}
 .searchwrap{position:relative; flex:1}
 #q{width:100%; padding:10px 13px; border:1px solid var(--line); border-radius:10px; background:var(--card); color:var(--ink); font-size:15px; -webkit-appearance:none}
@@ -51,19 +48,35 @@ a{color:var(--acc)}
 .results button{display:block; width:100%; text-align:left; padding:10px 13px; background:none; border:none; border-top:1px solid var(--line); color:var(--ink); font-size:14px}
 .results button:first-child{border-top:none}
 .results button small{color:var(--mut); display:block; font-size:12px}
-.iconbtn{border:1px solid var(--line); background:var(--card); color:var(--ink); border-radius:10px; padding:0 14px; font-size:14px; font-weight:600; white-space:nowrap; cursor:pointer}
+.iconbtn{border:1px solid var(--line); background:var(--card); color:var(--ink); border-radius:10px; padding:0 13px; font-size:14px; font-weight:600; white-space:nowrap; cursor:pointer}
+.iconbtn.on{background:var(--acc); color:#fff; border-color:var(--acc)}
 .chips{display:flex; gap:6px; overflow-x:auto; padding-bottom:8px; scrollbar-width:none}
 .chips::-webkit-scrollbar{display:none}
 .chips button{flex:0 0 auto; border:1px solid var(--line); background:var(--chip); color:var(--ink); border-radius:16px; padding:7px 13px; font-size:13px; cursor:pointer; white-space:nowrap}
 .chips button.on{background:var(--acc); color:#fff; border-color:var(--acc)}
-/* map */
-#map{width:100%; height:calc(100dvh - 176px); min-height:340px; border-radius:12px; border:1px solid var(--line); z-index:1; background:var(--chip)}
+/* layout: list + map */
+.layout{display:grid; gap:10px; grid-template-columns:1fr}
+#map{width:100%; height:48dvh; min-height:300px; border-radius:12px; border:1px solid var(--line); z-index:1; background:var(--chip)}
+.list{border:1px solid var(--line); border-radius:12px; background:var(--card); max-height:40dvh; overflow-y:auto}
+@media(min-width:820px){
+  .layout{grid-template-columns:340px 1fr; height:calc(100dvh - 198px)}
+  .list{max-height:none; height:100%; order:0}
+  #map{height:100%}
+}
 .leaflet-container{background:var(--chip); font:inherit}
+.listempty{padding:16px; color:var(--mut); font-size:13px}
+.li{padding:10px 13px; border-top:1px solid var(--line); cursor:pointer}
+.list .li:first-child{border-top:none}
+.li:hover,.li.sel{background:var(--chip)}
+.li .n{font-weight:600; font-size:14px; display:flex; justify-content:space-between; gap:8px}
+.li .n .d{color:var(--mut); font-weight:500; font-size:12px; white-space:nowrap; font-family:var(--mono)}
+.li .m{font-size:12px; color:var(--mut); margin-top:2px}
+.li .rev{font-size:12px; color:var(--acc); margin-top:4px; display:inline-block}
 .pin{width:22px; height:22px; border-radius:50% 50% 50% 0; background:var(--acc); transform:rotate(-45deg); border:2px solid #fff; box-shadow:0 1px 4px rgba(0,0,0,.5)}
 .pin.sel{background:var(--good)}
 .userdot{width:15px; height:15px; border-radius:50%; background:var(--blue); border:3px solid #fff; box-shadow:0 0 0 5px rgba(91,156,255,.25)}
-#status{font-size:12px; color:var(--mut); padding:6px 2px 0; min-height:22px}
-/* detail sheet */
+#status{font-size:12px; color:var(--mut); padding:6px 2px 0; min-height:20px}
+.disc{font-size:11px; color:var(--faint); padding:6px 2px 0; line-height:1.5}
 #sheet{position:fixed; left:12px; right:12px; bottom:12px; z-index:70; background:var(--card); border:1px solid var(--line2); border-radius:16px; padding:15px 16px calc(15px + env(safe-area-inset-bottom)); box-shadow:0 -6px 30px rgba(0,0,0,.35); transform:translateY(140%); transition:transform .22s ease; max-width:520px; margin:0 auto}
 body.sheet-open #sheet{transform:translateY(0)}
 @media(min-width:760px){ #sheet{left:auto; right:24px; bottom:24px; width:380px; margin:0} }
@@ -72,19 +85,18 @@ body.sheet-open #sheet{transform:translateY(0)}
 .sh-cat{font-size:12px; color:var(--acc); text-transform:uppercase; letter-spacing:.04em; margin-top:2px}
 #shClose{margin-left:auto; border:1px solid var(--line); background:var(--chip); color:var(--ink); border-radius:8px; width:30px; height:30px; font-size:14px; flex-shrink:0; cursor:pointer}
 .sh-rows{margin:10px 0 12px}
-.sh-row{display:flex; gap:8px; font-size:13.5px; padding:4px 0; color:var(--ink)}
+.sh-row{display:flex; gap:8px; font-size:13.5px; padding:4px 0}
 .sh-row .k{color:var(--mut); flex:0 0 74px}
 .sh-row a{word-break:break-all}
 .sh-btns{display:grid; grid-template-columns:1fr 1fr; gap:8px}
 .sh-btns a,.sh-btns button{display:block; text-align:center; text-decoration:none; border:1px solid var(--line); background:var(--chip); color:var(--ink); border-radius:9px; padding:9px 6px; font-size:13px; font-weight:600; cursor:pointer}
 .sh-btns .primary{background:var(--acc); color:#fff; border-color:var(--acc); grid-column:1/-1}
-.routebar{background:var(--chip); border-radius:9px; padding:9px 12px; font-size:14px; display:flex; align-items:center; gap:10px; margin-top:2px}
+.routebar{background:var(--chip); border-radius:9px; padding:9px 12px; font-size:14px; display:flex; align-items:center; gap:10px; grid-column:1/-1}
 .routebar b{font-family:var(--mono)}
 .routebar button{margin-left:auto; border:none; background:var(--bad); color:#fff; border-radius:7px; padding:5px 10px; font-size:12px; cursor:pointer}
 #toast{position:fixed; bottom:calc(20px + env(safe-area-inset-bottom)); left:50%; transform:translateX(-50%); background:var(--ink); color:var(--bg); padding:9px 18px; border-radius:20px; font-size:14px; opacity:0; transition:opacity .25s; pointer-events:none; white-space:nowrap; z-index:90}
 @media (prefers-color-scheme: dark){#toast{background:var(--raised); color:var(--ink); border:1px solid var(--line2)}}
 #toast.show{opacity:1}
-.disc{font-size:11px; color:var(--faint); padding:8px 2px 0; line-height:1.5}
 </style>
 </head>
 <body>
@@ -106,13 +118,17 @@ body.sheet-open #sheet{transform:translateY(0)}
     <input id="q" type="search" placeholder="Search a place or address…" autocomplete="off">
     <div id="results" class="results"></div>
   </div>
-  <button class="iconbtn" id="locate" title="Find me">◎ Me</button>
+  <button class="iconbtn" id="locate" title="Use my GPS location">◎ Me</button>
+  <button class="iconbtn" id="setloc" title="Tap the map to set your location">⊕ Set</button>
 </div>
 <div class="chips" id="chips"></div>
 
-<div id="map"></div>
+<div class="layout">
+  <div id="list" class="list"><div class="listempty">Pick a category or search a place — results list here, pins on the map.</div></div>
+  <div id="map"></div>
+</div>
 <div id="status"></div>
-<div class="disc">Map &copy; CARTO, data &copy; OpenStreetMap contributors · routing via OSRM · all queried directly, nothing profiled. Reviews open a search in a new tab.</div>
+<div class="disc">Map &copy; Esri, data &copy; OpenStreetMap contributors · routing via OSRM · queried directly, nothing profiled. OpenStreetMap has no star ratings — the Reviews button opens a search you choose to run.</div>
 
 <aside id="sheet" aria-hidden="true">
   <div class="sh-top">
@@ -129,31 +145,47 @@ body.sheet-open #sheet{transform:translateY(0)}
 <script>
 'use strict';
 const $=s=>document.querySelector(s), $$=s=>document.querySelectorAll(s);
-function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('show'),2200)}
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('show'),2400)}
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
 const dark=matchMedia('(prefers-color-scheme: dark)').matches;
 
-/* ---- map ---- */
+/* ---- map (Esri gray canvas — lighter, cleaner than the near-black dark tiles) ---- */
 const HOME=[37.9716,-87.5711];
-const map=L.map('map',{zoomControl:true,attributionControl:true}).setView(HOME,13);
-const tileUrl=dark
-  ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
-  : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
-L.tileLayer(tileUrl,{subdomains:'abcd',maxZoom:20,attribution:'&copy; OpenStreetMap &copy; CARTO'}).addTo(map);
+const map=L.map('map',{zoomControl:true}).setView(HOME,14);
+const esri=n=>`https://services.arcgisonline.com/arcgis/rest/services/Canvas/${n}/MapServer/tile/{z}/{y}/{x}`;
+const baseN=dark?'World_Dark_Gray_Base':'World_Light_Gray_Base';
+const refN =dark?'World_Dark_Gray_Reference':'World_Light_Gray_Reference';
+L.tileLayer(esri(baseN),{maxZoom:19,maxNativeZoom:16,attribution:'&copy; Esri, &copy; OpenStreetMap'}).addTo(map);
+L.tileLayer(esri(refN),{maxZoom:19,maxNativeZoom:16}).addTo(map);
 const poi=L.layerGroup().addTo(map);
 const pinIcon=sel=>L.divIcon({className:'',html:`<div class="pin${sel?' sel':''}"></div>`,iconSize:[22,22],iconAnchor:[11,22]});
-let userLoc=null, userMarker=null, routeLine=null, selMarker=null;
+const userIcon=L.divIcon({className:'',html:'<div class="userdot"></div>',iconSize:[15,15],iconAnchor:[7,7]});
+let userLoc=null, userMarker=null, routeLine=null;
+let curEls=[], curMarkers=[], curName='', selIdx=-1, pickMode=false;
 
-/* ---- geolocation ---- */
+/* ---- location: GPS or tap-to-set ---- */
+function setUser(ll){
+  userLoc=ll;
+  if(userMarker)userMarker.setLatLng(ll); else userMarker=L.marker(ll,{icon:userIcon,zIndexOffset:1000}).addTo(map);
+}
 $('#locate').onclick=()=>{
-  if(!navigator.geolocation)return toast('No geolocation');
+  if(!navigator.geolocation)return toast('No GPS — use “Set” and tap the map');
   toast('Locating…');
-  navigator.geolocation.getCurrentPosition(p=>{
-    userLoc=[p.coords.latitude,p.coords.longitude];
-    if(userMarker)userMarker.setLatLng(userLoc); else userMarker=L.marker(userLoc,{icon:L.divIcon({className:'',html:'<div class="userdot"></div>',iconSize:[15,15],iconAnchor:[7,7]}),zIndexOffset:1000}).addTo(map);
-    map.setView(userLoc,15);
-  },e=>toast('Location failed: '+e.message),{enableHighAccuracy:true,timeout:15000});
+  navigator.geolocation.getCurrentPosition(
+    p=>{setUser([p.coords.latitude,p.coords.longitude]);map.setView(userLoc,15);if(curEls.length)renderList();},
+    e=>toast('GPS off — tap “Set”, then tap the map'),{enableHighAccuracy:true,timeout:15000});
 };
+$('#setloc').onclick=()=>{
+  pickMode=!pickMode;
+  $('#setloc').classList.toggle('on',pickMode);
+  toast(pickMode?'Tap the map to drop your location':'Cancelled');
+};
+map.on('click',e=>{
+  if(!pickMode)return;
+  setUser([e.latlng.lat,e.latlng.lng]);
+  pickMode=false; $('#setloc').classList.remove('on');
+  toast('Location set'); if(curEls.length)renderList();
+});
 
 /* ---- search (Nominatim) ---- */
 const qi=$('#q'), resBox=$('#results');
@@ -165,15 +197,13 @@ async function search(q){
     const r=await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=6&addressdetails=1&viewbox=${vb}&bounded=0`);
     const d=await r.json();
     if(!d.length){resBox.innerHTML='<button disabled><small>No matches</small></button>';resBox.classList.add('show');return}
-    resBox.innerHTML=d.map((x,i)=>{const nm=x.display_name.split(',')[0];return `<button data-i="${i}"><b>${esc(nm)}</b><small>${esc(x.display_name.slice(0,70))}</small></button>`}).join('');
+    resBox.innerHTML=d.map((x,i)=>`<button data-i="${i}"><b>${esc(x.display_name.split(',')[0])}</b><small>${esc(x.display_name.slice(0,70))}</small></button>`).join('');
     resBox.classList.add('show');
     $$('#results button[data-i]').forEach(btn=>btn.onclick=()=>{
       const x=d[+btn.dataset.i]; resBox.classList.remove('show'); qi.value=x.display_name.split(',')[0];
       const lat=+x.lat, lon=+x.lon;
-      map.setView([lat,lon],16);
-      poi.clearLayers();
-      const m=L.marker([lat,lon],{icon:pinIcon(true)}).addTo(poi);
-      openDetail({lat,lon,tags:{name:x.display_name.split(',')[0],...addrTags(x.address)}}, m);
+      curEls=[{lat,lon,tags:{name:x.display_name.split(',')[0],...addrTags(x.address)}}]; curName='result';
+      drawResults(); map.setView([lat,lon],16); selectPlace(0);
     });
   }catch(e){resBox.innerHTML='<button disabled><small>Search failed</small></button>';resBox.classList.add('show')}
 }
@@ -195,60 +225,85 @@ const CATS=[
 ];
 $('#chips').innerHTML=CATS.map(([n],i)=>`<button data-c="${i}">${n}</button>`).join('');
 let catBusy=false;
-$$('#chips button').forEach(b=>b.onclick=()=>{
-  $$('#chips button').forEach(x=>x.classList.toggle('on',x===b));
-  loadCat(+b.dataset.c);
-});
+$$('#chips button').forEach(b=>b.onclick=()=>{$$('#chips button').forEach(x=>x.classList.toggle('on',x===b));loadCat(+b.dataset.c)});
 async function loadCat(i){
   if(catBusy)return; catBusy=true;
-  const [name,filter]=CATS[i];
-  $('#status').textContent=`Finding ${name.toLowerCase()} in view…`;
+  const [name,filter]=CATS[i]; curName=name.toLowerCase();
+  $('#status').textContent=`Finding ${curName} in view…`;
+  $('#list').innerHTML='<div class="listempty">Searching…</div>';
   const b=map.getBounds(), bbox=`(${b.getSouth()},${b.getWest()},${b.getNorth()},${b.getEast()})`;
   const parts=filter.split(';').map(f=>f+bbox+';').join('');
-  const query=`[out:json][timeout:25];(${parts});out center 60;`;
+  const query=`[out:json][timeout:25];(${parts});out center 80;`;
   try{
     const r=await fetch('https://overpass-api.de/api/interpreter',{method:'POST',headers:{'Content-Type':'text/plain'},body:query});
     const d=await r.json();
-    poi.clearLayers(); clearRoute();
-    const els=(d.elements||[]).filter(e=>e.tags&&e.tags.name);
-    els.forEach(e=>{
-      const lat=e.lat||(e.center&&e.center.lat), lon=e.lon||(e.center&&e.center.lon);
-      if(lat==null)return;
-      const m=L.marker([lat,lon],{icon:pinIcon(false)}).addTo(poi);
-      m.on('click',()=>{ if(selMarker)selMarker.setIcon(pinIcon(false)); m.setIcon(pinIcon(true)); selMarker=m; openDetail({lat,lon,tags:e.tags}, m); });
-    });
-    $('#status').textContent=`${els.length} ${name.toLowerCase()} shown${els.length>=60?' (zoom in for more)':''}. Tap a pin.`;
-    if(!els.length)$('#status').textContent=`No ${name.toLowerCase()} found here — pan/zoom and tap again.`;
-  }catch(e){$('#status').textContent='Lookup failed (Overpass busy) — try again.';}
+    curEls=(d.elements||[]).filter(e=>e.tags&&e.tags.name).map(e=>({lat:e.lat||(e.center&&e.center.lat),lon:e.lon||(e.center&&e.center.lon),tags:e.tags})).filter(e=>e.lat!=null);
+    drawResults();
+    $('#status').textContent=curEls.length?`${curEls.length} ${curName} found${curEls.length>=80?' (zoom in for more)':''}.`:`No ${curName} found here — pan/zoom and tap again.`;
+  }catch(e){$('#status').textContent='Overpass is busy — try again in a moment.';$('#list').innerHTML='<div class="listempty">Lookup failed. Try again.</div>';}
   catBusy=false;
 }
 
-/* ---- detail sheet ---- */
-const R=6371; const hav=(a,b)=>{const dl=(b[0]-a[0])*Math.PI/180,dn=(b[1]-a[1])*Math.PI/180,la1=a[0]*Math.PI/180,la2=b[0]*Math.PI/180;const x=Math.sin(dl/2)**2+Math.cos(la1)*Math.cos(la2)*Math.sin(dn/2)**2;return R*2*Math.asin(Math.sqrt(x))};
-let curPlace=null;
-function catLabel(t){
-  return t.amenity||t.shop||t.tourism||t.leisure||'place';
+/* ---- draw pins + list, keep them in sync ---- */
+const R=6371,hav=(a,b)=>{const dl=(b[0]-a[0])*Math.PI/180,dn=(b[1]-a[1])*Math.PI/180,la1=a[0]*Math.PI/180,la2=b[0]*Math.PI/180;const x=Math.sin(dl/2)**2+Math.cos(la1)*Math.cos(la2)*Math.sin(dn/2)**2;return R*2*Math.asin(Math.sqrt(x))};
+function catLabel(t){return (t.amenity||t.shop||t.tourism||t.leisure||'place').replace(/_/g,' ')}
+function drawResults(){
+  poi.clearLayers(); clearRoute(); curMarkers=[]; selIdx=-1;
+  if(userLoc)curEls.forEach(e=>e._d=hav(userLoc,[e.lat,e.lon]));
+  if(userLoc)curEls.sort((a,b)=>a._d-b._d);
+  curEls.forEach((e,i)=>{
+    const m=L.marker([e.lat,e.lon],{icon:pinIcon(false)}).addTo(poi);
+    m.on('click',()=>selectPlace(i));
+    curMarkers[i]=m;
+  });
+  renderList();
 }
-function openDetail(place, marker){
+function renderList(){
+  if(!curEls.length){$('#list').innerHTML='<div class="listempty">Pick a category or search a place.</div>';return}
+  if(userLoc)curEls.forEach(e=>e._d=hav(userLoc,[e.lat,e.lon]));
+  $('#list').innerHTML=curEls.map((e,i)=>{
+    const t=e.tags, d=e._d!=null?`${e._d.toFixed(1)} km`:'';
+    const sub=[catLabel(t), t.cuisine?t.cuisine.replace(/_/g,' '):'', t.opening_hours?'· '+t.opening_hours:''].filter(Boolean).join(' ');
+    const q=encodeURIComponent(`${t.name||''} ${[t['addr:street'],t['addr:city']].filter(Boolean).join(' ')||'Evansville'}`);
+    return `<div class="li${i===selIdx?' sel':''}" data-i="${i}">
+      <div class="n"><span>${esc(t.name)}</span><span class="d">${d}</span></div>
+      <div class="m">${esc(sub)}</div>
+      <a class="rev" href="https://www.google.com/search?q=${q}+reviews" target="_blank" rel="noopener" onclick="event.stopPropagation()">Reviews ↗</a>
+    </div>`;
+  }).join('');
+  $$('#list .li').forEach(li=>li.onclick=()=>selectPlace(+li.dataset.i));
+}
+function selectPlace(i){
+  const e=curEls[i]; if(!e)return;
+  if(selIdx>=0&&curMarkers[selIdx])curMarkers[selIdx].setIcon(pinIcon(false));
+  selIdx=i; if(curMarkers[i])curMarkers[i].setIcon(pinIcon(true));
+  $$('#list .li').forEach(li=>li.classList.toggle('sel',+li.dataset.i===i));
+  const li=$(`#list .li[data-i="${i}"]`); if(li)li.scrollIntoView({block:'nearest'});
+  map.panTo([e.lat,e.lon]);
+  openDetail(e);
+}
+
+/* ---- detail sheet ---- */
+let curPlace=null;
+function openDetail(place){
   curPlace=place; const t=place.tags||{};
   $('#shName').textContent=t.name||'Unnamed place';
-  $('#shCat').textContent=(catLabel(t)).replace(/_/g,' ');
+  $('#shCat').textContent=catLabel(t);
   const rows=[];
   if(t.opening_hours)rows.push(['Hours', esc(t.opening_hours)]);
   const addr=[t['addr:housenumber'],t['addr:street']].filter(Boolean).join(' ')||t['addr:street']||'';
   const city=[t['addr:city'],t['addr:state']].filter(Boolean).join(', ');
   const full=[addr,city].filter(Boolean).join(', ');
   if(full)rows.push(['Address', esc(full)]);
-  if(t.phone||t['contact:phone'])rows.push(['Phone', `<a href="tel:${esc(t.phone||t['contact:phone'])}">${esc(t.phone||t['contact:phone'])}</a>`]);
+  if(t.cuisine)rows.push(['Cuisine', esc(t.cuisine.replace(/_/g,' '))]);
+  const ph=t.phone||t['contact:phone']; if(ph)rows.push(['Phone', `<a href="tel:${esc(ph)}">${esc(ph)}</a>`]);
   if(userLoc)rows.push(['Distance', hav(userLoc,[place.lat,place.lon]).toFixed(1)+' km away']);
-  $('#shRows').innerHTML=rows.map(([k,v])=>`<div class="sh-row"><span class="k">${k}</span><span>${v}</span></div>`).join('')||'<div class="sh-row"><span class="k" style="flex:none">No extra details in OpenStreetMap.</span></div>';
-
+  $('#shRows').innerHTML=rows.map(([k,v])=>`<div class="sh-row"><span class="k">${k}</span><span>${v}</span></div>`).join('')||'<div class="sh-row"><span>No extra details in OpenStreetMap for this one.</span></div>';
   const web=t.website||t['contact:website'];
   const q=encodeURIComponent(`${t.name||''} ${full||'Evansville'}`);
-  const btns=[];
-  btns.push(`<button class="primary" id="shDir">Directions</button>`);
-  btns.push(`<a href="https://www.google.com/search?q=${q}+reviews" target="_blank" rel="noopener">Reviews ↗</a>`);
-  if(web)btns.push(`<a href="${esc(web)}" target="_blank" rel="noopener">Website ↗</a>`); else btns.push(`<a href="https://www.google.com/maps/search/?api=1&query=${q}" target="_blank" rel="noopener">Google Maps ↗</a>`);
+  const btns=[`<button class="primary" id="shDir">Directions</button>`,
+    `<a href="https://www.google.com/search?q=${q}+reviews" target="_blank" rel="noopener">Reviews ↗</a>`];
+  btns.push(web?`<a href="${esc(web)}" target="_blank" rel="noopener">Website ↗</a>`:`<a href="https://www.google.com/maps/search/?api=1&query=${q}" target="_blank" rel="noopener">Google Maps ↗</a>`);
   btns.push(`<button id="shCopy">Copy address</button>`);
   btns.push(`<a href="https://www.openstreetmap.org/?mlat=${place.lat}&mlon=${place.lon}#map=18/${place.lat}/${place.lon}" target="_blank" rel="noopener">Open in OSM ↗</a>`);
   $('#shBtns').innerHTML=btns.join('');
@@ -261,25 +316,23 @@ $('#shClose').onclick=()=>{document.body.classList.remove('sheet-open');$('#shee
 /* ---- routing (OSRM) ---- */
 function clearRoute(){if(routeLine){map.removeLayer(routeLine);routeLine=null}}
 async function route(place){
-  if(!userLoc){toast('Tap “Me” to set your location first');return}
+  if(!userLoc){toast('Set your location first — “Me” or “Set”');return}
   toast('Routing…');
   try{
     const u=`https://router.project-osrm.org/route/v1/driving/${userLoc[1]},${userLoc[0]};${place.lon},${place.lat}?overview=full&geometries=geojson`;
     const d=await(await fetch(u)).json();
     if(!d.routes||!d.routes.length){toast('No route found');return}
-    const rt=d.routes[0];
-    clearRoute();
+    const rt=d.routes[0]; clearRoute();
     const coords=rt.geometry.coordinates.map(c=>[c[1],c[0]]);
-    const style=getComputedStyle(document.documentElement).getPropertyValue('--acc').trim()||'#d98a3d';
-    routeLine=L.polyline(coords,{color:style,weight:5,opacity:.85}).addTo(map);
+    const col=getComputedStyle(document.documentElement).getPropertyValue('--acc').trim()||'#d98a3d';
+    routeLine=L.polyline(coords,{color:col,weight:5,opacity:.85}).addTo(map);
     map.fitBounds(routeLine.getBounds(),{padding:[50,50]});
     const km=(rt.distance/1000).toFixed(1), min=Math.round(rt.duration/60);
-    $('#shBtns').innerHTML=`<div class="routebar" style="grid-column:1/-1"><b>${km} km · ${min} min</b> driving <button id="shClear">Clear</button></div>`;
-    $('#shClear').onclick=()=>{clearRoute();openDetail(curPlace);};
+    $('#shBtns').innerHTML=`<div class="routebar"><b>${km} km · ${min} min</b> driving<button id="shClear">Clear</button></div>`;
+    $('#shClear').onclick=()=>{clearRoute();openDetail(curPlace)};
   }catch(e){toast('Routing failed (OSRM busy)')}
 }
 
-/* fix Leaflet sizing after layout settles */
 setTimeout(()=>map.invalidateSize(),200);
 window.addEventListener('resize',()=>map.invalidateSize());
 </script>
