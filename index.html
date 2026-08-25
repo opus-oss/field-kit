@@ -48,11 +48,12 @@ body{
   body{padding-bottom:24px}
   body>nav{position:static; max-width:none; border-top:none; border-bottom:1px solid var(--line); justify-content:flex-start; background:transparent; padding:4px 4px 10px}
   body>nav button{flex:0 0 auto; padding:8px 18px}
-  #tab-weather{column-count:2; column-gap:12px}
-  #tab-weather>.refresh,#tab-weather>#alerts{column-span:all}
-  #tab-weather .card{break-inside:avoid}
-  #tab-links{column-count:2; column-gap:12px}
-  #tab-links .card{break-inside:avoid}
+  /* masonry-style flow: primary read full-width up top, detail cards tile below with no row gaps */
+  #tab-weather, #tab-links{column-count:2; column-gap:12px}
+  #tab-weather>.refresh, #tab-weather>#alerts, #wxNow, #wxHourly{column-span:all}
+  #tab-weather .card, #tab-links .card, #tab-weather>#alerts{break-inside:avoid}
+  #wxHourly .hrow{overflow:visible; flex-wrap:wrap}
+  #wxHourly .hcell{flex:1 1 72px; min-width:0}
 }
 @media(min-width:1140px){ #tab-weather{column-count:3} }
 header{padding:14px 16px 10px; display:flex; align-items:baseline; gap:10px; flex-wrap:wrap}
@@ -222,11 +223,11 @@ nav button.on{color:var(--acc)}
     <button id="wxRefresh">Refresh</button>
   </div>
   <div id="alerts"></div>
-  <div class="card">
+  <div class="card" id="wxNow">
     <h2>Now <span id="srcTag" style="float:right;font-weight:500;text-transform:none;letter-spacing:0"></span></h2>
     <div id="nowBody" class="muted">Loading…</div>
   </div>
-  <div class="card">
+  <div class="card" id="wxHourly">
     <h2>Next 12 hours</h2>
     <div id="hourly" class="muted">Loading…</div>
   </div>
