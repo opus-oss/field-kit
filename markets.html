@@ -46,7 +46,10 @@ header h1{font-family:var(--mono); font-size:19px; font-weight:600; letter-spaci
 #sess b.open{color:var(--good)} #sess b.closed{color:var(--mut)} #sess b.ext{color:var(--acc)}
 .bar{display:flex; align-items:center; gap:10px; padding:0 4px 10px}
 .bar .upd{font-size:12px; color:var(--mut)}
-.bar button{margin-left:auto; border:1px solid var(--line); background:var(--card); color:var(--ink); border-radius:8px; padding:6px 13px; font-size:13px}
+.bar button{border:1px solid var(--line); background:var(--card); color:var(--ink); border-radius:8px; padding:6px 13px; font-size:13px}
+.bar #proxycfg{margin-left:auto; padding:6px 11px}
+.bar #refresh{margin-left:6px}
+.bar #proxycfg.on{border-color:var(--acc); color:var(--acc)}
 a{color:var(--acc)}
 
 .wrap{display:grid; gap:14px}
@@ -149,6 +152,7 @@ footer{padding:14px 6px 0; font-size:11px; color:var(--faint)}
 </header>
 <div class="bar">
   <span class="upd" id="upd"></span>
+  <button id="proxycfg" title="Set a Cloudflare Worker URL for fast, reliable quotes">⚡</button>
   <button id="refresh">Refresh</button>
 </div>
 
@@ -194,11 +198,10 @@ footer{padding:14px 6px 0; font-size:11px; color:var(--faint)}
 
   <aside class="side">
     <div class="card">
-      <h2>Capitol flow <span class="sub">House · &gt;$15k · stocks only</span></h2>
+      <h2>Congress flow <span class="sub">biggest moves · last 120d</span></h2>
       <div class="capbar">
-        <button data-f="all" class="on">All</button>
-        <button data-f="buy">Buys</button>
-        <button data-f="sell">Sells</button>
+        <button data-f="buy" class="on">Most bought</button>
+        <button data-f="sell">Most sold</button>
       </div>
       <div id="cap"><span class="muted">Loading filings…</span></div>
       <div class="legend" id="capnote"></div>
@@ -230,7 +233,10 @@ const $=s=>document.querySelector(s), $$=s=>document.querySelectorAll(s);
 const store={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
 async function relay(u,ms){
-  const P=[x=>'https://corsproxy.io/?url='+encodeURIComponent(x), x=>'https://api.allorigins.win/raw?url='+encodeURIComponent(x), x=>'https://api.codetabs.com/v1/proxy/?quest='+encodeURIComponent(x)];
+  const custom=store.get('fk_proxy','');
+  const P=[];
+  if(custom)P.push(x=>custom.replace(/\/+$/,'')+'/?url='+encodeURIComponent(x));   // your Cloudflare Worker first
+  P.push(x=>'https://corsproxy.io/?url='+encodeURIComponent(x), x=>'https://api.allorigins.win/raw?url='+encodeURIComponent(x), x=>'https://api.codetabs.com/v1/proxy/?quest='+encodeURIComponent(x));
   let e;for(const p of P){try{const c=new AbortController();const t=setTimeout(()=>c.abort(),ms||10000);const r=await fetch(p(u),{signal:c.signal});clearTimeout(t);if(r.ok)return r;e=new Error('HTTP '+r.status)}catch(x){e=x}}throw e||new Error('relay down');
 }
 
@@ -331,11 +337,17 @@ async function loadMarkets(){
   busy=false;
 }
 $('#refresh').onclick=()=>loadMarkets();
+if(store.get('fk_proxy',''))$('#proxycfg').classList.add('on');
+$('#proxycfg').onclick=()=>{
+  const cur=store.get('fk_proxy','');
+  const v=prompt('Paste your Cloudflare Worker URL for fast quotes.\nLeave blank to use the free public relays.\n(Setup: see PROXY-SETUP.md in the repo.)', cur);
+  if(v!==null){store.set('fk_proxy',v.trim());location.reload();}
+};
 setInterval(()=>{if(!document.hidden)loadMarkets()},60000);
 
 /* ---- Capitol flow (public House disclosure mirror, CORS-open) ---- */
 const CONGRESS_URL='https://raw.githubusercontent.com/TattooedHead/house-stock-watcher-data/main/data/all_transactions.json';
-let capItems=[], capFilter='all';
+let capItems=[], capFilter='buy';
 function parseD(s){const m=String(s||'').match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);return m?new Date(+m[3],+m[1]-1,+m[2]).getTime():0}
 function initCongress(){
   const cached=store.get('mb_congress2',null);
@@ -356,28 +368,46 @@ async function loadCongress(force){
     const cleanTk=/^[A-Z]{1,5}$/;
     // cash-equivalent / bond ETFs that show up as "stock" trades but are really parked cash or bond positions
     const CASHBOND=new Set(['BIL','SGOV','SHV','SHY','USFR','TFLO','ICSH','JPST','GBIL','CLTL','MINT','NEAR','FLOT','VGSH','VGIT','VGLT','BND','AGG','BNDX','GOVT','IEF','IEI','TLH','TLT','MUB','TIP','VTIP','SCHO','SCHR','SPTL','SPTS','STIP','SUB','BSV','BIV','BLV','MBB','VCSH','VCIT','VCLT','IGSB','IGIB','USHY','HYG','JNK','LQD','SPAXX','FDRXX','VMFXX']);
-    const items=raw.filter(x=> x.ticker && cleanTk.test(x.ticker) && !CASHBOND.has(x.ticker)
+    // broad-market ETFs — no stock-specific signal, pure noise in this view
+    const BROAD=new Set(['SPY','QQQ','QQQM','VOO','VTI','IVV','DIA','IWM','VUG','VTV','ITOT','SPLG','RSP','SCHB','SCHX','SCHG','SCHD','VEA','VWO','VXUS','IEFA','IEMG','VYM','VIG','VT','ACWI','EFA','EEM','MDY','IJH','IJR','VB','VO','VGT','XLK','XLF','XLE','XLV']);
+    const cutoff=Date.now()-120*864e5;
+    const items=raw.filter(x=> x.ticker && cleanTk.test(x.ticker) && !CASHBOND.has(x.ticker) && !BROAD.has(x.ticker)
         && /purchase|sale|sell/i.test(x.type||'')
-        && x.amount_mid!=null && x.amount_mid>15000)         // drop the $1–15k noise tier
+        && x.amount_mid!=null && x.amount_mid>15000              // drop the $1–15k noise tier
+        && parseD(x.disclosure_date) > cutoff)                   // last 120 days only
       .map(x=>({tk:x.ticker,ty:/purchase/i.test(x.type)?'buy':'sell',
-        who:x.representative||'',amt:x.amount||'',td:x.transaction_date,dd:x.disclosure_date,_s:parseD(x.disclosure_date)}))
-      .sort((a,b)=>b._s-a._s).slice(0,150);
+        who:x.representative||'',mid:x.amount_mid||0,dd:x.disclosure_date,_s:parseD(x.disclosure_date)}))
+      .sort((a,b)=>b._s-a._s).slice(0,2500);
     capItems=items;store.set('mb_congress2',{ts:Date.now(),items});renderCap();
   }catch(e){
     if(!capItems.length)$('#cap').innerHTML=`<span class="err">Filings unavailable (${esc(e.message)}).</span>`;
   }
 }
+function fmtMoney(n){return n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e3?Math.round(n/1e3)+'K':String(Math.round(n))}
+function fmtDate(ts){if(!ts)return '—';const d=new Date(ts);return (d.getMonth()+1)+'/'+d.getDate()}
+function shortName(s){return String(s||'').replace(/^(Hon\.|Mr\.|Ms\.|Mrs\.|Dr\.)\s+/i,'').replace(/\s+(Jr\.|Sr\.|II|III)$/,'')}
 function renderCap(){
-  const list=capItems.filter(x=>capFilter==='all'||x.ty===capFilter).slice(0,60);
-  $('#cap').innerHTML=list.map(x=>`<div class="cap">
-    <div class="r1"><span class="tk" data-sym="${esc(x.tk)}" data-label="${esc(x.tk)}">${esc(x.tk)}</span>
-      <span class="tag ${x.ty}">${x.ty==='buy'?'BUY':'SELL'}</span>
-      <span class="amt">${esc(x.amt)}</span></div>
-    <div class="who">${esc(x.who)}</div>
-    <div class="meta">traded ${esc(x.td||'—')} · filed ${esc(x.dd||'—')}</div>
-  </div>`).join('')||'<span class="muted">No filings match.</span>';
+  const side=capFilter==='sell'?'sell':'buy';
+  const byTk={};
+  capItems.filter(x=>x.ty===side).forEach(x=>{
+    const t=byTk[x.tk]||(byTk[x.tk]={who:new Set(),total:0,n:0,last:0});
+    t.who.add(x.who); t.total+=x.mid; t.n++; if(x._s>t.last)t.last=x._s;
+  });
+  // deduped per ticker, sorted by dollar size — the biggest concentrated bets, buys first
+  const agg=Object.keys(byTk).map(tk=>{const t=byTk[tk];return {tk,members:t.who.size,who:[...t.who][0],trades:t.n,total:t.total,last:t.last};})
+    .sort((a,b)=>b.total-a.total).slice(0,25);
+  const noun=side==='buy'?'buys':'sells';
+  if(!agg.length){$('#cap').innerHTML=`<span class="muted">No ${noun} over $15k in the last 120 days.</span>`;}
+  else $('#cap').innerHTML=agg.map(t=>{
+    const tag=t.members>1?`<span class="tag ${side}">${t.members} members</span> `:`${esc(shortName(t.who))} · `;
+    const v=side==='buy'?'buy':'sell';
+    return `<div class="cap">
+      <div class="r1"><span class="tk" data-sym="${esc(t.tk)}" data-label="${esc(t.tk)}">${esc(t.tk)}</span>
+        <span class="amt">~$${fmtMoney(t.total)}</span></div>
+      <div class="meta">${tag}${t.trades} ${v}${t.trades>1?'s':''} · latest ${fmtDate(t.last)}</div>
+    </div>`;}).join('');
   const cached=store.get('mb_congress2',null);
-  $('#capnote').textContent=cached?('House disclosures · cached '+new Date(cached.ts).toLocaleDateString()):'';
+  $('#capnote').textContent=cached?('House disclosures · $ size, deduped · cached '+new Date(cached.ts).toLocaleDateString()):'';
 }
 $$('.capbar button').forEach(b=>b.onclick=()=>{capFilter=b.dataset.f;$$('.capbar button').forEach(x=>x.classList.toggle('on',x===b));renderCap()});
 
