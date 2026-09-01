@@ -198,7 +198,7 @@ footer{padding:14px 6px 0; font-size:11px; color:var(--faint)}
 
   <aside class="side">
     <div class="card">
-      <h2>Congress flow <span class="sub">biggest moves · last 120d</span></h2>
+      <h2>Congress flow <span class="sub">biggest recent moves · by $</span></h2>
       <div class="capbar">
         <button data-f="buy" class="on">Most bought</button>
         <button data-f="sell">Most sold</button>
@@ -272,13 +272,14 @@ let Q={};
 async function fetchQuotes(onChunk){
   // Yahoo's spark endpoint caps symbols per call (~20). Fire batches in PARALLEL and
   // paint each as it lands, so tiles fill in fast instead of after a long sequential wait.
+  // Sequential (one batch at a time) so we don't burst the flaky free relays — bursting
+  // makes them all fail at once. Each batch paints as it lands, so tiles fill progressively.
   const chunks=[]; for(let i=0;i<ALL.length;i+=18)chunks.push(ALL.slice(i,i+18));
   const q={}; let ok=0;
-  await Promise.all(chunks.map(async (ch,idx)=>{
-    await new Promise(r=>setTimeout(r, idx*160)); // stagger starts so requests overlap without bursting the relay
+  for(const ch of chunks){
     try{
       const u='https://query1.finance.yahoo.com/v8/finance/spark?symbols='+encodeURIComponent(ch.join(','))+'&range=1d&interval=5m';
-      const d=await (await relay(u)).json();
+      const d=await (await relay(u,8000)).json();
       if(d && !d.spark){ // flat {SYM:{...}} on success; {spark:{error}} when over the cap
         for(const s in d){const e=d[s]; if(!e||typeof e!=='object')continue;
           const cl=(e.close||[]).filter(x=>x!=null);
@@ -286,7 +287,7 @@ async function fetchQuotes(onChunk){
         ok++; if(onChunk)onChunk(q);
       }
     }catch(e){}
-  }));
+  }
   if(!ok) throw new Error('all quote batches failed');
   return q;
 }
@@ -350,14 +351,14 @@ const CONGRESS_URL='https://raw.githubusercontent.com/TattooedHead/house-stock-w
 let capItems=[], capFilter='buy';
 function parseD(s){const m=String(s||'').match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);return m?new Date(+m[3],+m[1]-1,+m[2]).getTime():0}
 function initCongress(){
-  const cached=store.get('mb_congress2',null);
+  const cached=store.get('mb_congress3',null);
   if(cached && Date.now()-cached.ts<12*3600e3){capItems=cached.items;renderCap();return;}
   $('#cap').innerHTML=`<button class="capload" id="capLoad">Load recent House filings</button>
     <div class="muted" style="margin-top:8px;font-size:12px">Kept off the initial load so the board opens fast. Downloads the public disclosure file (~11 MB) once, then caches it for 12 hours.</div>`;
   $('#capLoad').onclick=()=>{$('#cap').innerHTML='<span class="muted">Loading filings…</span>';loadCongress(true);};
 }
 async function loadCongress(force){
-  const cached=store.get('mb_congress2',null);
+  const cached=store.get('mb_congress3',null);
   if(!force&&cached&&Date.now()-cached.ts<12*3600e3){capItems=cached.items;renderCap();return}
   if(cached){capItems=cached.items;renderCap();}
   try{
@@ -370,15 +371,13 @@ async function loadCongress(force){
     const CASHBOND=new Set(['BIL','SGOV','SHV','SHY','USFR','TFLO','ICSH','JPST','GBIL','CLTL','MINT','NEAR','FLOT','VGSH','VGIT','VGLT','BND','AGG','BNDX','GOVT','IEF','IEI','TLH','TLT','MUB','TIP','VTIP','SCHO','SCHR','SPTL','SPTS','STIP','SUB','BSV','BIV','BLV','MBB','VCSH','VCIT','VCLT','IGSB','IGIB','USHY','HYG','JNK','LQD','SPAXX','FDRXX','VMFXX']);
     // broad-market ETFs — no stock-specific signal, pure noise in this view
     const BROAD=new Set(['SPY','QQQ','QQQM','VOO','VTI','IVV','DIA','IWM','VUG','VTV','ITOT','SPLG','RSP','SCHB','SCHX','SCHG','SCHD','VEA','VWO','VXUS','IEFA','IEMG','VYM','VIG','VT','ACWI','EFA','EEM','MDY','IJH','IJR','VB','VO','VGT','XLK','XLF','XLE','XLV']);
-    const cutoff=Date.now()-120*864e5;
     const items=raw.filter(x=> x.ticker && cleanTk.test(x.ticker) && !CASHBOND.has(x.ticker) && !BROAD.has(x.ticker)
         && /purchase|sale|sell/i.test(x.type||'')
-        && x.amount_mid!=null && x.amount_mid>15000              // drop the $1–15k noise tier
-        && parseD(x.disclosure_date) > cutoff)                   // last 120 days only
+        && x.amount_mid!=null && x.amount_mid>15000)             // drop the $1–15k noise tier
       .map(x=>({tk:x.ticker,ty:/purchase/i.test(x.type)?'buy':'sell',
         who:x.representative||'',mid:x.amount_mid||0,dd:x.disclosure_date,_s:parseD(x.disclosure_date)}))
-      .sort((a,b)=>b._s-a._s).slice(0,2500);
-    capItems=items;store.set('mb_congress2',{ts:Date.now(),items});renderCap();
+      .sort((a,b)=>b._s-a._s).slice(0,800);   // most recent ~800 filings, whatever the dataset's latest date is
+    capItems=items;store.set('mb_congress3',{ts:Date.now(),items});renderCap();
   }catch(e){
     if(!capItems.length)$('#cap').innerHTML=`<span class="err">Filings unavailable (${esc(e.message)}).</span>`;
   }
@@ -406,7 +405,7 @@ function renderCap(){
         <span class="amt">~$${fmtMoney(t.total)}</span></div>
       <div class="meta">${tag}${t.trades} ${v}${t.trades>1?'s':''} · latest ${fmtDate(t.last)}</div>
     </div>`;}).join('');
-  const cached=store.get('mb_congress2',null);
+  const cached=store.get('mb_congress3',null);
   $('#capnote').textContent=cached?('House disclosures · $ size, deduped · cached '+new Date(cached.ts).toLocaleDateString()):'';
 }
 $$('.capbar button').forEach(b=>b.onclick=()=>{capFilter=b.dataset.f;$$('.capbar button').forEach(x=>x.classList.toggle('on',x===b));renderCap()});
