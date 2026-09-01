@@ -84,6 +84,8 @@ h2 .sub{font-size:10px; font-weight:500; letter-spacing:.02em; color:var(--faint
 .capbar{display:flex; gap:6px; margin-bottom:10px}
 .capbar button{flex:1; border:1px solid var(--line); background:var(--chip); color:var(--mut); border-radius:8px; padding:6px 4px; font-size:12px; font-weight:600}
 .capbar button.on{background:var(--acc); color:#fff; border-color:var(--acc)}
+.capload{border:1px solid var(--line); background:var(--chip); color:var(--ink); border-radius:9px; padding:9px 15px; font-size:13px; font-weight:600; cursor:pointer; font-family:var(--mono)}
+.capload:hover{border-color:var(--acc)}
 .cap{padding:9px 0; border-top:1px solid var(--line)}
 .cap:first-child{border-top:none}
 .cap .r1{display:flex; align-items:center; gap:8px}
@@ -228,7 +230,7 @@ const $=s=>document.querySelector(s), $$=s=>document.querySelectorAll(s);
 const store={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
 async function relay(u,ms){
-  const P=[x=>'https://corsproxy.io/?url='+encodeURIComponent(x), x=>'https://api.allorigins.win/raw?url='+encodeURIComponent(x)];
+  const P=[x=>'https://corsproxy.io/?url='+encodeURIComponent(x), x=>'https://api.allorigins.win/raw?url='+encodeURIComponent(x), x=>'https://api.codetabs.com/v1/proxy/?quest='+encodeURIComponent(x)];
   let e;for(const p of P){try{const c=new AbortController();const t=setTimeout(()=>c.abort(),ms||10000);const r=await fetch(p(u),{signal:c.signal});clearTimeout(t);if(r.ok)return r;e=new Error('HTTP '+r.status)}catch(x){e=x}}throw e||new Error('relay down');
 }
 
@@ -261,12 +263,13 @@ const YIELDSET=new Set(YIELDS.map(y=>y[0]));
 const ALL=[...new Set([].concat(TAPE,INDICES,SECTORS,MEGA,YIELDS,CREDIT,METALS,RARE,SEMIS,BANKS).map(x=>x[0]))];
 
 let Q={};
-async function fetchQuotes(){
-  // Yahoo's spark endpoint caps symbols per call (~20); keep batches small & sequential.
-  const chunks=[]; for(let i=0;i<ALL.length;i+=15)chunks.push(ALL.slice(i,i+15));
-  const q={}; let ok=0, first=true;
-  for(const ch of chunks){
-    if(!first)await new Promise(r=>setTimeout(r,280)); first=false; // ease off the free relay's rate limit
+async function fetchQuotes(onChunk){
+  // Yahoo's spark endpoint caps symbols per call (~20). Fire batches in PARALLEL and
+  // paint each as it lands, so tiles fill in fast instead of after a long sequential wait.
+  const chunks=[]; for(let i=0;i<ALL.length;i+=18)chunks.push(ALL.slice(i,i+18));
+  const q={}; let ok=0;
+  await Promise.all(chunks.map(async (ch,idx)=>{
+    await new Promise(r=>setTimeout(r, idx*160)); // stagger starts so requests overlap without bursting the relay
     try{
       const u='https://query1.finance.yahoo.com/v8/finance/spark?symbols='+encodeURIComponent(ch.join(','))+'&range=1d&interval=5m';
       const d=await (await relay(u)).json();
@@ -274,10 +277,10 @@ async function fetchQuotes(){
         for(const s in d){const e=d[s]; if(!e||typeof e!=='object')continue;
           const cl=(e.close||[]).filter(x=>x!=null);
           q[s]={p:cl.length?cl[cl.length-1]:null, pc:e.chartPreviousClose!=null?e.chartPreviousClose:e.previousClose};}
-        ok++;
+        ok++; if(onChunk)onChunk(q);
       }
     }catch(e){}
-  }
+  }));
   if(!ok) throw new Error('all quote batches failed');
   return q;
 }
@@ -323,17 +326,24 @@ function renderMarkets(){
 let busy=false;
 async function loadMarkets(){
   if(busy)return;busy=true;$('#upd').textContent='Loading quotes…';
-  try{Q=await fetchQuotes();renderMarkets();$('#upd').textContent='Quotes updated '+new Date().toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});}
+  try{Q=await fetchQuotes(partial=>{Q=partial;renderMarkets();});renderMarkets();$('#upd').textContent='Quotes updated '+new Date().toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});}
   catch(e){$('#upd').textContent='';$('#indices').innerHTML=`<span class="err">Quotes failed (${esc(e.message)}) — relays busy, hit Refresh.</span>`;}
   busy=false;
 }
-$('#refresh').onclick=()=>{loadMarkets();loadCongress(true)};
+$('#refresh').onclick=()=>loadMarkets();
 setInterval(()=>{if(!document.hidden)loadMarkets()},60000);
 
 /* ---- Capitol flow (public House disclosure mirror, CORS-open) ---- */
 const CONGRESS_URL='https://raw.githubusercontent.com/TattooedHead/house-stock-watcher-data/main/data/all_transactions.json';
 let capItems=[], capFilter='all';
 function parseD(s){const m=String(s||'').match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);return m?new Date(+m[3],+m[1]-1,+m[2]).getTime():0}
+function initCongress(){
+  const cached=store.get('mb_congress2',null);
+  if(cached && Date.now()-cached.ts<12*3600e3){capItems=cached.items;renderCap();return;}
+  $('#cap').innerHTML=`<button class="capload" id="capLoad">Load recent House filings</button>
+    <div class="muted" style="margin-top:8px;font-size:12px">Kept off the initial load so the board opens fast. Downloads the public disclosure file (~11 MB) once, then caches it for 12 hours.</div>`;
+  $('#capLoad').onclick=()=>{$('#cap').innerHTML='<span class="muted">Loading filings…</span>';loadCongress(true);};
+}
 async function loadCongress(force){
   const cached=store.get('mb_congress2',null);
   if(!force&&cached&&Date.now()-cached.ts<12*3600e3){capItems=cached.items;renderCap();return}
@@ -421,7 +431,7 @@ document.addEventListener('click',e=>{const el=e.target.closest('[data-sym]');if
 
 /* ---- boot ---- */
 loadMarkets();
-loadCongress(false);
+initCongress();
 if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){})})}
 </script>
 </body>

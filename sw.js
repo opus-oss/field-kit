@@ -1,7 +1,7 @@
 /* Field Kit suite — offline service worker.
    HTML is network-first (always loads the latest when online, falls back to cache offline),
    static assets are cache-first. Bump CACHE on any change so clients refresh. */
-const CACHE = 'fieldkit-v11';
+const CACHE = 'fieldkit-v12';
 const ASSETS = [
   './',
   './index.html', './tickers.html', './scrub.html', './markets.html', './tax.html', './places.html',
