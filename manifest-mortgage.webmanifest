@@ -1,0 +1,15 @@
+{
+  "name": "Mortgage",
+  "short_name": "Mortgage",
+  "description": "Full monthly cost, amortization, and equity after any number of years. Private, on-device.",
+  "start_url": "./mortgage.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0c1113",
+  "theme_color": "#0c1113",
+  "icons": [
+    { "src": "mortgage-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "mortgage-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
