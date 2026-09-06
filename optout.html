@@ -1,0 +1,568 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#eef1ef">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#0c1113">
+<title>Opt Out</title>
+<link rel="manifest" href="manifest-optout.webmanifest">
+<link rel="icon" href="optout-192.png">
+<link rel="apple-touch-icon" href="optout-180.png">
+<meta name="apple-mobile-web-app-title" content="Opt Out">
+<style>
+:root{
+  --bg:#eef1ef; --card:#f7f9f7; --chip:#e6ebe8; --raised:#ffffff;
+  --ink:#1a2320; --mut:#465350; --faint:#6c7975; --line:#d2d9d5; --line2:#b7c1bc;
+  --acc:#b0631f; --good:#14776a; --bad:#b23e37; --warn:#8a6410; --blue:#2f6fb0;
+  --mono:"SF Mono","JetBrains Mono","Menlo",ui-monospace,"Consolas",monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --bg:#0c1113; --card:#12181a; --chip:#171f21; --raised:#1b2426;
+    --ink:#dbe4e0; --mut:#a3b0ab; --faint:#74827d; --line:#212b2c; --line2:#2c3839;
+    --acc:#d98a3d; --good:#4bbfa6; --bad:#d0655c; --warn:#c8971f; --blue:#5b9cff;
+  }
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{background:var(--bg); color:var(--ink); font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; max-width:1160px; margin:0 auto; padding:0 14px calc(28px + env(safe-area-inset-bottom))}
+a{color:var(--acc)}
+.suitebar{position:sticky; top:0; z-index:60; display:flex; align-items:center; gap:10px; background:var(--card); border-bottom:1px solid var(--line); padding:7px 12px; margin:0 -14px 12px; overflow-x:auto; scrollbar-width:none}
+.suitebar::-webkit-scrollbar{display:none}
+.suitebar .brand{font-family:var(--mono); font-weight:700; font-size:13px; letter-spacing:.05em; color:var(--acc); text-decoration:none; white-space:nowrap; flex-shrink:0}
+.suitebar .switch{display:flex; gap:3px}
+.suitebar .switch a{font-family:var(--mono); font-size:12.5px; padding:5px 10px; border-radius:8px; color:var(--mut); text-decoration:none; white-space:nowrap}
+.suitebar .switch a.on{background:var(--acc); color:#fff}
+header{padding:16px 2px 8px}
+header h1{font-family:var(--mono); font-size:19px; font-weight:600; letter-spacing:.05em; text-transform:uppercase}
+header p{font-size:12.5px; color:var(--mut); margin-top:3px; max-width:760px}
+.tabs{display:flex; gap:4px; overflow-x:auto; scrollbar-width:none; padding:2px 0 12px; position:sticky; top:44px; background:var(--bg); z-index:50}
+.tabs::-webkit-scrollbar{display:none}
+.tabs button{flex:0 0 auto; border:1px solid var(--line); background:var(--chip); color:var(--mut); border-radius:16px; padding:7px 13px; font-size:13px; font-weight:600; cursor:pointer; font-family:var(--mono); white-space:nowrap}
+.tabs button.on{background:var(--acc); color:#fff; border-color:var(--acc)}
+section{display:none} section.active{display:block}
+.card{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:15px 16px; margin-bottom:12px}
+h2{font-family:var(--mono); font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--mut); font-weight:600; margin-bottom:10px; display:flex; justify-content:space-between; align-items:baseline; gap:8px}
+h2 .sub{font-size:10.5px; letter-spacing:.02em; text-transform:none; color:var(--faint); font-weight:500}
+.muted{color:var(--mut); font-size:13px}
+.tiny{font-size:11.5px; color:var(--faint); line-height:1.5}
+label{display:block; font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--mut); font-weight:600; margin-bottom:5px; font-family:var(--mono)}
+input[type=text],input[type=date],select,textarea{width:100%; padding:9px 11px; border:1px solid var(--line); border-radius:9px; background:var(--bg); color:var(--ink); font-size:14px; font-family:inherit; -webkit-appearance:none}
+textarea{min-height:90px; resize:vertical; line-height:1.4}
+input:focus,select:focus,textarea:focus{outline:none; border-color:var(--acc)}
+.grid2{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+.grid3{display:grid; grid-template-columns:2fr 1fr 1fr; gap:10px}
+@media(max-width:640px){.grid3{grid-template-columns:1fr 1fr}.grid3>:first-child{grid-column:1/-1}}
+.field{margin-bottom:12px}
+.btn{border:1px solid var(--line); background:var(--chip); color:var(--ink); border-radius:9px; padding:8px 13px; font-size:13px; font-weight:600; cursor:pointer; font-family:inherit; text-decoration:none; display:inline-block; white-space:nowrap}
+.btn.pri{background:var(--acc); color:#fff; border-color:var(--acc)}
+.btn.sm{padding:5px 10px; font-size:12px}
+.btn:hover{border-color:var(--acc)}
+.row{display:flex; gap:8px; flex-wrap:wrap; align-items:center}
+.warnbox{background:color-mix(in srgb,var(--warn) 14%,var(--card)); border:1px solid color-mix(in srgb,var(--warn) 40%,var(--line)); border-radius:10px; padding:10px 12px; font-size:13px; margin-bottom:12px}
+.warnbox b{color:var(--warn)}
+/* progress */
+.prog{display:grid; grid-template-columns:repeat(auto-fill,minmax(150px,1fr)); gap:8px}
+.prog div{background:var(--chip); border-radius:10px; padding:10px 12px}
+.prog .k{font-size:11px; color:var(--mut); font-family:var(--mono); text-transform:uppercase; letter-spacing:.05em}
+.prog .v{font-family:var(--mono); font-size:19px; font-weight:700; margin-top:2px}
+.prog .b{height:5px; background:var(--line); border-radius:3px; margin-top:7px; overflow:hidden}
+.prog .b i{display:block; height:100%; background:var(--good)}
+/* playbook steps */
+.step{display:flex; gap:12px; padding:11px 0; border-top:1px solid var(--line)}
+.step:first-child{border-top:none}
+.step .n{font-family:var(--mono); font-weight:700; color:var(--acc); flex:0 0 26px; font-size:14px}
+.step b{display:block; font-size:14px}
+.step p{font-size:13px; color:var(--mut); margin-top:2px; line-height:1.45}
+/* directory */
+.filters{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px}
+.filters button{border:1px solid var(--line); background:var(--chip); color:var(--mut); border-radius:14px; padding:5px 11px; font-size:12px; font-weight:600; cursor:pointer}
+.filters button.on{background:var(--acc); color:#fff; border-color:var(--acc)}
+.tierh{font-family:var(--mono); font-size:12px; text-transform:uppercase; letter-spacing:.07em; color:var(--acc); margin:16px 0 6px}
+.tierh:first-child{margin-top:0}
+.tierh span{color:var(--faint); text-transform:none; letter-spacing:0; font-weight:500; margin-left:8px}
+.bk{border-top:1px solid var(--line); padding:11px 0}
+.bk .t{display:flex; align-items:flex-start; gap:8px; flex-wrap:wrap}
+.bk .nm{font-weight:600; font-size:14px; flex:1; min-width:180px}
+.bk .fam{font-size:11px; color:var(--faint); font-family:var(--mono)}
+.bk .meta{font-size:12px; color:var(--mut); margin-top:3px; line-height:1.45}
+.bk .meta b{color:var(--ink); font-weight:600}
+.bk .acts{display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; align-items:center}
+.st{display:flex; border:1px solid var(--line); border-radius:8px; overflow:hidden}
+.st button{border:none; border-right:1px solid var(--line); background:var(--chip); color:var(--mut); padding:5px 9px; font-size:11.5px; font-weight:600; cursor:pointer}
+.st button:last-child{border-right:none}
+.st button.on.todo{background:var(--chip); color:var(--ink)}
+.st button.on.sub{background:var(--warn); color:#fff}
+.st button.on.done{background:var(--good); color:#fff}
+.st button.on.na{background:var(--faint); color:#fff}
+.due{font-size:11px; font-family:var(--mono); color:var(--mut)}
+.due.over{color:var(--bad); font-weight:700}
+.bk input.note{margin-top:7px; font-size:12.5px; padding:6px 9px}
+/* run */
+.runcard .big{font-family:var(--mono); font-size:18px; font-weight:600; margin:4px 0 6px}
+.runcard .cnt{font-family:var(--mono); font-size:12px; color:var(--mut)}
+/* templates */
+pre.tpl{white-space:pre-wrap; font:13px/1.5 var(--mono); background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:12px; margin-top:8px; max-height:420px; overflow:auto}
+.links li{padding:6px 0; border-top:1px solid var(--line); font-size:13.5px}
+.links li:first-child{border-top:none}
+.links{list-style:none; margin-top:6px}
+#toast{position:fixed; bottom:calc(20px + env(safe-area-inset-bottom)); left:50%; transform:translateX(-50%); background:var(--raised); color:var(--ink); border:1px solid var(--line2); padding:9px 18px; border-radius:20px; font-size:14px; opacity:0; transition:opacity .25s; pointer-events:none; white-space:nowrap; z-index:90}
+#toast.show{opacity:1}
+@media(min-width:900px){ .two{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:12px; align-items:start} }
+</style>
+</head>
+<body>
+
+<div class="suitebar">
+  <a class="brand" href="./index.html">◆&nbsp;FIELD KIT</a>
+  <div class="switch">
+    <a href="./index.html">Weather</a>
+    <a href="./markets.html">Markets</a>
+    <a href="./tax.html">Tax</a>
+    <a href="./mortgage.html">Mortgage</a>
+    <a href="./scrub.html">Scrub</a>
+    <a href="./optout.html" class="on">Opt Out</a>
+    <a href="./places.html">Places</a>
+    <a href="./tickers.html">Watch</a>
+  </div>
+</div>
+
+<header>
+  <h1>Opt Out</h1>
+  <p>A data-removal workbook in the Bazzell tradition, with the tedious parts automated. Your profile, progress and notes live only in this browser. Nothing is sent anywhere; the only network traffic is the opt-out pages you choose to open.</p>
+</header>
+
+<div class="tabs" id="tabs">
+  <button data-t="play" class="on">Playbook</button>
+  <button data-t="dir">Directory</button>
+  <button data-t="run">Guided run</button>
+  <button data-t="tpl">Letters</button>
+  <button data-t="me">Find me</button>
+  <button data-t="prof">Profile</button>
+</div>
+
+<!-- PLAYBOOK -->
+<section id="s-play" class="active">
+  <div class="card"><h2>Progress <span class="sub" id="progSub"></span></h2><div class="prog" id="prog"></div></div>
+  <div class="two">
+  <div class="card">
+    <h2>The method <span class="sub">order matters</span></h2>
+    <div class="step"><div class="n">0</div><div><b>Set up clean channels first</b><p>A masked email for opt-outs (SimpleLogin, addy.io or Firefox Relay), a VoIP number you can burn (MySudo, Google Voice), a password manager, and a fresh browser profile with no extensions. Brokers often verify by emailing the address they already have on you, so keep your old addresses reachable during the run.</p></div></div>
+    <div class="step"><div class="n">1</div><div><b>Freeze the bureaus</b><p>Equifax, Experian, TransUnion, then the three everyone forgets: Innovis, ChexSystems, NCTUE. Free, permanent, and it stops most identity fraud cold. Thaw for a day when you actually apply for something.</p></div></div>
+    <div class="step"><div class="n">2</div><div><b>Stop the firehose</b><p>OptOutPrescreen (do the permanent mailed form, not just the 5-year), DMAchoice, Catalog Choice, the Do Not Call registry, NAI and DAA ad opt-outs, the big-tech ad settings, and a GLBA opt-out letter to every bank and card issuer you hold. This is where the credit card mail and most of the calls come from.</p></div></div>
+    <div class="step"><div class="n">3</div><div><b>Cut the upstream aggregators</b><p>LexisNexis, Acxiom, Epsilon, CoreLogic, Thomson Reuters CLEAR, TransUnion and the bureau marketing arms. These feed the people-search sites. Starve them and the sites below repopulate slower.</p></div></div>
+    <div class="step"><div class="n">4</div><div><b>Sweep the people-search sites</b><p>Work by parent company. One PeopleConnect suppression covers Intelius, TruthFinder, Instant Checkmate, US Search and ZabaSearch. Most want the URL of your own profile, so use Find me first, then paste it.</p></div></div>
+    <div class="step"><div class="n">5</div><div><b>Scrub the search engines</b><p>Google's Results About You tool removes results that show your home address, phone or email. Bing has a content-removal form. Do this last, after the source pages are gone, or the results come back.</p></div></div>
+    <div class="step"><div class="n">6</div><div><b>Maintain</b><p>Data repopulates. Re-check people-search sites every 90 days and aggregators every 6 months. The tracker sets the dates for you and flags what is overdue. Re-run Find me each time.</p></div></div>
+  </div>
+  <div>
+    <div class="card">
+      <h2>Your legal lever <span class="sub" id="lawSub"></span></h2>
+      <div class="muted" id="lawText"></div>
+      <div class="tiny" style="margin-top:8px">Set your state on the Profile tab. Every letter on the Letters tab cites the statute automatically. Statutes give you a right to delete and to opt out of sale, and put a response deadline on the broker. A broker that ignores a valid request has broken the law, and the escalation letter says so.</div>
+    </div>
+    <div class="card">
+      <h2>If you want it hands-off</h2>
+      <div class="muted">A paid service (DeleteMe, Optery, Incogni) submits and re-submits for you. The trade is that you hand them your full profile, and they only cover the sites on their list. Doing it yourself with this workbook covers more, costs nothing, and keeps your data on your own device. Bazzell's free workbook is the canonical source if a link here has moved: <a href="https://inteltechniques.com/workbook.html" target="_blank" rel="noopener">inteltechniques.com/workbook</a>.</div>
+    </div>
+    <div class="card">
+      <h2>Beyond opt-outs <span class="sub">Extreme Privacy tier</span></h2>
+      <div class="muted">Opt-outs treat symptoms. The cause is your name on records. The next level is a private mailbox (PMB) as your address of record everywhere, a trust or LLC holding the house so the deed is not in your name, utilities and phone in a company or alias name where legal, and never using your real address for anything that publishes it. That is a project, not a checklist, and it is worth it before the next home purchase, not after.</div>
+    </div>
+  </div>
+  </div>
+</section>
+
+<!-- DIRECTORY -->
+<section id="s-dir">
+  <div class="card">
+    <h2>Directory <span class="sub" id="dirSub"></span></h2>
+    <div class="filters" id="filters"></div>
+    <div id="dir"></div>
+    <div class="tiny" style="margin-top:10px">Links go straight to each opt-out page. Brokers move them; if one 404s, search the site name plus "opt out" and use the workbook link on the Playbook tab. Setting a status stamps the date and schedules the re-check.</div>
+  </div>
+</section>
+
+<!-- GUIDED RUN -->
+<section id="s-run">
+  <div class="card">
+    <h2>Guided run <span class="sub">one at a time, mark it, next</span></h2>
+    <div class="row" style="margin-bottom:12px">
+      <select id="runScope" style="width:auto">
+        <option value="todo">Everything not done</option>
+        <option value="due">Overdue re-checks</option>
+        <option value="1">Tier 1 · freezes</option>
+        <option value="2">Tier 2 · firehose</option>
+        <option value="3">Tier 3 · aggregators</option>
+        <option value="4">Tier 4 · people-search</option>
+        <option value="5">Tier 5 · search engines</option>
+      </select>
+      <button class="btn" id="runStart">Start</button>
+    </div>
+    <div id="runBody" class="muted">Pick a scope and press Start. Each item opens in a new tab, you do the form, mark it, and move on.</div>
+  </div>
+</section>
+
+<!-- LETTERS -->
+<section id="s-tpl">
+  <div class="card">
+    <h2>Letters &amp; scripts <span class="sub">filled from your profile</span></h2>
+    <div class="row" style="margin-bottom:8px">
+      <select id="tplSel" style="width:auto">
+        <option value="delete">Deletion + do-not-sell request (state law)</option>
+        <option value="glba">Bank / card issuer privacy opt-out (GLBA)</option>
+        <option value="escalate">Escalation, no response after 45 days</option>
+        <option value="call">Phone script for solicitation calls</option>
+        <option value="prescreen">OptOutPrescreen permanent (mail) checklist</option>
+        <option value="generic">Generic broker opt-out email</option>
+      </select>
+      <button class="btn pri" id="tplCopy">Copy</button>
+    </div>
+    <pre class="tpl" id="tplOut"></pre>
+    <div class="tiny" style="margin-top:8px">Paste into the broker's form or email. Where a broker publishes a privacy address, the Directory's Email button opens a pre-filled draft with this text.</div>
+  </div>
+</section>
+
+<!-- FIND ME -->
+<section id="s-me">
+  <div class="card">
+    <h2>Find me <span class="sub">see what is exposed before you remove it</span></h2>
+    <div class="muted" id="meIntro"></div>
+    <ul class="links" id="meLinks"></ul>
+    <div class="tiny" style="margin-top:8px">Copy the URL of your own profile on each site; most removal forms ask for it. Search your prior addresses and name variants too, brokers file you under all of them.</div>
+  </div>
+</section>
+
+<!-- PROFILE -->
+<section id="s-prof">
+  <div class="warnbox"><b>Device only.</b> Everything below is saved in this browser's local storage and nowhere else. It fills the letters and the search links. Clear it with the button at the bottom when you are done, and do not enter it on a shared computer.</div>
+  <div class="card">
+    <div class="grid3">
+      <div class="field"><label>First name</label><input type="text" id="p_first"></div>
+      <div class="field"><label>Middle</label><input type="text" id="p_middle"></div>
+      <div class="field"><label>Last name</label><input type="text" id="p_last"></div>
+    </div>
+    <div class="grid2">
+      <div class="field"><label>Other names (maiden, nicknames, comma separated)</label><input type="text" id="p_alias"></div>
+      <div class="field"><label>Date of birth</label><input type="date" id="p_dob"></div>
+    </div>
+    <div class="grid3">
+      <div class="field"><label>Current street address</label><input type="text" id="p_street"></div>
+      <div class="field"><label>City</label><input type="text" id="p_city"></div>
+      <div class="field"><label>ZIP</label><input type="text" id="p_zip" inputmode="numeric"></div>
+    </div>
+    <div class="grid2">
+      <div class="field"><label>State of residence (sets the statute)</label><select id="p_state"></select></div>
+      <div class="field"><label>Phones (comma separated)</label><input type="text" id="p_phones"></div>
+    </div>
+    <div class="field"><label>Emails (comma separated, include old ones brokers may have)</label><input type="text" id="p_emails"></div>
+    <div class="field"><label>Previous addresses (one per line)</label><textarea id="p_prev"></textarea></div>
+    <div class="row">
+      <button class="btn" id="expBtn">Export progress (JSON)</button>
+      <label class="btn" style="margin:0">Import<input type="file" id="impFile" accept="application/json" style="display:none"></label>
+      <button class="btn" id="clearBtn" style="margin-left:auto; color:var(--bad)">Erase profile &amp; progress</button>
+    </div>
+  </div>
+</section>
+
+<div id="toast"></div>
+
+<script>
+'use strict';
+const $=s=>document.querySelector(s), $$=s=>document.querySelectorAll(s);
+const store={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('show'),1800)}
+function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
+const DAY=864e5;
+
+/* ---- state privacy statutes (right to delete + opt out of sale) ---- */
+const LAW={
+  CA:'the California Consumer Privacy Act as amended by the CPRA (Cal. Civ. Code § 1798.100 et seq.), including the right to delete (§ 1798.105) and to opt out of sale or sharing (§ 1798.120)',
+  IN:'the Indiana Consumer Data Protection Act (Ind. Code § 24-15), in effect since January 1, 2026',
+  VA:'the Virginia Consumer Data Protection Act (Va. Code § 59.1-575 et seq.)',
+  CO:'the Colorado Privacy Act (C.R.S. § 6-1-1301 et seq.)',
+  CT:'the Connecticut Data Privacy Act (Conn. Gen. Stat. § 42-515 et seq.)',
+  UT:'the Utah Consumer Privacy Act (Utah Code § 13-61-101 et seq.)',
+  TX:'the Texas Data Privacy and Security Act (Tex. Bus. & Com. Code ch. 541)',
+  OR:'the Oregon Consumer Privacy Act (ORS 646A.570 et seq.)',
+  MT:'the Montana Consumer Data Privacy Act (MCA § 30-14-2801 et seq.)',
+  IA:'the Iowa Consumer Data Protection Act (Iowa Code ch. 715D)',
+  TN:'the Tennessee Information Protection Act (Tenn. Code § 47-18-3201 et seq.)',
+  DE:'the Delaware Personal Data Privacy Act (Del. Code tit. 6, ch. 12D)',
+  NJ:'the New Jersey Data Privacy Act (N.J. Stat. § 56:8-166.4 et seq.)',
+  NH:'the New Hampshire Privacy Act (RSA ch. 507-H)',
+  KY:'the Kentucky Consumer Data Protection Act (KRS 367.3611 et seq.)',
+  MD:'the Maryland Online Data Privacy Act (Md. Code, Com. Law § 14-4601 et seq.)',
+  MN:'the Minnesota Consumer Data Privacy Act (Minn. Stat. ch. 325O)',
+  NE:'the Nebraska Data Privacy Act (Neb. Rev. Stat. § 87-1101 et seq.)',
+  RI:'the Rhode Island Data Transparency and Privacy Protection Act (R.I. Gen. Laws ch. 6-48.1)',
+  FL:'the Florida Digital Bill of Rights (Fla. Stat. § 501.701 et seq.)'
+};
+const STATES='AL AK AZ AR CA CO CT DE DC FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS MO MT NE NV NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV WI WY'.split(' ');
+
+/* ---- the directory ----
+   t: tier, f: family/parent, u: opt-out url, m: method, r: what they ask for, e: privacy email, s: search-yourself url template, note */
+const B=[
+ {n:'Equifax credit freeze',t:1,f:'bureau',u:'https://www.equifax.com/personal/credit-report-services/credit-freeze/',m:'account',r:'SSN, DOB, address',note:'Free and permanent until you thaw it.'},
+ {n:'Experian credit freeze',t:1,f:'bureau',u:'https://www.experian.com/freeze/center.html',m:'account',r:'SSN, DOB, address'},
+ {n:'TransUnion credit freeze',t:1,f:'bureau',u:'https://www.transunion.com/credit-freeze',m:'account',r:'SSN, DOB, address'},
+ {n:'Innovis freeze',t:1,f:'fourth bureau',u:'https://www.innovis.com/personal/securityFreeze',m:'form',r:'SSN, DOB, address',note:'The one most people miss.'},
+ {n:'ChexSystems freeze',t:1,f:'banking',u:'https://www.chexsystems.com/security-freeze/place-freeze',m:'form',r:'SSN, DOB',note:'Blocks bank accounts opened in your name.'},
+ {n:'NCTUE freeze',t:1,f:'utilities, telecom',u:'https://www.nctue.com/consumers',m:'form or phone',r:'SSN',note:'Blocks phone and utility accounts opened in your name.'},
+
+ {n:'OptOutPrescreen (prescreened credit and insurance offers)',t:2,f:'bureaus, joint',u:'https://www.optoutprescreen.com',m:'form for 5 years; mailed form for permanent',r:'SSN, DOB',note:'This is the source of most credit card mail. Do the permanent version; the checklist is on the Letters tab.'},
+ {n:'DMAchoice (direct mail)',t:2,f:'ANA',u:'https://www.dmachoice.org',m:'form, small fee, 10 years',r:'name, address'},
+ {n:'Catalog Choice',t:2,f:'',u:'https://www.catalogchoice.org',m:'form',r:'name, address'},
+ {n:'National Do Not Call Registry',t:2,f:'FTC',u:'https://www.donotcall.gov',m:'form',r:'phone number',note:'Legitimate telemarketers honor it. Scammers do not, so pair it with carrier spam blocking and the phone script.'},
+ {n:'NAI ad-network opt-out',t:2,f:'ad networks',u:'https://optout.networkadvertising.org',m:'browser cookie, per device',r:''},
+ {n:'DAA ad-industry opt-out',t:2,f:'ad networks',u:'https://optout.aboutads.info',m:'browser cookie, per device',r:''},
+ {n:'Google ad personalization',t:2,f:'Google',u:'https://myadcenter.google.com',m:'account',r:'Google account'},
+ {n:'Meta ad preferences and off-Facebook activity',t:2,f:'Meta',u:'https://www.facebook.com/adpreferences',m:'account',r:''},
+ {n:'Microsoft ad settings',t:2,f:'Microsoft',u:'https://account.microsoft.com/privacy/ad-settings',m:'account',r:''},
+ {n:'Vericast (Save and RetailMeNot mailers)',t:2,f:'direct mail',u:'https://www.vericast.com/opt-out/',m:'form',r:'address'},
+ {n:'Your banks and card issuers (GLBA sharing opt-out)',t:2,f:'financial',u:'',m:'phone or form, per institution',r:'account',note:'Every privacy notice includes an opt-out of affiliate and third-party sharing. Send the GLBA letter to each one and cancel marketing while you are there.'},
+
+ {n:'LexisNexis consumer opt-out',t:3,f:'aggregator',u:'https://optout.lexisnexis.com',m:'form',r:'name, address, DOB; may ask for ID',note:'Feeds background-check and people-search sites. Do it early.'},
+ {n:'Acxiom',t:3,f:'aggregator',u:'https://isapps.acxiom.com/optout/optout.aspx',m:'form',r:'name, address, email, phone'},
+ {n:'Epsilon',t:3,f:'aggregator',u:'https://www.epsilon.com/us/consumer-preference-center',m:'form or email',r:'name, address',e:'privacy@epsilon.com'},
+ {n:'CoreLogic',t:3,f:'property data',u:'https://www.corelogic.com/privacy-center/',m:'form',r:'name, address'},
+ {n:'Thomson Reuters CLEAR',t:3,f:'investigative',u:'https://www.thomsonreuters.com/en/privacy-statement.html',m:'form',r:'name, address',note:'Used by investigators and collectors. Limited opt-out, but it exists.'},
+ {n:'TransUnion marketing and TLOxp opt-out',t:3,f:'investigative',u:'https://www.transunion.com/optout',m:'form',r:'name, address'},
+ {n:'Experian marketing opt-out',t:3,f:'bureau marketing',u:'https://www.experian.com/privacy/opting_out',m:'form',r:'name, address'},
+ {n:'Equifax marketing opt-out',t:3,f:'bureau marketing',u:'https://www.equifax.com/personal/privacy/',m:'form',r:''},
+ {n:'Innovis marketing opt-out',t:3,f:'bureau marketing',u:'https://www.innovis.com/personal/optOut',m:'form',r:''},
+
+ {n:'PeopleConnect suppression (Intelius, TruthFinder, Instant Checkmate, US Search, ZabaSearch)',t:4,f:'PeopleConnect',u:'https://suppression.peopleconnect.us/login',m:'form, email verification',r:'email',s:'https://www.truthfinder.com/results/?firstName={f}&lastName={l}&state={st}',note:'One suppression covers the whole family.'},
+ {n:'BeenVerified (PeopleLooker, PeopleSmart, NeighborWho)',t:4,f:'BeenVerified',u:'https://www.beenverified.com/app/optout/search',m:'form, email verification',r:'email',s:'https://www.beenverified.com/people/{f}-{l}/'},
+ {n:'Spokeo',t:4,f:'Spokeo',u:'https://www.spokeo.com/optout',m:'form, profile URL, email verification',r:'profile URL, email',s:'https://www.spokeo.com/search?q={f}+{l}'},
+ {n:'Whitepages (411.com)',t:4,f:'Whitepages',u:'https://www.whitepages.com/suppression-requests',m:'form, phone verification',r:'profile URL, phone',s:'https://www.whitepages.com/name/{f}-{l}/{st}'},
+ {n:'Radaris',t:4,f:'Radaris',u:'https://radaris.com/control/privacy',m:'form or account',r:'',s:'https://radaris.com/p/{f}/{l}/'},
+ {n:'MyLife',t:4,f:'MyLife',u:'https://www.mylife.com/privacy-policy',m:'email or phone',r:'',e:'privacy@mylife.com',note:'If email stalls, call 1-888-704-1900 and ask for removal.'},
+ {n:'FastPeopleSearch',t:4,f:'',u:'https://www.fastpeoplesearch.com/removal',m:'form',r:'profile URL',s:'https://www.fastpeoplesearch.com/name/{f}-{l}_{city}-{st}'},
+ {n:'TruePeopleSearch',t:4,f:'',u:'https://www.truepeoplesearch.com/removal',m:'form',r:'profile URL',s:'https://www.truepeoplesearch.com/results?name={f}%20{l}&citystatezip={city}%20{st}'},
+ {n:'ClustrMaps',t:4,f:'',u:'https://clustrmaps.com/bl/opt-out',m:'form',r:'profile URL'},
+ {n:'Nuwber',t:4,f:'',u:'https://nuwber.com/removal/link',m:'form',r:'profile URL'},
+ {n:'PeekYou',t:4,f:'',u:'https://www.peekyou.com/about/contact/optout',m:'form',r:'profile URL'},
+ {n:'USPhoneBook',t:4,f:'',u:'https://www.usphonebook.com/opt-out',m:'form',r:'phone'},
+ {n:'ThatsThem',t:4,f:'',u:'https://thatsthem.com/optout',m:'form',r:''},
+ {n:'FamilyTreeNow',t:4,f:'',u:'https://www.familytreenow.com/optout',m:'form',r:''},
+ {n:'Advanced Background Checks',t:4,f:'',u:'https://www.advancedbackgroundchecks.com/removal',m:'form',r:'profile URL'},
+ {n:'CheckPeople',t:4,f:'',u:'https://www.checkpeople.com/opt-out',m:'form',r:''},
+ {n:'Cyber Background Checks',t:4,f:'',u:'https://www.cyberbackgroundchecks.com/removal',m:'form',r:''},
+ {n:'SearchPeopleFree',t:4,f:'',u:'https://www.searchpeoplefree.com/opt-out',m:'form',r:''},
+ {n:'PeopleFinders (Addresses.com)',t:4,f:'PeopleFinders',u:'https://www.peoplefinders.com/manage',m:'form',r:''},
+ {n:'Spy Dialer',t:4,f:'',u:'https://www.spydialer.com/optout.aspx',m:'form',r:''},
+ {n:'VoterRecords.com',t:4,f:'',u:'https://voterrecords.com/faq',m:'form',r:'',note:'Voter rolls are public record; removal is partial at best.'},
+
+ {n:'Google Results About You (remove your address, phone, email from results)',t:5,f:'Google',u:'https://myactivity.google.com/results-about-you',m:'form',r:'Google account'},
+ {n:'Bing content removal',t:5,f:'Microsoft',u:'https://www.bing.com/webmaster/tools/content-removal',m:'form',r:''}
+];
+const TIER={1:['Freeze the bureaus','permanent'],2:['Stop the firehose','re-check yearly'],3:['Upstream aggregators','re-check every 6 months'],4:['People-search sites','re-check every 90 days'],5:['Search engines','re-check every 90 days']};
+const RECHECK={1:0,2:365,3:180,4:90,5:90};
+B.forEach((b,i)=>b.id='b'+i);
+
+/* ---- persistence ---- */
+let P=store.get('oo_profile',{}), T=store.get('oo_track',{});
+const saveP=()=>store.set('oo_profile',P), saveT=()=>store.set('oo_track',T);
+const PF=['first','middle','last','alias','dob','street','city','zip','state','phones','emails','prev'];
+const stSel=$('#p_state'); STATES.forEach(s=>{const o=document.createElement('option');o.value=s;o.textContent=s+(LAW[s]?' · privacy law':'');stSel.appendChild(o)});
+PF.forEach(k=>{const el=$('#p_'+k); if(P[k]!=null)el.value=P[k]; el.addEventListener('input',()=>{P[k]=el.value;saveP();renderAll();});});
+if(!P.state){P.state='IN';stSel.value='IN';saveP();}
+
+/* ---- derived profile bits ---- */
+const fullName=()=>[P.first,P.middle,P.last].filter(Boolean).join(' ').trim();
+const addrLines=()=>{const cur=[P.street,[P.city,P.state,P.zip].filter(Boolean).join(' ')].filter(Boolean).join(', ');const prev=(P.prev||'').split('\n').map(s=>s.trim()).filter(Boolean);return [cur,...prev].filter(Boolean)};
+const today=()=>new Date().toLocaleDateString(undefined,{year:'numeric',month:'long',day:'numeric'});
+const lawFor=st=>LAW[st]||'applicable state consumer-privacy law, the Fair Credit Reporting Act where it applies, and your own published privacy policy';
+
+/* ---- tabs ---- */
+$$('#tabs button').forEach(b=>b.onclick=()=>{$$('#tabs button').forEach(x=>x.classList.toggle('on',x===b));$$('section').forEach(s=>s.classList.toggle('active',s.id==='s-'+b.dataset.t));if(b.dataset.t==='me')renderMe();if(b.dataset.t==='tpl')renderTpl();});
+
+/* ---- progress + law ---- */
+function status(b){return T[b.id]&&T[b.id].s||'todo'}
+function nextDue(b){const r=T[b.id];if(!r||!r.d||!RECHECK[b.t]||r.s==='na')return null;return r.d+RECHECK[b.t]*DAY}
+function renderProg(){
+  const tiers=[1,2,3,4,5]; let doneAll=0,totAll=0,over=0;
+  $('#prog').innerHTML=tiers.map(t=>{const items=B.filter(b=>b.t===t);const done=items.filter(b=>['done','na'].includes(status(b))).length;doneAll+=done;totAll+=items.length;
+    items.forEach(b=>{const n=nextDue(b);if(n&&n<Date.now()&&status(b)!=='na')over++;});
+    return `<div><div class="k">Tier ${t}</div><div class="v">${done}/${items.length}</div><div class="b"><i style="width:${items.length?done/items.length*100:0}%"></i></div></div>`}).join('')
+    +`<div><div class="k">Overdue re-checks</div><div class="v" style="color:${over?'var(--bad)':'var(--good)'}">${over}</div><div class="b"><i style="width:${over?100:0}%;background:var(--bad)"></i></div></div>`;
+  $('#progSub').textContent=`${doneAll} of ${totAll} handled`;
+  $('#lawSub').textContent=P.state||'';
+  $('#lawText').innerHTML=LAW[P.state]?`You are covered by <b>${esc(lawFor(P.state))}</b>. Brokers must honor a verified deletion request, generally within 45 days, and must let you opt out of the sale of your data.`:`${P.state||'Your state'} has no comprehensive consumer-privacy statute yet. The letters fall back to the broker's own privacy policy, the FCRA where it applies, and a plain request. Most brokers honor those anyway; the escalation letter still works.`;
+}
+
+/* ---- directory ---- */
+let filt='all';
+$('#filters').innerHTML=['all','1','2','3','4','5','todo','done','due'].map(f=>`<button data-f="${f}" class="${f==='all'?'on':''}">${{all:'All',todo:'Not done',done:'Done',due:'Overdue'}[f]||'Tier '+f}</button>`).join('');
+$$('#filters button').forEach(b=>b.onclick=()=>{filt=b.dataset.f;$$('#filters button').forEach(x=>x.classList.toggle('on',x===b));renderDir();});
+function fill(u){const enc=s=>encodeURIComponent(s||'');return u.replace(/{f}/g,enc(P.first)).replace(/{l}/g,enc(P.last)).replace(/{st}/g,enc(P.state)).replace(/{city}/g,enc(P.city))}
+function matches(b){const s=status(b),n=nextDue(b);
+  if(filt==='all')return true; if(filt==='todo')return !['done','na'].includes(s); if(filt==='done')return ['done','na'].includes(s);
+  if(filt==='due')return n&&n<Date.now(); return b.t===+filt;}
+function bkHTML(b,compact){
+  const s=status(b), r=T[b.id]||{}, n=nextDue(b), over=n&&n<Date.now();
+  const due=n?`<span class="due${over?' over':''}">${over?'overdue · ':'re-check '}${new Date(n).toLocaleDateString()}</span>`:(r.d?`<span class="due">${s==='sub'?'submitted':s==='done'?'removed':'marked'} ${new Date(r.d).toLocaleDateString()}</span>`:'');
+  const mail=b.e?`<a class="btn sm" href="${mailto(b)}">Email</a>`:'';
+  const srch=b.s&&P.first&&P.last?`<a class="btn sm" href="${fill(b.s)}" target="_blank" rel="noopener">Find me</a>`:'';
+  const open=b.u?`<a class="btn sm pri" href="${b.u}" target="_blank" rel="noopener">Open opt-out ↗</a>`:'';
+  return `<div class="bk" data-id="${b.id}">
+    <div class="t"><div class="nm">${esc(b.n)}</div>${b.f?`<div class="fam">${esc(b.f)}</div>`:''}</div>
+    <div class="meta"><b>${esc(b.m)}</b>${b.r?` · needs ${esc(b.r)}`:''}${b.note?`<br>${esc(b.note)}`:''}</div>
+    <div class="acts">${open}${srch}${mail}
+      <div class="st">${[['todo','To do'],['sub','Submitted'],['done','Removed'],['na','N/A']].map(([k,l])=>`<button data-s="${k}" class="${s===k?'on '+k:''}">${l}</button>`).join('')}</div>${due}
+    </div>
+    ${compact?'':`<input class="note" type="text" placeholder="Notes (confirmation #, profile URL, what they asked for)" value="${esc(r.n||'')}">`}
+  </div>`;
+}
+function wireBk(root,after){
+  root.querySelectorAll('.bk').forEach(el=>{
+    const id=el.dataset.id;
+    el.querySelectorAll('.st button').forEach(btn=>btn.onclick=()=>{const rec=T[id]||{};const s=btn.dataset.s;rec.s=s;rec.d=s==='todo'?null:Date.now();T[id]=rec;saveT();renderAll();if(after)after();});
+    const note=el.querySelector('input.note'); if(note)note.addEventListener('input',()=>{const rec=T[id]||{};rec.n=note.value;T[id]=rec;saveT();});
+  });
+}
+function renderDir(){
+  let html='',last=null,shown=0;
+  B.filter(matches).forEach(b=>{if(b.t!==last){last=b.t;html+=`<div class="tierh">Tier ${b.t} · ${TIER[b.t][0]}<span>${TIER[b.t][1]}</span></div>`;}html+=bkHTML(b);shown++;});
+  $('#dir').innerHTML=html||'<div class="muted">Nothing matches this filter.</div>';
+  $('#dirSub').textContent=`${shown} of ${B.length} entries`;
+  wireBk($('#dir'));
+}
+
+/* ---- guided run ---- */
+let run={list:[],i:0};
+$('#runStart').onclick=()=>{
+  const sc=$('#runScope').value;
+  run.list=B.filter(b=>sc==='todo'?!['done','na'].includes(status(b)):sc==='due'?(nextDue(b)&&nextDue(b)<Date.now()):b.t===+sc);
+  run.i=0; renderRun();
+};
+function renderRun(){
+  const body=$('#runBody');
+  if(!run.list.length){body.innerHTML='<div class="muted">Nothing in that scope. Nice.</div>';return;}
+  if(run.i>=run.list.length){body.innerHTML='<div class="muted">Done with this scope. Set the next one, or come back when the re-checks fall due.</div>';return;}
+  const b=run.list[run.i];
+  body.innerHTML=`<div class="runcard"><div class="cnt">${run.i+1} of ${run.list.length} · Tier ${b.t} · ${TIER[b.t][0]}</div>${bkHTML(b)}
+    <div class="row" style="margin-top:10px"><button class="btn" id="runPrev">← Back</button><button class="btn pri" id="runNext">Next →</button><span class="tiny">Open the opt-out, do the form, set the status, then Next.</span></div></div>`;
+  wireBk(body); $('#runPrev').onclick=()=>{run.i=Math.max(0,run.i-1);renderRun()}; $('#runNext').onclick=()=>{run.i++;renderRun()};
+}
+
+/* ---- letters ---- */
+function tpl(kind){
+  const name=fullName()||'[YOUR NAME]', st=P.state||'[STATE]', law=lawFor(P.state);
+  const addrs=addrLines().length?addrLines().map(a=>'  '+a).join('\n'):'  [CURRENT AND PRIOR ADDRESSES]';
+  const emails=P.emails||'[EMAILS]', phones=P.phones||'[PHONES]', dob=P.dob?new Date(P.dob+'T12:00').toLocaleDateString():'[DOB]';
+  const alias=P.alias?`\nAlso known as: ${P.alias}`:'';
+  const T_={
+delete:`Subject: Verifiable consumer request: delete my personal information and opt out of sale or sharing
+
+To the privacy officer,
+
+I am a resident of ${st}. Under ${law}, I am exercising my rights to (1) delete all personal information you hold about me, (2) opt out of the sale, sharing, or disclosure of my personal information to any third party, (3) suppress my identity from any future collection, and (4) receive written confirmation when each is complete.
+
+Use the following only to locate my records:
+Name: ${name}${alias}
+Date of birth: ${dob}
+Current and prior addresses:
+${addrs}
+Phone: ${phones}
+Email: ${emails}
+
+Treat this as a verifiable consumer request. If you need additional verification, tell me exactly what is required and nothing more; do not condition deletion on creating an account. The law requires a substantive response within 45 days. Please reply to the email address above.
+
+${name}
+${today()}`,
+glba:`Subject: Privacy opt-out under the Gramm-Leach-Bliley Act and your privacy notice
+
+I am your customer, ${name}. Under the GLBA (15 U.S.C. § 6802) and the opt-out rights described in your privacy notice, I direct you to:
+1. Stop sharing my nonpublic personal information with nonaffiliated third parties.
+2. Stop sharing my information with your affiliates for marketing purposes.
+3. Remove me from all marketing by mail, email, phone and text, and stop prescreened offers originating from your relationship with me.
+
+Apply this to every account and product in my name, current and future, and confirm in writing. Do not use this request as a reason to close or alter my accounts.
+
+${name}
+${addrs.trim()}
+${today()}`,
+escalate:`Subject: Second notice: overdue response to my verified deletion request
+
+On [DATE OF FIRST REQUEST] I sent you a verifiable request under ${law} to delete my personal information and opt out of its sale. More than 45 days have passed with no substantive response, which is a violation of that statute.
+
+I am giving you ten business days from today to (1) confirm deletion, (2) confirm suppression from future collection, and (3) provide the name of the officer responsible for compliance. If I do not receive that confirmation I will file a complaint with the ${st} Attorney General's consumer protection division and, where available, the state privacy regulator, and I will pursue any private remedy the statute allows.
+
+Name: ${name}
+Addresses on file:
+${addrs}
+Email: ${emails}
+
+${name}
+${today()}`,
+call:`Solicitation call script (say it, then hang up; do not argue)
+
+"Put this number on your company's internal do-not-call list right now and confirm you have done it. Under the TCPA and the FTC's Telemarketing Sales Rule you must keep that list for five years. Do not call this number again."
+
+Then log it: date, time, company, the number they called from, and the agent's name if given. Keep the log in the notes field for the Do Not Call entry.
+
+Why the log matters: after you have asked, each further call can be a TCPA violation worth $500, and $1,500 if willful, recoverable in small claims. Three logged calls after a clear request is a case. Robocalls to a cell phone without consent are actionable even without the request.
+
+Your number(s): ${phones}`,
+prescreen:`OptOutPrescreen, permanent removal (mailed form)
+
+The 5-year opt-out is online and takes two minutes. The permanent one requires a signed, mailed form. Do both: submit the online one today, then mail the permanent one.
+
+1. Go to optoutprescreen.com and choose "Opt Out Prescreened Offers Permanently."
+2. Complete the form online; it will generate a Permanent Opt-Out Election form to print.
+3. Sign it. It needs: full name (${name}), current address (${addrs.trim().split('\n')[0]}), DOB (${dob}), and SSN.
+4. Mail to the address printed on the form (the joint bureau processing center).
+5. Expect 5 to 10 business days; offers already in the pipeline may arrive for up to 60 days.
+
+By phone instead: 1-888-5-OPT-OUT (1-888-567-8688), 5-year only.
+
+While you are at it: opt out of each card issuer's own marketing with the GLBA letter, and unsubscribe from the issuer's email preference center. Prescreen stops the bureaus selling your name; the GLBA letter stops the bank you already use.`,
+generic:`Subject: Opt-out and removal request
+
+Please remove all records about me from your site and databases, opt me out of any sale or sharing of my information, and suppress me from future listings. Confirm by email when complete.
+
+Name: ${name}${alias}
+Date of birth: ${dob}
+Addresses (current and prior):
+${addrs}
+Phone: ${phones}
+Email: ${emails}
+Profile URL(s) on your site: [PASTE URL]
+
+${name}
+${today()}`
+  };
+  return T_[kind];
+}
+function mailto(b){const body=b.t>=3?tpl('generic'):tpl('delete');const subj=body.split('\n')[0].replace(/^Subject:\s*/,'');return `mailto:${b.e}?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(body.replace(/^Subject:.*\n\n?/,''))}`}
+function renderTpl(){$('#tplOut').textContent=tpl($('#tplSel').value)}
+$('#tplSel').onchange=renderTpl;
+$('#tplCopy').onclick=async()=>{try{await navigator.clipboard.writeText($('#tplOut').textContent);toast('Copied')}catch(e){toast('Copy blocked, select the text')}};
+
+/* ---- find me ---- */
+function renderMe(){
+  if(!P.first||!P.last){$('#meIntro').textContent='Fill in your name on the Profile tab first.';$('#meLinks').innerHTML='';return;}
+  const q=encodeURIComponent(`"${P.first} ${P.last}" ${P.city||''} ${P.state||''}`.trim());
+  const names=[`${P.first} ${P.last}`,...(P.alias||'').split(',').map(s=>s.trim()).filter(Boolean)];
+  $('#meIntro').innerHTML=`Searching for <b>${esc(names.join(', '))}</b>${P.city?` near ${esc(P.city)}, ${esc(P.state)}`:''}. Open each, copy your profile URL into the broker's notes, then remove it.`;
+  const eng=[['Google',`https://www.google.com/search?q=${q}`],['Google, phone number',`https://www.google.com/search?q=${encodeURIComponent((P.phones||'').split(',')[0]||'')}`],['Bing',`https://www.bing.com/search?q=${q}`],['DuckDuckGo',`https://duckduckgo.com/?q=${q}`]];
+  const sites=B.filter(b=>b.s).map(b=>[b.n.split(' (')[0],fill(b.s)]);
+  $('#meLinks').innerHTML=[...eng,...sites].filter(([,u])=>u&&!/q=$/.test(u)).map(([n,u])=>`<li><a href="${u}" target="_blank" rel="noopener">${esc(n)} ↗</a></li>`).join('');
+}
+
+/* ---- export / import / erase ---- */
+$('#expBtn').onclick=()=>{const data=JSON.stringify({profile:P,track:T,exported:new Date().toISOString()},null,2);const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([data],{type:'application/json'}));a.download='optout-progress.json';a.click();toast('Exported')};
+$('#impFile').onchange=e=>{const f=e.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{try{const d=JSON.parse(rd.result);if(d.profile)P=d.profile;if(d.track)T=d.track;saveP();saveT();PF.forEach(k=>{$('#p_'+k).value=P[k]||''});renderAll();toast('Imported')}catch(x){toast('Not a valid export')}};rd.readAsText(f)};
+$('#clearBtn').onclick=()=>{if(!confirm('Erase your profile and all progress from this browser?'))return;P={state:'IN'};T={};saveP();saveT();PF.forEach(k=>{$('#p_'+k).value=k==='state'?'IN':''});renderAll();toast('Erased')};
+
+function renderAll(){renderProg();renderDir();if($('#s-run').classList.contains('active')&&run.list.length)renderRun();}
+renderAll(); renderTpl();
+</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){})})}</script>
+</body>
+</html>
