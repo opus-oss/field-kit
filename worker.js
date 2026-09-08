@@ -8,7 +8,8 @@
 const ALLOW = new Set([
   'query1.finance.yahoo.com',
   'query2.finance.yahoo.com',
-  'raw.githubusercontent.com'
+  'raw.githubusercontent.com',
+  'www.pollen.com'
 ]);
 
 export default {
@@ -28,7 +29,7 @@ export default {
     try {
       const upstream = await fetch(t.toString(), {
         method: 'GET',
-        headers: { 'User-Agent': 'FieldKit/1.0', 'Accept': 'application/json,text/plain,*/*' },
+        headers: hdrs(t),
         cf: { cacheTtl: 15, cacheEverything: true }   // 15s edge cache — plenty for quotes
       });
       const resp = new Response(upstream.body, { status: upstream.status });
@@ -39,6 +40,12 @@ export default {
     }
   }
 };
+
+function hdrs(t) {
+  const h = { "User-Agent": "Mozilla/5.0 (FieldKit)", "Accept": "application/json,text/plain,*/*" };
+  if (t.hostname === "www.pollen.com") h["Referer"] = "https://www.pollen.com/";   // pollen.com 405s without it
+  return h;
+}
 
 function cors(r) {
   r.headers.set('Access-Control-Allow-Origin', '*');

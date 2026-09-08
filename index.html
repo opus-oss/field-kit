@@ -238,6 +238,10 @@ nav button.on{color:var(--acc)}
     <div id="aqBody" class="muted">Loading…</div>
   </div>
   <div class="card">
+    <h2>Pollen &amp; allergens</h2>
+    <div id="polBody" class="muted">Loading…</div>
+  </div>
+  <div class="card">
     <h2>Storm outlook (SPC day 1)</h2>
     <div id="spcBody" class="muted">Loading…</div>
   </div>
@@ -421,6 +425,7 @@ async function loadWeather(){
     $('#spcBody').innerHTML=`Couldn’t load — <a target="_blank" rel="noopener" href="https://www.spc.noaa.gov/products/outlook/day1otlk.html">open SPC</a>`;
   });
   loadAirUV().catch(()=>{$('#aqBody').innerHTML='<span class="muted">Air-quality service unreachable.</span>'});
+  loadPollen().catch(()=>{const p=$("#polBody");if(p)p.innerHTML="<span class=\"muted\">Pollen unavailable.</span>"});
   wxBusy=false;
 }
 $('#wxRefresh').onclick=loadWeather;
@@ -627,6 +632,56 @@ async function loadAirUV(){
       </div>
       <div class="uvnote">${burnGuide(uvNow)}</div>
     </div>`;
+}
+
+/* ---------- pollen (Open-Meteo for Europe, pollen.com via your proxy for the US) ---------- */
+const POLCAT=v=>v<2.5?["Low","#16a34a"]:v<4.9?["Low-Med","#65a30d"]:v<7.3?["Medium","#ca8a04"]:v<9.7?["Med-High","#d97706"]:["High","#dc2626"];
+const GRAINS=(k,v)=>{const t=k==="Grass"?[5,20,50]:[10,50,100];return v<t[0]?["Low","#16a34a"]:v<t[1]?["Moderate","#ca8a04"]:v<t[2]?["High","#d97706"]:["Very high","#dc2626"];};
+async function zipFor(l){
+  const key="fk_zip_"+l.lat.toFixed(3)+"_"+l.lon.toFixed(3); const c=store.get(key,null); if(c)return c;
+  const d=await j(`https://nominatim.openstreetmap.org/reverse?lat=${l.lat}&lon=${l.lon}&format=json&zoom=18`);
+  const a=d.address||{}; if((a.country_code||"")!=="us")return null;
+  const m=(a.postcode||"").match(/\d{5}/); const zip=m?m[0]:null; if(zip)store.set(key,zip); return zip;
+}
+async function loadPollen(){
+  const el=$("#polBody"); if(!el)return;
+  el.innerHTML="<span class=\"muted\">Loading…</span>";
+  // Europe: Open-Meteo carries CAMS pollen, keyless
+  try{
+    const d=await j(`https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${loc.lat}&longitude=${loc.lon}&current=alder_pollen,birch_pollen,grass_pollen,mugwort_pollen,olive_pollen,ragweed_pollen&timezone=auto`);
+    const c=d.current||{};
+    const kinds=[["Grass",c.grass_pollen],["Birch",c.birch_pollen],["Ragweed",c.ragweed_pollen],["Alder",c.alder_pollen],["Mugwort",c.mugwort_pollen],["Olive",c.olive_pollen]].filter(x=>x[1]!=null);
+    if(kinds.length){
+      const top=kinds.slice().sort((a,b)=>b[1]-a[1])[0], [cat,col]=GRAINS(top[0],top[1]);
+      el.innerHTML=`<div class="aqhead"><div class="big" style="color:${col}">${Math.round(top[1])}</div><div><span class="pill" style="background:${col}">${cat}</span><div class="meta">${esc(top[0])} pollen, grains per m³, highest right now</div></div></div>
+        <div class="pol" style="grid-template-columns:repeat(3,1fr)">${kinds.map(([k,v])=>{const [c2,co]=GRAINS(k,v);return `<div><div class="pv" style="color:${co}">${Math.round(v)}</div><div class="pl">${k}</div></div>`}).join("")}</div>`;
+      return;
+    }
+  }catch(e){}
+  // US: pollen.com needs its own referrer, so it goes through your Cloudflare Worker
+  const proxy=store.get("fk_proxy","");
+  if(!proxy){
+    el.innerHTML=`<div class="muted">US pollen comes from pollen.com, which only answers requests carrying its own referrer, so it rides through your Cloudflare proxy. <a href="#" id="polProxy">Set the proxy URL</a> (one-time, see PROXY-SETUP.md). European locations work with no setup.</div>`;
+    $("#polProxy").onclick=e=>{e.preventDefault();const v=prompt("Paste your Cloudflare Worker URL:",store.get("fk_proxy",""));if(v!==null){store.set("fk_proxy",v.trim());loadPollen();}};
+    return;
+  }
+  try{
+    const zip=await zipFor(loc);
+    if(!zip){el.innerHTML="<span class=\"muted\">Pollen data covers the US (pollen.com) and Europe (CAMS). No ZIP found for this spot.</span>";return;}
+    const u=`https://www.pollen.com/api/forecast/current/pollen/${zip}`;
+    const r=await fetch(proxy.replace(/\/+$/,"")+"/?url="+encodeURIComponent(u)); if(!r.ok)throw new Error("HTTP "+r.status);
+    renderPollenUS(await r.json());
+  }catch(e){el.innerHTML=`<span class="muted">Pollen unavailable (${esc(e.message)}). Check the proxy URL.</span>`;}
+}
+function renderPollenUS(d){
+  const el=$("#polBody"), L=d.Location||{}, per=L.periods||[];
+  const today=per.find(p=>p.Type==="Today")||per[0]; if(!today){el.innerHTML="<span class=\"muted\">No pollen forecast returned.</span>";return;}
+  const [cat,col]=POLCAT(today.Index);
+  const trig=(today.Triggers||[]).map(t=>t.Name).slice(0,4);
+  el.innerHTML=`<div class="aqhead"><div class="big" style="color:${col}">${today.Index.toFixed(1)}</div>
+    <div><span class="pill" style="background:${col}">${cat}</span><div class="meta">pollen index, 0 to 12 · ${esc(L.DisplayLocation||"")}</div></div></div>
+    ${trig.length?`<div class="meta" style="margin:-4px 0 10px">Top allergens now: ${trig.map(esc).join(", ")}</div>`:""}
+    <div class="pol" style="grid-template-columns:repeat(${per.length||3},1fr)">${per.slice(0,3).map(p=>{const [c2,co]=POLCAT(p.Index);return `<div><div class="pv" style="color:${co}">${p.Index.toFixed(1)}</div><div class="pl">${esc(p.Type)}</div></div>`}).join("")}</div>`;
 }
 
 /* ---------- sun & moon (NOAA/SunCalc math) ---------- */

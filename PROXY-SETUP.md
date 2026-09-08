@@ -26,3 +26,6 @@ To revert to the free relays, tap **⚡** again and clear the field.
   can't be abused as an open proxy if someone finds the URL.
 - Free tier is 100,000 requests/day — you'll never come close.
 - The same Worker URL works for the Watch Deck too if you set it there.
+
+## Also unlocks US pollen
+The Field Kit weather page shows a pollen and allergen index (pollen.com, 0 to 12 scale, top allergens). That source only answers requests carrying its own referrer, so it runs through the same Worker. Once the Worker URL is set (either the Market Board ⚡ button or the link in the pollen card), US pollen fills in on its own. European locations use Open-Meteo and need no setup.
