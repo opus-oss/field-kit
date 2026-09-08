@@ -28,4 +28,4 @@ To revert to the free relays, tap **⚡** again and clear the field.
 - The same Worker URL works for the Watch Deck too if you set it there.
 
 ## Also unlocks US pollen
-The Field Kit weather page shows a pollen and allergen index (pollen.com, 0 to 12 scale, top allergens). That source only answers requests carrying its own referrer, so it runs through the repo cron (`.github/workflows/pollen.yml` writes `pollen.json` every 6 hours for the ZIPs listed there) with no setup. The Worker is only needed for US spots outside that ZIP list. European locations use Open-Meteo and need no setup.
+The Field Kit weather page shows a pollen and allergen index (pollen.com, 0 to 12 scale, top allergens). That source only answers requests carrying its own referrer, so it runs through the repo cron (`.github/workflows/pollen.yml` runs `pollen-fetch.py` every 6 hours, one ZIP per 3-digit prefix nationwide, into `pollen.json`) with no setup. The Worker is not needed for pollen. European locations use Open-Meteo and need no setup.

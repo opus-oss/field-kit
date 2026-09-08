@@ -658,22 +658,19 @@ async function loadPollen(){
       return;
     }
   }catch(e){}
-  // US: pollen.com needs its own referrer, so the repo cron fetches it into pollen.json (or your Worker does it live)
+  // US: pollen.com needs its own referrer, so the repo cron fetches it nationwide into pollen.json (nearest region by distance)
+  try{
+    const r=await fetch("pollen.json",{cache:"no-cache"});
+    if(r.ok){
+      const d=await r.json(); let best=null,bd=1e9;
+      for(const g of d.regions||[]){const dm=miles(loc.lat,loc.lon,g.lat,g.lon);if(dm<bd){bd=dm;best=g;}}
+      if(best&&bd<=90){renderPollenUS({Location:{DisplayLocation:best.loc,periods:best.p.map(q=>({Type:q[0],Index:q[1],Triggers:q[2].map(n=>({Name:n}))}))}},d.updated);return;}
+    }
+  }catch(e){}
   let zip=null; try{zip=await zipFor(loc);}catch(e){}
-  if(zip){
-    try{
-      const r=await fetch("pollen.json",{cache:"no-cache"});
-      if(r.ok){
-        const d=await r.json(), zs=d.zips||{};
-        const hit=zs[zip]||Object.keys(zs).filter(k=>k.slice(0,3)===zip.slice(0,3)).map(k=>zs[k])[0];
-        if(hit){renderPollenUS({Location:{DisplayLocation:hit.loc,periods:hit.periods.map(p=>({Type:p.type,Index:p.index,Triggers:(p.triggers||[]).map(n=>({Name:n}))}))}},d.updated);return;}
-      }
-    }catch(e){}
-  }
   const proxy=store.get("fk_proxy","");
   if(!proxy){
-    if(zip){el.innerHTML=`<div class="muted">ZIP ${esc(zip)} isn't in the pollen cron yet. Add it to the ZIPS line in <code>.github/workflows/pollen.yml</code> and it fills in on the next run.</div>`;return;}
-    el.innerHTML=`<div class="muted">Pollen covers the US (pollen.com, via the repo cron or your proxy) and Europe (CAMS). No ZIP found for this spot.</div>`;
+    el.innerHTML=`<div class="muted">No pollen coverage here. Sources are pollen.com for the lower 48 and CAMS for Europe.</div>`;
     return;
   }
   try{
@@ -683,6 +680,7 @@ async function loadPollen(){
     renderPollenUS(await r.json());
   }catch(e){el.innerHTML=`<span class="muted">Pollen unavailable (${esc(e.message)}). Check the proxy URL.</span>`;}
 }
+function miles(a,b,c,d){const R=3958.8,p=Math.PI/180,x=Math.sin((c-a)*p/2),y=Math.sin((d-b)*p/2),s=x*x+Math.cos(a*p)*Math.cos(c*p)*y*y;return 2*R*Math.asin(Math.sqrt(s))}
 function ago(iso){const m=Math.round((Date.now()-new Date(iso))/60000);return m<60?`${m} min ago`:`${Math.round(m/60)} h ago`}
 function renderPollenUS(d,updated){
   const el=$("#polBody"), L=d.Location||{}, per=L.periods||[];

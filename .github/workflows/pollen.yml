@@ -1,7 +1,7 @@
-# Pulls the pollen.com allergy forecast for a few ZIPs and publishes it as pollen.json
+# Pulls the pollen.com allergy forecast for the whole US (one ZIP per 3-digit prefix) into pollen.json
 # so the weather page can read it same-origin. pollen.com only answers requests that
 # carry its own referrer, which a browser cannot set, so the fetch lives here instead.
-# Add or remove ZIPs on the ZIPS line. Runs every 6 hours, or by hand from the Actions tab.
+# Runs every 6 hours, on edits to this file, or by hand from the Actions tab.
 name: Pollen
 
 on:
@@ -9,7 +9,7 @@ on:
     - cron: "23 */6 * * *"
   workflow_dispatch:
   push:
-    paths: [".github/workflows/pollen.yml"]
+    paths: [".github/workflows/pollen.yml", "pollen-fetch.py", "zipgrid.json"]
 
 permissions:
   contents: write
@@ -29,36 +29,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Fetch pollen.com
-        env:
-          ZIPS: "47708 47630"   # one per area is enough, pollen.com reports by region
-        run: |
-          python3 - <<'PY'
-          import json, os, time, urllib.request
-          out = {"updated": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "zips": {}}
-          for z in os.environ["ZIPS"].split():
-              req = urllib.request.Request(
-                  f"https://www.pollen.com/api/forecast/current/pollen/{z}",
-                  headers={"Referer": "https://www.pollen.com/",
-                           "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/128 Safari/537.36",
-                           "Accept": "application/json"})
-              try:
-                  with urllib.request.urlopen(req, timeout=20) as r:
-                      d = json.load(r)
-                  L = d.get("Location", {})
-                  out["zips"][z] = {
-                      "loc": L.get("DisplayLocation", ""),
-                      "periods": [{"type": p.get("Type"), "index": p.get("Index"),
-                                   "triggers": [t.get("Name") for t in p.get("Triggers", [])]}
-                                  for p in L.get("periods", [])]}
-                  print(z, "ok", L.get("DisplayLocation"), [p.get("Index") for p in L.get("periods", [])])
-              except Exception as e:
-                  print(z, "failed:", e)
-              time.sleep(1.5)
-          if not out["zips"]:
-              raise SystemExit("no ZIPs fetched, leaving the previous pollen.json in place")
-          json.dump(out, open("pollen.json", "w"), separators=(",", ":"))
-          PY
+      - name: Fetch pollen.com (one ZIP per 3-digit prefix, see zipgrid.json)
+        run: python3 pollen-fetch.py
 
       - name: Commit pollen.json
         run: |
