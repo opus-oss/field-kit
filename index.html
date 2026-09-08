@@ -658,28 +658,39 @@ async function loadPollen(){
       return;
     }
   }catch(e){}
-  // US: pollen.com needs its own referrer, so it goes through your Cloudflare Worker
+  // US: pollen.com needs its own referrer, so the repo cron fetches it into pollen.json (or your Worker does it live)
+  let zip=null; try{zip=await zipFor(loc);}catch(e){}
+  if(zip){
+    try{
+      const r=await fetch("pollen.json",{cache:"no-cache"});
+      if(r.ok){
+        const d=await r.json(), zs=d.zips||{};
+        const hit=zs[zip]||Object.keys(zs).filter(k=>k.slice(0,3)===zip.slice(0,3)).map(k=>zs[k])[0];
+        if(hit){renderPollenUS({Location:{DisplayLocation:hit.loc,periods:hit.periods.map(p=>({Type:p.type,Index:p.index,Triggers:(p.triggers||[]).map(n=>({Name:n}))}))}},d.updated);return;}
+      }
+    }catch(e){}
+  }
   const proxy=store.get("fk_proxy","");
   if(!proxy){
-    el.innerHTML=`<div class="muted">US pollen comes from pollen.com, which only answers requests carrying its own referrer, so it rides through your Cloudflare proxy. <a href="#" id="polProxy">Set the proxy URL</a> (one-time, see PROXY-SETUP.md). European locations work with no setup.</div>`;
-    $("#polProxy").onclick=e=>{e.preventDefault();const v=prompt("Paste your Cloudflare Worker URL:",store.get("fk_proxy",""));if(v!==null){store.set("fk_proxy",v.trim());loadPollen();}};
+    if(zip){el.innerHTML=`<div class="muted">ZIP ${esc(zip)} isn't in the pollen cron yet. Add it to the ZIPS line in <code>.github/workflows/pollen.yml</code> and it fills in on the next run.</div>`;return;}
+    el.innerHTML=`<div class="muted">Pollen covers the US (pollen.com, via the repo cron or your proxy) and Europe (CAMS). No ZIP found for this spot.</div>`;
     return;
   }
   try{
-    const zip=await zipFor(loc);
-    if(!zip){el.innerHTML="<span class=\"muted\">Pollen data covers the US (pollen.com) and Europe (CAMS). No ZIP found for this spot.</span>";return;}
+    if(!zip){el.innerHTML="<span class=\"muted\">Pollen covers the US (pollen.com) and Europe (CAMS). No ZIP found for this spot.</span>";return;}
     const u=`https://www.pollen.com/api/forecast/current/pollen/${zip}`;
     const r=await fetch(proxy.replace(/\/+$/,"")+"/?url="+encodeURIComponent(u)); if(!r.ok)throw new Error("HTTP "+r.status);
     renderPollenUS(await r.json());
   }catch(e){el.innerHTML=`<span class="muted">Pollen unavailable (${esc(e.message)}). Check the proxy URL.</span>`;}
 }
-function renderPollenUS(d){
+function ago(iso){const m=Math.round((Date.now()-new Date(iso))/60000);return m<60?`${m} min ago`:`${Math.round(m/60)} h ago`}
+function renderPollenUS(d,updated){
   const el=$("#polBody"), L=d.Location||{}, per=L.periods||[];
   const today=per.find(p=>p.Type==="Today")||per[0]; if(!today){el.innerHTML="<span class=\"muted\">No pollen forecast returned.</span>";return;}
   const [cat,col]=POLCAT(today.Index);
   const trig=(today.Triggers||[]).map(t=>t.Name).slice(0,4);
   el.innerHTML=`<div class="aqhead"><div class="big" style="color:${col}">${today.Index.toFixed(1)}</div>
-    <div><span class="pill" style="background:${col}">${cat}</span><div class="meta">pollen index, 0 to 12 · ${esc(L.DisplayLocation||"")}</div></div></div>
+    <div><span class="pill" style="background:${col}">${cat}</span><div class="meta">pollen index, 0 to 12 · ${esc(L.DisplayLocation||"")}${updated?` · ${ago(updated)}`:""}</div></div></div>
     ${trig.length?`<div class="meta" style="margin:-4px 0 10px">Top allergens now: ${trig.map(esc).join(", ")}</div>`:""}
     <div class="pol" style="grid-template-columns:repeat(${per.length||3},1fr)">${per.slice(0,3).map(p=>{const [c2,co]=POLCAT(p.Index);return `<div><div class="pv" style="color:${co}">${p.Index.toFixed(1)}</div><div class="pl">${esc(p.Type)}</div></div>`}).join("")}</div>`;
 }
