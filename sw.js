@@ -1,7 +1,7 @@
 /* Field Kit suite — offline service worker.
    HTML is network-first (always loads the latest when online, falls back to cache offline),
    static assets are cache-first. Bump CACHE on any change so clients refresh. */
-const CACHE = 'fieldkit-v21';
+const CACHE = 'fieldkit-v22';
 const ASSETS = [
   './',
   './index.html', './scrub.html', './markets.html', './tax.html', './places.html', './mortgage.html', './optout.html',
@@ -41,8 +41,9 @@ self.addEventListener('fetch', e => {
   const isHTML = req.mode === 'navigation'
     || url.pathname.endsWith('.html')
     || url.pathname.endsWith('/');
+  const isData = url.pathname.endsWith('.json');   // pollen.json etc: refreshed by cron, must not be pinned
 
-  if (isHTML) {
+  if (isHTML || isData) {
     // network-first: newest version wins; cache is only the offline safety net
     e.respondWith(
       fetch(req).then(res => {
