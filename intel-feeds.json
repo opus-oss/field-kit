@@ -114,6 +114,16 @@
   "trust": "low"
  },
  {
+  "id": "ransomisac",
+  "name": "Ransom-ISAC",
+  "url": "https://ransom-isac.org/feed.xml",
+  "alt": [
+   "https://ransom-isac.org/atom.xml"
+  ],
+  "cat": "ecrime",
+  "trust": "high"
+ },
+ {
   "id": "krebs",
   "name": "Krebs on Security",
   "url": "https://krebsonsecurity.com/feed/",
