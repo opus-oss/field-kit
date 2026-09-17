@@ -120,7 +120,7 @@ a{color:var(--acc)}
 .day{display:flex; gap:12px; padding:10px 0; border-top:1px solid var(--line); align-items:flex-start}
 .day:first-of-type{border-top:none}
 .day .dn{width:86px; flex-shrink:0; font-weight:600; font-size:14px}
-.day .dd{flex:1; font-size:13px; color:var(--mut)}
+.day .dd{flex:1; font-size:13.5px; color:var(--ink)}
 .day .dt{font-weight:700; font-size:15px}
 .day .dt small{color:var(--mut); font-weight:600}
 .score{font-size:11px; padding:2px 8px; border-radius:10px; color:#fff; font-weight:700; white-space:nowrap}
@@ -235,27 +235,27 @@ nav button.on{color:var(--acc)}
   <div id="alerts"></div>
   <div class="card" id="wxNow">
     <h2>Now <span id="srcTag" style="float:right;font-weight:500;text-transform:none;letter-spacing:0"></span></h2>
-    <div id="nowBody" class="muted">Loading…</div>
+    <div id="nowBody"><span class="muted">Loading…</span></div>
   </div>
   <div class="card" id="wxHourly">
     <h2>Next 12 hours</h2>
-    <div id="hourly" class="muted">Loading…</div>
+    <div id="hourly"><span class="muted">Loading…</span></div>
   </div>
   <div class="card">
     <h2>Air quality &amp; UV</h2>
-    <div id="aqBody" class="muted">Loading…</div>
+    <div id="aqBody"><span class="muted">Loading…</span></div>
   </div>
   <div class="card">
     <h2>Pollen &amp; allergens</h2>
-    <div id="polBody" class="muted">Loading…</div>
+    <div id="polBody"><span class="muted">Loading…</span></div>
   </div>
   <div class="card">
     <h2>Storm outlook (SPC day 1)</h2>
-    <div id="spcBody" class="muted">Loading…</div>
+    <div id="spcBody"><span class="muted">Loading…</span></div>
   </div>
   <div class="card">
     <h2>7-day &middot; outdoor work score</h2>
-    <div id="daily" class="muted">Loading…</div>
+    <div id="daily"><span class="muted">Loading…</span></div>
   </div>
   <div class="card">
     <h2>Radar</h2>
