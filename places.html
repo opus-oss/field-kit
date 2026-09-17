@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="theme-color" media="(prefers-color-scheme: light)" content="#e0cfb0">
-<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#1b1e1f">
+<meta name="theme-color" content="#1b1e1f" id="tc">
+<script>(function(){var t='dark';try{t=localStorage.getItem('fk_theme')||'dark'}catch(e){}if(t==='light'){document.documentElement.setAttribute('data-theme','light');document.getElementById('tc').content='#e0cfb0'}})()</script>
 <title>Places</title>
 <link rel="manifest" href="manifest-places.webmanifest">
 <link rel="icon" href="places-192.png">
@@ -15,17 +15,17 @@
 <link rel="stylesheet" href="leaflet.css">
 <style>
 :root{
+  color-scheme:light;
   --bg:#e0cfb0; --card:#e8d9bf; --chip:#d4c29e; --raised:#eee1cb;
   --ink:#2b2114; --mut:#5f5236; --faint:#8a7c5e; --line:color-mix(in srgb,#1e160e 12%,transparent); --line2:color-mix(in srgb,#1e160e 24%,transparent);
   --acc:#b0631f; --good:#14776a; --bad:#b23e37; --blue:#2f6fb0;
   --mono:"SF Mono","JetBrains Mono","Menlo",ui-monospace,"Consolas",monospace;
 }
-@media (prefers-color-scheme: dark){
-  :root{
+:root:not([data-theme="light"]){
     --bg:#1b1e1f; --card:#222627; --chip:#292e2f; --raised:#2e3334;
     --ink:#e7e4d9; --mut:#b1afa1; --faint:#828175; --line:#353b3c; --line2:#434a4b;
     --acc:#d98a3d; --good:#4bbfa6; --bad:#d0655c; --blue:#5b9cff;
-  }
+  color-scheme:dark;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%}
@@ -39,6 +39,8 @@ a{color:var(--acc)}
 .suitebar .switch{display:flex; gap:3px}
 .suitebar .switch a{font-family:var(--mono); font-size:12.5px; padding:5px 10px; border-radius:8px; color:var(--mut); text-decoration:none; white-space:nowrap}
 .suitebar .switch a.on{background:var(--acc); color:#fff}
+.suitebar .themebtn{margin-left:auto; position:sticky; right:0; flex-shrink:0; font-size:15px; line-height:1; padding:5px 9px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--mut); cursor:pointer; box-shadow:-10px 0 8px -2px var(--card)}
+.suitebar .themebtn:hover{color:var(--acc); border-color:var(--line2)}
 .ctrls{display:flex; gap:8px; margin-bottom:8px}
 .searchwrap{position:relative; flex:1}
 #q{width:100%; padding:10px 13px; border:1px solid var(--line); border-radius:10px; background:var(--card); color:var(--ink); font-size:15px; -webkit-appearance:none}
@@ -95,7 +97,7 @@ body.sheet-open #sheet{transform:translateY(0)}
 .routebar b{font-family:var(--mono)}
 .routebar button{margin-left:auto; border:none; background:var(--bad); color:#fff; border-radius:7px; padding:5px 10px; font-size:12px; cursor:pointer}
 #toast{position:fixed; bottom:calc(20px + env(safe-area-inset-bottom)); left:50%; transform:translateX(-50%); background:var(--ink); color:var(--bg); padding:9px 18px; border-radius:20px; font-size:14px; opacity:0; transition:opacity .25s; pointer-events:none; white-space:nowrap; z-index:90}
-@media (prefers-color-scheme: dark){#toast{background:var(--raised); color:var(--ink); border:1px solid var(--line2)}}
+:root:not([data-theme="light"]) #toast{background:var(--raised); color:var(--ink); border:1px solid var(--line2)}
 #toast.show{opacity:1}
 </style>
 </head>
@@ -113,6 +115,7 @@ body.sheet-open #sheet{transform:translateY(0)}
     <a href="./optout.html">Opt Out</a>
     <a href="./places.html" class="on">Places</a>
   </div>
+  <button class="themebtn" id="themeBtn" title="Light / dark" aria-label="Toggle light or dark mode">◐</button>
 </div>
 
 <div class="ctrls">
@@ -150,7 +153,8 @@ const $=s=>document.querySelector(s), $$=s=>document.querySelectorAll(s);
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('show'),2400)}
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
 function to12h(str){return String(str||'').replace(/([01]?\d|2[0-4]):([0-5]\d)/g,(m,h,mm)=>{h=+h;if(h===24)return '12:'+mm+' AM';const ap=h<12?'AM':'PM';let hh=h%12;if(hh===0)hh=12;return hh+':'+mm+' '+ap;})}
-const dark=matchMedia('(prefers-color-scheme: dark)').matches;
+const dark=document.documentElement.getAttribute('data-theme')!=='light';
+window.onFkTheme=()=>location.reload();   // basemap tiles are chosen at load
 
 /* ---- map (Esri gray canvas — lighter, cleaner than the near-black dark tiles) ---- */
 const HOME=[37.9716,-87.5711];
@@ -340,5 +344,6 @@ setTimeout(()=>map.invalidateSize(),200);
 window.addEventListener('resize',()=>map.invalidateSize());
 </script>
 <script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){})})}</script>
+<script>(function(){var b=document.getElementById('themeBtn');if(!b)return;b.onclick=function(){var n=document.documentElement.getAttribute('data-theme')==='light'?'dark':'light';if(n==='light')document.documentElement.setAttribute('data-theme','light');else document.documentElement.removeAttribute('data-theme');try{localStorage.setItem('fk_theme',n)}catch(e){}var m=document.getElementById('tc');if(m)m.content=n==='light'?'#e0cfb0':'#1b1e1f';if(window.onFkTheme)window.onFkTheme(n)}})()</script>
 </body>
 </html>

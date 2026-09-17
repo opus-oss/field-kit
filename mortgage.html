@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="theme-color" media="(prefers-color-scheme: light)" content="#e0cfb0">
-<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#1b1e1f">
+<meta name="theme-color" content="#1b1e1f" id="tc">
+<script>(function(){var t='dark';try{t=localStorage.getItem('fk_theme')||'dark'}catch(e){}if(t==='light'){document.documentElement.setAttribute('data-theme','light');document.getElementById('tc').content='#e0cfb0'}})()</script>
 <title>Mortgage</title>
 <link rel="manifest" href="manifest-mortgage.webmanifest">
 <link rel="icon" href="mortgage-192.png">
@@ -14,17 +14,17 @@
 <meta name="apple-mobile-web-app-title" content="Mortgage">
 <style>
 :root{
+  color-scheme:light;
   --bg:#e0cfb0; --card:#e8d9bf; --chip:#d4c29e; --raised:#eee1cb;
   --ink:#2b2114; --mut:#5f5236; --faint:#8a7c5e; --line:color-mix(in srgb,#1e160e 12%,transparent); --line2:color-mix(in srgb,#1e160e 24%,transparent);
   --acc:#b0631f; --good:#14776a; --bad:#b23e37; --state:#7c5bd6; --blue:#2f6fb0; --grey:#8a949c;
   --mono:"SF Mono","JetBrains Mono","Menlo",ui-monospace,"Consolas",monospace;
 }
-@media (prefers-color-scheme: dark){
-  :root{
+:root:not([data-theme="light"]){
     --bg:#1b1e1f; --card:#222627; --chip:#292e2f; --raised:#2e3334;
     --ink:#e7e4d9; --mut:#b1afa1; --faint:#828175; --line:#353b3c; --line2:#434a4b;
     --acc:#d98a3d; --good:#4bbfa6; --bad:#d0655c; --state:#a98cff; --blue:#5b9cff; --grey:#6f7a82;
-  }
+  color-scheme:dark;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html{-webkit-text-size-adjust:100%}
@@ -37,6 +37,8 @@ body{background:var(--bg); color:var(--ink);
 .suitebar .switch{display:flex; gap:3px}
 .suitebar .switch a{font-family:var(--mono); font-size:12.5px; padding:5px 10px; border-radius:8px; color:var(--mut); text-decoration:none; white-space:nowrap}
 .suitebar .switch a.on{background:var(--acc); color:#fff}
+.suitebar .themebtn{margin-left:auto; position:sticky; right:0; flex-shrink:0; font-size:15px; line-height:1; padding:5px 9px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--mut); cursor:pointer; box-shadow:-10px 0 8px -2px var(--card)}
+.suitebar .themebtn:hover{color:var(--acc); border-color:var(--line2)}
 header{padding:16px 2px 6px}
 header h1{font-family:var(--mono); font-size:19px; font-weight:600; letter-spacing:.05em; text-transform:uppercase}
 header p{font-size:12px; color:var(--mut); margin-top:3px}
@@ -117,6 +119,7 @@ a{color:var(--acc)}
     <a href="./optout.html">Opt Out</a>
     <a href="./places.html">Places</a>
   </div>
+  <button class="themebtn" id="themeBtn" title="Light / dark" aria-label="Toggle light or dark mode">◐</button>
 </div>
 
 <header>
@@ -352,5 +355,6 @@ $('#ins').value=Math.round(300000*0.004).toLocaleString();
 compute();
 </script>
 <script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){})})}</script>
+<script>(function(){var b=document.getElementById('themeBtn');if(!b)return;b.onclick=function(){var n=document.documentElement.getAttribute('data-theme')==='light'?'dark':'light';if(n==='light')document.documentElement.setAttribute('data-theme','light');else document.documentElement.removeAttribute('data-theme');try{localStorage.setItem('fk_theme',n)}catch(e){}var m=document.getElementById('tc');if(m)m.content=n==='light'?'#e0cfb0':'#1b1e1f';if(window.onFkTheme)window.onFkTheme(n)}})()</script>
 </body>
 </html>
