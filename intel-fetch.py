@@ -1,7 +1,7 @@
 # Intel Wire fetcher. Pulls every feed in intel-feeds.json, drops vendor promotion, tags what is left,
 # merges with the previous intel.json so stories outlive short feeds, and writes intel.json for intel.html.
 # Standard library plus curl only, so it runs the same on a laptop and on the Actions runner.
-import json, re, subprocess, time, html, hashlib, concurrent.futures as cf
+import json, os, re, subprocess, time, html, hashlib, concurrent.futures as cf
 import xml.etree.ElementTree as ET
 from email.utils import parsedate_to_datetime
 from datetime import datetime, timezone, timedelta
@@ -106,6 +106,18 @@ def clean_url(u):
     p = urlparse(u)
     q = "&".join(x for x in p.query.split("&") if x and not re.match(r"(utm_|source=rss|ref=|fbclid|gclid|mc_)", x, re.I))
     return urlunparse((p.scheme, p.netloc, p.path, "", q, ""))
+def relay(url):
+    """Same feed via Feedly's public stream API. Their crawler is allowlisted where datacenter IPs get a challenge page."""
+    from urllib.parse import quote
+    raw = curl("https://cloud.feedly.com/v3/streams/contents?count=%d&streamId=%s" % (PER_FEED, quote("feed/" + url, safe="")), UA_READER)
+    out = []
+    for i in json.loads(raw).get("items", []):
+        link = (i.get("canonicalUrl") or ((i.get("alternate") or [{}])[0].get("href")) or i.get("originId") or "")
+        ms = i.get("published") or i.get("crawled") or 0
+        out.append({"title": i.get("title", ""), "link": link,
+                    "pubdate": datetime.fromtimestamp(ms / 1000, timezone.utc).isoformat() if ms else "",
+                    "description": (i.get("summary") or i.get("content") or {}).get("content", "")})
+    return out
 def local(tag): return tag.rsplit("}", 1)[-1].lower()
 def parse(raw):
     raw = re.sub(rb"[\x00-\x08\x0b\x0c\x0e-\x1f]", b"", raw)
@@ -142,6 +154,13 @@ def run(feed):
             except Exception as e:
                 res["err"] = str(e)[:80]
         if res["ok"]: break
+    if (not res["ok"] or os.environ.get("FORCE_RELAY", "").find(feed["id"]) >= 0) and "google.com/alerts" not in feed["url"]:
+        for url in [feed["url"]] + feed.get("alt", []):
+            try:
+                got = relay(url)
+                if got: rows = got; res["ok"] = True; res["err"] = ""; res["via"] = "feedly"; break
+            except Exception as e:
+                res["err"] = (res["err"] + "; relay: " + str(e))[:110]
     items = []
     for f in rows[:200]:
         u = clean_url(f.get("link"))
@@ -178,7 +197,7 @@ def main():
     live_ids = {f["id"] for f in feeds}; fresh = {}
     for res, items in results:
         res["last_ok"] = stamp if res["ok"] else last_ok.get(res["id"])
-        print(f'{"ok " if res["ok"] else "ERR"} {res["n"]:>3}  {res["id"]:<18} {res["err"]}')
+        print(f'{"ok " if res["ok"] else "ERR"} {res["n"]:>3}  {res["id"]:<18} {"via " + res["via"] if res.get("via") else ""} {res["err"]}')
         for i in items:
             prev = known.get(i["u"])
             i["f"] = prev["f"] if prev else stamp                       # first seen by this cron

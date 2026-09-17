@@ -342,8 +342,8 @@ function renderRight(){
   const ioc=DATA.items.filter(i=>FEED[i.s]?.cat==='ioc').slice(0,9);
   $('#ioc').innerHTML=ioc.map(i=>`<a class="ioc" href="${esc(i.u)}" target="_blank" rel="noopener noreferrer"><div class="m">${esc(i.t)}</div><div class="w"><b>${esc(FEED[i.s].name)}</b> · ${rel(i.d)} ago</div></a>`).join('')||`<div class="health">No recent commits.</div>`;
   $('#wl').innerHTML=WATCH.map(w=>`<span class="tag" data-w="${esc(w)}" title="Remove">${esc(w)}</span>`).join('')+`<input id="wlAdd" placeholder="+ add term" spellcheck="false">`;
-  const bad=DATA.feeds.filter(f=>!f.ok), quiet=DATA.feeds.filter(f=>f.ok&&!f.n);
-  $('#health').innerHTML=`<b>${DATA.feeds.length-bad.length}</b> of ${DATA.feeds.length} feeds answering`+(bad.length?`<br>`+bad.map(f=>`<span class="bad">✕ ${esc(f.name)}</span> ${esc(f.err)}`).join('<br>'):'')+(quiet.length?`<br><span style="color:var(--faint)">${quiet.length} answering but empty: ${quiet.map(f=>esc(f.name)).join(', ')}</span>`:'');
+  const bad=DATA.feeds.filter(f=>!f.ok), quiet=DATA.feeds.filter(f=>f.ok&&!f.n), via=DATA.feeds.filter(f=>f.via);
+  $('#health').innerHTML=`<b>${DATA.feeds.length-bad.length}</b> of ${DATA.feeds.length} feeds answering`+(bad.length?`<br>`+bad.map(f=>`<span class="bad">✕ ${esc(f.name)}</span> ${esc(f.err)}`).join('<br>'):'')+(via.length?`<br><span style="color:var(--faint)">${via.length} read through a relay because the site blocks the runner: ${via.map(f=>esc(f.name)).join(', ')}</span>`:'')+(quiet.length?`<br><span style="color:var(--faint)">${quiet.length} answering but empty: ${quiet.map(f=>esc(f.name)).join(', ')}</span>`:'');
 }
 function renderSub(){
   const u=DATA.updated?new Date(DATA.updated):null, age=u?(Date.now()-u)/36e5:99, cut=Date.now()-S.range*864e5;
