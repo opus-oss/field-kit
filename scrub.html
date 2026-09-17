@@ -21,9 +21,11 @@
   --bg:#e0cfb0; --card:#e8d9bf; --chip:#d4c29e; --raised:#eee1cb;
   --ink:#2b2114; --mut:#5f5236; --faint:#8a7c5e; --line:color-mix(in srgb,#1e160e 12%,transparent); --line2:color-mix(in srgb,#1e160e 24%,transparent);
   --acc:#b0631f; --good:#14776a; --warn:#8a6410; --bad:#b23e37;
+  --h1:color-mix(in srgb,var(--acc),#000 26%); --h2:#3d6e63; --h3:#44618c; --h4:#71537f; --h5:#5c7150; --on-acc:#fffaf0;
   --mono:"SF Mono","JetBrains Mono","Menlo",ui-monospace,"Consolas",monospace;
 }
 :root:not([data-theme="light"]){
+    --h1:color-mix(in srgb,var(--acc),#fff 16%); --h2:#7cb5a4; --h3:#8fa8c9; --h4:#ab8fc0; --h5:#97ab8a; --on-acc:#1b1e1f;
     --bg:#1b1e1f; --card:#222627; --chip:#292e2f; --raised:#2e3334;
     --ink:#e7e4d9; --mut:#b1afa1; --faint:#828175; --line:#353b3c; --line2:#434a4b;
     --acc:#d98a3d; --good:#4bbfa6; --warn:#c8971f; --bad:#d0655c;
@@ -44,7 +46,7 @@ body{
 .suitebar .switch{display:flex; gap:3px}
 .suitebar .switch a{font-family:var(--mono); font-size:12.5px; padding:5px 10px; border-radius:8px; color:var(--mut); text-decoration:none; white-space:nowrap}
 .suitebar .switch a:hover{color:var(--ink)}
-.suitebar .switch a.on{background:var(--acc); color:#fff}
+.suitebar .switch a.on{background:var(--chip); color:var(--h1); box-shadow:inset 0 -2px 0 var(--acc)}
 .suitebar .themebtn{margin-left:auto; position:sticky; right:0; flex-shrink:0; font-size:15px; line-height:1; padding:5px 9px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--mut); cursor:pointer; box-shadow:-10px 0 8px -2px var(--card)}
 .suitebar .themebtn:hover{color:var(--acc); border-color:var(--line2)}
 @media(min-width:820px){
@@ -52,7 +54,7 @@ body{
   main>.card{position:sticky; top:60px}
 }
 header{padding:16px 16px 4px}
-header h1{font-family:var(--mono); font-size:20px; font-weight:600; letter-spacing:.04em; text-transform:uppercase}
+header h1{font-family:var(--mono); font-size:20px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:var(--h1)}
 header p{font-size:13px; color:var(--mut); margin-top:2px}
 main{padding:12px}
 .card{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px 16px; margin-bottom:12px}
@@ -64,7 +66,7 @@ textarea{
 textarea:focus{outline:none; border-color:var(--acc)}
 .controls{display:flex; gap:8px; margin-top:10px; align-items:center; flex-wrap:wrap}
 button{cursor:pointer; font-family:inherit}
-.btn{background:var(--acc); color:#fff; border:none; border-radius:10px; padding:10px 16px; font-size:14px; font-weight:600}
+.btn{background:var(--acc); color:var(--on-acc); border:none; border-radius:10px; padding:10px 16px; font-size:14px; font-weight:600}
 .btn2{background:var(--chip); color:var(--ink); border:1px solid var(--line); border-radius:10px; padding:10px 14px; font-size:14px}
 .toggle{margin-left:auto; display:flex; align-items:center; gap:7px; font-size:13px; color:var(--mut)}
 .sw{width:38px; height:22px; border-radius:12px; background:var(--line2); position:relative; transition:background .15s; flex-shrink:0}
@@ -79,7 +81,7 @@ button{cursor:pointer; font-family:inherit}
 .res .note{font-size:12px; color:var(--mut); flex:1; min-width:120px}
 .res .note b{color:var(--good); font-weight:600}
 .res .note.clean b{color:var(--mut)}
-.chipbadge{display:inline-block; font-size:11px; font-weight:700; padding:2px 8px; border-radius:9px; background:var(--acc); color:#fff; text-transform:uppercase; letter-spacing:.03em}
+.chipbadge{display:inline-block; font-size:11px; font-weight:700; padding:2px 8px; border-radius:9px; background:var(--acc); color:var(--on-acc); text-transform:uppercase; letter-spacing:.03em}
 .chipbadge.zero{background:var(--chip); color:var(--mut)}
 .copy{background:var(--chip); color:var(--ink); border:1px solid var(--line); border-radius:8px; padding:7px 14px; font-size:13px; font-weight:600}
 .copy.done{background:var(--good); color:#fff; border-color:var(--good)}

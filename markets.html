@@ -21,9 +21,11 @@
   --bg:#e0cfb0; --card:#e8d9bf; --chip:#d4c29e; --raised:#eee1cb;
   --ink:#2b2114; --mut:#5f5236; --faint:#8a7c5e; --line:color-mix(in srgb,#1e160e 12%,transparent); --line2:color-mix(in srgb,#1e160e 24%,transparent);
   --acc:#b0631f; --good:#14776a; --bad:#b23e37;
+  --h1:color-mix(in srgb,var(--acc),#000 26%); --h2:#3d6e63; --h3:#44618c; --h4:#71537f; --h5:#5c7150; --on-acc:#fffaf0;
   --mono:"SF Mono","JetBrains Mono","Menlo",ui-monospace,"Consolas",monospace;
 }
 :root:not([data-theme="light"]){
+    --h1:color-mix(in srgb,var(--acc),#fff 16%); --h2:#7cb5a4; --h3:#8fa8c9; --h4:#ab8fc0; --h5:#97ab8a; --on-acc:#1b1e1f;
     --bg:#1b1e1f; --card:#222627; --chip:#292e2f; --raised:#2e3334;
     --ink:#e7e4d9; --mut:#b1afa1; --faint:#828175; --line:#353b3c; --line2:#434a4b;
     --acc:#d98a3d; --good:#4bbfa6; --bad:#d0655c;
@@ -41,11 +43,11 @@ body{background:var(--bg); color:var(--ink);
 .suitebar .switch{display:flex; gap:3px}
 .suitebar .switch a{font-family:var(--mono); font-size:12.5px; padding:5px 10px; border-radius:8px; color:var(--mut); text-decoration:none; white-space:nowrap}
 .suitebar .switch a:hover{color:var(--ink)}
-.suitebar .switch a.on{background:var(--acc); color:#fff}
+.suitebar .switch a.on{background:var(--chip); color:var(--h1); box-shadow:inset 0 -2px 0 var(--acc)}
 .suitebar .themebtn{margin-left:auto; position:sticky; right:0; flex-shrink:0; font-size:15px; line-height:1; padding:5px 9px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--mut); cursor:pointer; box-shadow:-10px 0 8px -2px var(--card)}
 .suitebar .themebtn:hover{color:var(--acc); border-color:var(--line2)}
 header{padding:14px 4px 8px; display:flex; align-items:baseline; gap:10px; flex-wrap:wrap}
-header h1{font-family:var(--mono); font-size:19px; font-weight:600; letter-spacing:.04em; text-transform:uppercase}
+header h1{font-family:var(--mono); font-size:19px; font-weight:600; letter-spacing:.04em; text-transform:uppercase; color:var(--h1)}
 #sess{font-size:13px; color:var(--mut)}
 #sess b.open{color:var(--good)} #sess b.closed{color:var(--mut)} #sess b.ext{color:var(--acc)}
 .bar{display:flex; align-items:center; gap:10px; padding:0 4px 10px}
@@ -63,7 +65,7 @@ a{color:var(--acc)}
 }
 .card{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:13px 14px; margin-bottom:14px}
 .card:last-child{margin-bottom:0}
-h2{font-family:var(--mono); font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--mut); font-weight:600; margin-bottom:10px; display:flex; justify-content:space-between; align-items:baseline}
+h2{font-family:var(--mono); font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--h2); font-weight:600; margin-bottom:10px; display:flex; justify-content:space-between; align-items:baseline}
 h2 .sub{font-size:10px; font-weight:500; letter-spacing:.02em; color:var(--faint); text-transform:none}
 .muted{color:var(--mut); font-size:13px}
 .err{color:var(--bad); font-size:13px}
@@ -90,7 +92,7 @@ h2 .sub{font-size:10px; font-weight:500; letter-spacing:.02em; color:var(--faint
 /* congress side */
 .capbar{display:flex; gap:6px; margin-bottom:10px}
 .capbar button{flex:1; border:1px solid var(--line); background:var(--chip); color:var(--mut); border-radius:8px; padding:6px 4px; font-size:12px; font-weight:600}
-.capbar button.on{background:var(--acc); color:#fff; border-color:var(--acc)}
+.capbar button.on{background:color-mix(in srgb,var(--acc) 13%,var(--card)); color:var(--h1); border-color:color-mix(in srgb,var(--acc) 50%,transparent)}
 .capload{border:1px solid var(--line); background:var(--chip); color:var(--ink); border-radius:9px; padding:9px 15px; font-size:13px; font-weight:600; cursor:pointer; font-family:var(--mono)}
 .capload:hover{border-color:var(--acc)}
 .cap{padding:9px 0; border-top:1px solid var(--line)}
@@ -126,7 +128,7 @@ body.drawer-open #drawer{transform:translateX(0)}
 .dchart{margin:14px 0 10px; background:var(--card); border:1px solid var(--line); border-radius:12px; overflow:hidden; min-height:172px}
 .dranges{display:flex; gap:6px}
 .dranges button{flex:1; border:1px solid var(--line); background:var(--chip); color:var(--mut); border-radius:8px; padding:7px 0; font-size:13px; font-weight:600}
-.dranges button.on{background:var(--acc); color:#fff; border-color:var(--acc)}
+.dranges button.on{background:color-mix(in srgb,var(--acc) 13%,var(--card)); color:var(--h1); border-color:color-mix(in srgb,var(--acc) 50%,transparent)}
 .dstats{display:grid; grid-template-columns:1fr 1fr; gap:8px 14px; margin-top:14px}
 .dstats div{display:flex; justify-content:space-between; border-bottom:1px solid var(--line); padding-bottom:6px}
 .dstats span{color:var(--mut); font-size:13px}

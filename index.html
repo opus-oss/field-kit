@@ -21,10 +21,12 @@
   --bg:#e0cfb0; --card:#e8d9bf; --chip:#d4c29e; --raised:#eee1cb;
   --ink:#2b2114; --mut:#5f5236; --faint:#8a7c5e; --line:color-mix(in srgb,#1e160e 12%,transparent); --line2:color-mix(in srgb,#1e160e 24%,transparent);
   --acc:#b0631f; --good:#14776a; --warn:#8a6410; --bad:#b23e37;
+  --h1:color-mix(in srgb,var(--acc),#000 26%); --h2:#3d6e63; --h3:#44618c; --h4:#71537f; --h5:#5c7150; --on-acc:#fffaf0;
   --mono:"SF Mono","JetBrains Mono","Menlo",ui-monospace,"Consolas",monospace;
 }
 /* Opus — Prima Materia (dark) : neutral slate, warm lamp */
   :root:not([data-theme="light"]){
+    --h1:color-mix(in srgb,var(--acc),#fff 16%); --h2:#7cb5a4; --h3:#8fa8c9; --h4:#ab8fc0; --h5:#97ab8a; --on-acc:#1b1e1f;
     --bg:#1b1e1f; --card:#222627; --chip:#292e2f; --raised:#2e3334;
     --ink:#e7e4d9; --mut:#b1afa1; --faint:#828175; --line:#353b3c; --line2:#434a4b;
     --acc:#d98a3d; --good:#4bbfa6; --warn:#c8971f; --bad:#d0655c;
@@ -45,7 +47,7 @@ body{
 .suitebar .switch{display:flex; gap:3px}
 .suitebar .switch a{font-family:var(--mono); font-size:12.5px; padding:5px 10px; border-radius:8px; color:var(--mut); text-decoration:none; white-space:nowrap}
 .suitebar .switch a:hover{color:var(--ink)}
-.suitebar .switch a.on{background:var(--acc); color:#fff}
+.suitebar .switch a.on{background:var(--chip); color:var(--h1); box-shadow:inset 0 -2px 0 var(--acc)}
 .suitebar .themebtn{margin-left:auto; position:sticky; right:0; flex-shrink:0; font-size:15px; line-height:1; padding:5px 9px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--mut); cursor:pointer; box-shadow:-10px 0 8px -2px var(--card)}
 .suitebar .themebtn:hover{color:var(--acc); border-color:var(--line2)}
 @media(min-width:760px){
@@ -61,14 +63,14 @@ body{
 }
 @media(min-width:1140px){ #tab-weather{column-count:3} }
 header{padding:14px 16px 10px; display:flex; align-items:baseline; gap:10px; flex-wrap:wrap}
-header h1{font-family:var(--mono); font-size:19px; font-weight:600; letter-spacing:.02em; text-transform:uppercase}
+header h1{font-family:var(--mono); font-size:19px; font-weight:600; letter-spacing:.02em; text-transform:uppercase; color:var(--h1)}
 #locChip{font-size:13px; color:var(--mut)}
 .locbar{display:flex; gap:8px; padding:0 16px 8px; align-items:center}
 .searchwrap{position:relative; flex:1; min-width:150px}
 #placeSearch{width:100%; padding:9px 13px; border:1px solid var(--line); border-radius:16px; background:var(--card); color:var(--ink); font-size:14px; -webkit-appearance:none}
 .locbar>button, .locbar2 button{font-size:13px; padding:8px 13px; border-radius:16px; border:1px solid var(--line); background:var(--chip); color:var(--ink); white-space:nowrap}
 .locbar2{display:flex; gap:8px; padding:0 16px 10px; align-items:center}
-.locbar2 button.on{background:var(--acc); color:#fff; border-color:var(--acc)}
+.locbar2 button.on{background:color-mix(in srgb,var(--acc) 13%,var(--card)); color:var(--h1); border-color:color-mix(in srgb,var(--acc) 50%,transparent)}
 .results{position:absolute; top:calc(100% + 4px); left:0; right:0; background:var(--card); border:1px solid var(--line2); border-radius:12px; overflow:hidden; z-index:30; display:none; box-shadow:0 10px 30px rgba(0,0,0,.30)}
 .results.show{display:block}
 .results button{display:block; width:100%; text-align:left; padding:10px 13px; background:none; border:none; border-top:1px solid var(--line); color:var(--ink); font-size:14px}
@@ -76,7 +78,7 @@ header h1{font-family:var(--mono); font-size:19px; font-weight:600; letter-spaci
 .results button small{color:var(--mut)}
 .seg{display:flex; margin-left:auto; border:1px solid var(--line); border-radius:16px; overflow:hidden}
 .seg button{border:none !important; border-radius:0 !important; padding:7px 12px !important; background:var(--chip); color:var(--ink); font-size:13px}
-.seg button.on{background:var(--acc); color:#fff}
+.seg button.on{background:var(--chip); color:var(--h1); box-shadow:inset 0 -2px 0 var(--acc)}
 .radarbtn{display:flex; align-items:center; gap:14px; padding:16px; border-radius:12px; text-decoration:none; border:1px solid var(--line); background:linear-gradient(135deg, color-mix(in srgb,var(--acc) 20%, var(--chip)), var(--chip))}
 .radarbtn .ic{font-size:28px; color:var(--acc); line-height:1}
 .radarbtn .rt{flex:1}
@@ -90,17 +92,17 @@ main{padding:0 12px}
 section{display:none}
 section.active{display:block}
 .card{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px 16px; margin-bottom:12px}
-.card h2{font-family:var(--mono); font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--mut); margin-bottom:10px; font-weight:600}
+.card h2{font-family:var(--mono); font-size:12px; text-transform:uppercase; letter-spacing:.08em; color:var(--h2); margin-bottom:10px; font-weight:600}
 .muted{color:var(--mut); font-size:13px}
 .err{color:var(--bad); font-size:14px}
 button{cursor:pointer; font-family:inherit}
 a{color:var(--acc)}
 
 /* weather */
-.alert{border-radius:12px; padding:12px 14px; margin-bottom:10px; color:#fff}
-.alert.bad{background:var(--bad)} .alert.warn{background:var(--warn)} .alert.adv{background:#7c6f28}
-.alert b{display:block; font-size:15px}
-.alert .muted{color:rgba(255,255,255,.85)}
+.alert{--sev:var(--h3); border-radius:12px; padding:12px 14px; margin-bottom:10px; color:var(--ink); background:color-mix(in srgb,var(--sev) 12%,var(--card)); border:1px solid color-mix(in srgb,var(--sev) 42%,transparent); border-left:3px solid var(--sev)}
+.alert.bad{--sev:var(--bad)} .alert.warn{--sev:var(--acc)} .alert.adv{--sev:var(--h3)}
+.alert b{display:block; font-size:15px; color:var(--sev)}
+.alert .muted{color:var(--mut)}
 .alert details{margin-top:6px; font-size:13px}
 .alert summary{cursor:pointer}
 .now{display:flex; align-items:center; gap:18px; flex-wrap:wrap}
@@ -157,7 +159,7 @@ a{color:var(--acc)}
 #needle{transition:transform .15s ease-out; transform-origin:110px 110px}
 .bigread{text-align:center; font-size:34px; font-weight:700; margin-top:6px}
 .center{text-align:center}
-.btn{background:var(--acc); color:#fff; border:none; border-radius:10px; padding:10px 18px; font-size:15px}
+.btn{background:var(--acc); color:var(--on-acc); border:none; border-radius:10px; padding:10px 18px; font-size:15px}
 .btn2{background:var(--chip); color:var(--ink); border:1px solid var(--line); border-radius:10px; padding:10px 14px; font-size:14px}
 .gpsgrid{display:grid; grid-template-columns:auto 1fr; gap:6px 14px; font-size:15px; margin-top:10px}
 .gpsgrid span{color:var(--mut); font-size:13px; align-self:center}

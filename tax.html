@@ -21,9 +21,11 @@
   --bg:#e0cfb0; --card:#e8d9bf; --chip:#d4c29e; --raised:#eee1cb;
   --ink:#2b2114; --mut:#5f5236; --faint:#8a7c5e; --line:color-mix(in srgb,#1e160e 12%,transparent); --line2:color-mix(in srgb,#1e160e 24%,transparent);
   --acc:#b0631f; --good:#14776a; --bad:#b23e37; --state:#7c5bd6; --contrib:#2f6fb0;
+  --h1:color-mix(in srgb,var(--acc),#000 26%); --h2:#3d6e63; --h3:#44618c; --h4:#71537f; --h5:#5c7150; --on-acc:#fffaf0;
   --mono:"SF Mono","JetBrains Mono","Menlo",ui-monospace,"Consolas",monospace;
 }
 :root:not([data-theme="light"]){
+    --h1:color-mix(in srgb,var(--acc),#fff 16%); --h2:#7cb5a4; --h3:#8fa8c9; --h4:#ab8fc0; --h5:#97ab8a; --on-acc:#1b1e1f;
     --bg:#1b1e1f; --card:#222627; --chip:#292e2f; --raised:#2e3334;
     --ink:#e7e4d9; --mut:#b1afa1; --faint:#828175; --line:#353b3c; --line2:#434a4b;
     --acc:#d98a3d; --good:#4bbfa6; --bad:#d0655c; --state:#a98cff; --contrib:#5b9cff;
@@ -41,7 +43,7 @@ body{background:var(--bg); color:var(--ink);
 .suitebar .switch{display:flex; gap:3px}
 .suitebar .switch a{font-family:var(--mono); font-size:12.5px; padding:5px 10px; border-radius:8px; color:var(--mut); text-decoration:none; white-space:nowrap}
 .suitebar .switch a:hover{color:var(--ink)}
-.suitebar .switch a.on{background:var(--acc); color:#fff}
+.suitebar .switch a.on{background:var(--chip); color:var(--h1); box-shadow:inset 0 -2px 0 var(--acc)}
 .suitebar .themebtn{margin-left:auto; position:sticky; right:0; flex-shrink:0; font-size:15px; line-height:1; padding:5px 9px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--mut); cursor:pointer; box-shadow:-10px 0 8px -2px var(--card)}
 .suitebar .themebtn:hover{color:var(--acc); border-color:var(--line2)}
 @media(min-width:820px){
@@ -49,23 +51,23 @@ body{background:var(--bg); color:var(--ink);
   .taxwrap #result{position:sticky; top:62px}
 }
 header{padding:16px 2px 6px}
-header h1{font-family:var(--mono); font-size:19px; font-weight:600; letter-spacing:.05em; text-transform:uppercase}
+header h1{font-family:var(--mono); font-size:19px; font-weight:600; letter-spacing:.05em; text-transform:uppercase; color:var(--h1)}
 header p{font-size:12px; color:var(--mut); margin-top:3px}
 .card{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px; margin-bottom:14px}
-label{display:block; font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--mut); font-weight:600; margin-bottom:7px; font-family:var(--mono)}
+label{display:block; font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--h3); font-weight:600; margin-bottom:7px; font-family:var(--mono)}
 .field{margin-bottom:16px}
 .field:last-child{margin-bottom:0}
 .seg{display:flex; border:1px solid var(--line); border-radius:10px; overflow:hidden}
 .seg button{flex:1; border:none; background:var(--chip); color:var(--mut); padding:9px 4px; font-size:13px; font-weight:600; cursor:pointer; border-right:1px solid var(--line)}
 .seg button:last-child{border-right:none}
-.seg button.on{background:var(--acc); color:#fff}
+.seg button.on{background:var(--chip); color:var(--h1); box-shadow:inset 0 -2px 0 var(--acc)}
 select,input[type=text]{width:100%; padding:11px 12px; border:1px solid var(--line); border-radius:10px; background:var(--bg); color:var(--ink); font-size:16px; font-family:inherit; -webkit-appearance:none}
 select:focus,input:focus{outline:none; border-color:var(--acc)}
 .money{position:relative}
 .money span{position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--mut); font-size:16px}
 .money input{padding-left:26px; font-variant-numeric:tabular-nums; font-family:var(--mono)}
 .maxbtn{position:absolute; right:8px; top:50%; transform:translateY(-50%); border:1px solid var(--line); background:var(--chip); color:var(--mut); border-radius:7px; padding:5px 11px; font-size:12px; font-weight:600; font-family:var(--mono); cursor:pointer}
-.maxbtn.on{background:var(--acc); color:#fff; border-color:var(--acc)}
+.maxbtn.on{background:color-mix(in srgb,var(--acc) 13%,var(--card)); color:var(--h1); border-color:color-mix(in srgb,var(--acc) 50%,transparent)}
 .seg.small button{padding:7px 4px; font-size:12px}
 .dedrow{display:flex; gap:8px; align-items:center; margin-top:8px}
 .hint{font-size:12px; color:var(--faint); margin-top:6px}
