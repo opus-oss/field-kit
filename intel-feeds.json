@@ -1,0 +1,307 @@
+[
+ {
+  "id": "dfir",
+  "name": "The DFIR Report",
+  "url": "https://thedfirreport.com/feed/",
+  "cat": "research",
+  "trust": "high"
+ },
+ {
+  "id": "sentinellabs",
+  "name": "SentinelLabs",
+  "url": "https://www.sentinelone.com/labs/feed/",
+  "cat": "research",
+  "trust": "high"
+ },
+ {
+  "id": "elastic",
+  "name": "Elastic Security Labs",
+  "url": "https://www.elastic.co/security-labs/rss/feed.xml",
+  "cat": "research",
+  "trust": "high"
+ },
+ {
+  "id": "cpr",
+  "name": "Check Point Research",
+  "url": "https://research.checkpoint.com/feed/",
+  "cat": "research",
+  "trust": "high"
+ },
+ {
+  "id": "unit42",
+  "name": "Unit 42",
+  "url": "https://unit42.paloaltonetworks.com/category/threat-research/feed/",
+  "cat": "research",
+  "trust": "high"
+ },
+ {
+  "id": "talos",
+  "name": "Cisco Talos",
+  "url": "https://blog.talosintelligence.com/rss/",
+  "cat": "research",
+  "trust": "mid"
+ },
+ {
+  "id": "gtig",
+  "name": "Google Threat Intelligence",
+  "url": "https://cloudblog.withgoogle.com/topics/threat-intelligence/rss/",
+  "cat": "research",
+  "trust": "high"
+ },
+ {
+  "id": "sekoia",
+  "name": "Sekoia TDR",
+  "url": "https://www.sekoia.com/blog/rss.xml",
+  "cat": "research",
+  "trust": "low"
+ },
+ {
+  "id": "huntress",
+  "name": "Huntress",
+  "url": "https://www.huntress.com/blog/rss.xml",
+  "cat": "research",
+  "trust": "low"
+ },
+ {
+  "id": "fortinet",
+  "name": "FortiGuard Labs",
+  "url": "https://feeds.fortinet.com/fortinet/blog/threat-research",
+  "cat": "research",
+  "trust": "mid"
+ },
+ {
+  "id": "bitdefender",
+  "name": "Bitdefender Threat Research",
+  "url": "https://www.bitdefender.com/nuxt/api/en-us/rss/businessinsights/threat-research/",
+  "cat": "research",
+  "trust": "mid",
+  "keep": "Threat Debrief"
+ },
+ {
+  "id": "asec",
+  "name": "AhnLab ASEC",
+  "url": "https://asec.ahnlab.com/en/category/malware-en/feed/",
+  "cat": "research",
+  "trust": "high"
+ },
+ {
+  "id": "trend-news",
+  "name": "Trend Micro Research News",
+  "url": "https://newsroom.trendmicro.com/news-releases?pagetemplate=rss&category=787",
+  "cat": "research",
+  "trust": "low"
+ },
+ {
+  "id": "vmware-tau",
+  "name": "VMware TAU",
+  "url": "https://blogs.vmware.com/security/threat-analysis-unit/feed",
+  "cat": "research",
+  "trust": "mid"
+ },
+ {
+  "id": "recordedfuture",
+  "name": "Recorded Future",
+  "url": "https://www.recordedfuture.com/feed/",
+  "cat": "research",
+  "trust": "low",
+  "keep": "CVE Landscape"
+ },
+ {
+  "id": "cyble",
+  "name": "Cyble",
+  "url": "https://cyble.com/blog/feed/",
+  "cat": "ecrime",
+  "trust": "low"
+ },
+ {
+  "id": "krebs",
+  "name": "Krebs on Security",
+  "url": "https://krebsonsecurity.com/feed/",
+  "cat": "ecrime",
+  "trust": "high"
+ },
+ {
+  "id": "mta",
+  "name": "Malware-Traffic-Analysis",
+  "url": "https://www.malware-traffic-analysis.net/blog-entries.rss",
+  "cat": "ecrime",
+  "trust": "high"
+ },
+ {
+  "id": "gootloader",
+  "name": "Gootloader Details",
+  "url": "https://gootloader.wordpress.com/feed/",
+  "cat": "ecrime",
+  "trust": "high"
+ },
+ {
+  "id": "traclabs",
+  "name": "TRAC Labs",
+  "url": "https://medium.com/feed/trac-labs",
+  "cat": "ecrime",
+  "trust": "high"
+ },
+ {
+  "id": "watchtowr",
+  "name": "watchTowr Labs",
+  "url": "https://labs.watchtowr.com/rss/",
+  "cat": "vuln",
+  "trust": "high"
+ },
+ {
+  "id": "okta",
+  "name": "Okta Security",
+  "url": "https://sec.okta.com/rss.xml",
+  "cat": "identity",
+  "trust": "mid"
+ },
+ {
+  "id": "specterops",
+  "name": "SpecterOps",
+  "url": "https://specterops.io/feed/",
+  "cat": "identity",
+  "trust": "high"
+ },
+ {
+  "id": "trimarc",
+  "name": "Trimarc",
+  "url": "https://www.hub.trimarcsecurity.com/blog-feed.xml",
+  "cat": "identity",
+  "trust": "mid"
+ },
+ {
+  "id": "detectfyi",
+  "name": "Detect FYI",
+  "url": "https://detect.fyi/feed",
+  "cat": "detection",
+  "trust": "high"
+ },
+ {
+  "id": "attack",
+  "name": "MITRE ATT&CK",
+  "url": "https://medium.com/feed/mitre-attack",
+  "cat": "detection",
+  "trust": "high"
+ },
+ {
+  "id": "pberba",
+  "name": "pepe berba",
+  "url": "https://pberba.github.io/feed.xml",
+  "cat": "detection",
+  "trust": "high"
+ },
+ {
+  "id": "br0k3nlab",
+  "name": "br0k3nlab",
+  "url": "https://br0k3nlab.com/posts/index.xml",
+  "cat": "detection",
+  "trust": "high"
+ },
+ {
+  "id": "borderline",
+  "name": "Borderline (JusticeRage)",
+  "url": "https://blog.kwiatkowski.fr/rss.xml",
+  "cat": "detection",
+  "trust": "high"
+ },
+ {
+  "id": "sandfly",
+  "name": "Sandfly Security",
+  "url": "https://sandflysecurity.com/blog/rss.xml",
+  "cat": "detection",
+  "trust": "mid"
+ },
+ {
+  "id": "ioc-prodaft",
+  "name": "PRODAFT malware-ioc",
+  "url": "https://github.com/prodaft/malware-ioc/commits.atom",
+  "cat": "ioc",
+  "trust": "high"
+ },
+ {
+  "id": "ioc-netskope",
+  "name": "Netskope Threat Labs IOCs",
+  "url": "https://github.com/netskopeoss/NetskopeThreatLabsIOCs/commits.atom",
+  "cat": "ioc",
+  "trust": "high"
+ },
+ {
+  "id": "ioc-executemalware",
+  "name": "executemalware IOCs",
+  "url": "https://github.com/executemalware/Malware-IOCs/commits.atom",
+  "cat": "ioc",
+  "trust": "high"
+ },
+ {
+  "id": "trend",
+  "name": "Trend Micro Research",
+  "url": "https://feeds.feedburner.com/TrendMicroResearch",
+  "cat": "research",
+  "trust": "mid"
+ },
+ {
+  "id": "redcanary",
+  "name": "Red Canary",
+  "url": "https://redcanary.com/feed/",
+  "cat": "detection",
+  "trust": "low",
+  "keep": "Intelligence Insights"
+ },
+ {
+  "id": "proofpoint",
+  "name": "Proofpoint Threat Insight",
+  "url": "https://www.proofpoint.com/us/threat-insight-blog.xml",
+  "alt": [
+   "https://www.proofpoint.com/us/rss.xml"
+  ],
+  "cat": "ecrime",
+  "trust": "low"
+ },
+ {
+  "id": "cisa",
+  "name": "CISA Advisories",
+  "url": "https://www.cisa.gov/cybersecurity-advisories/all.xml",
+  "cat": "vuln",
+  "trust": "high",
+  "exclude_url": "/ics-"
+ },
+ {
+  "id": "ga-stopransomware",
+  "name": "CISA #StopRansomware (alert)",
+  "url": "https://www.google.com/alerts/feeds/07341400213507682692/3689542179950686635",
+  "cat": "ecrime",
+  "trust": "high",
+  "show_as": "CISA #StopRansomware"
+ },
+ {
+  "id": "ga-esentire",
+  "name": "eSentire (alert)",
+  "url": "https://www.google.com/alerts/feeds/07341400213507682692/16846215417098353339",
+  "cat": "research",
+  "trust": "mid",
+  "show_as": "eSentire"
+ },
+ {
+  "id": "ga-trellix",
+  "name": "Trellix Research (alert)",
+  "url": "https://www.google.com/alerts/feeds/07341400213507682692/15563926341783481250",
+  "cat": "research",
+  "trust": "mid",
+  "show_as": "Trellix"
+ },
+ {
+  "id": "ga-trend",
+  "name": "Trend Micro (alert)",
+  "url": "https://www.google.com/alerts/feeds/07341400213507682692/6111680282836155969",
+  "cat": "research",
+  "trust": "mid",
+  "show_as": "Trend Micro"
+ },
+ {
+  "id": "ioc-sophos",
+  "name": "SophosLabs IoCs",
+  "url": "https://github.com/sophoslabs/IoCs/commits.atom",
+  "cat": "ioc",
+  "trust": "high"
+ }
+]

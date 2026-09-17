@@ -2,6 +2,7 @@
 # so the weather page can read it same-origin. pollen.com only answers requests that
 # carry its own referrer, which a browser cannot set, so the fetch lives here instead.
 # Runs every 6 hours, on edits to this file, or by hand from the Actions tab.
+# The Pages deploy workflow redeploys after this one completes.
 name: Pollen
 
 on:
@@ -13,36 +14,23 @@ on:
 
 permissions:
   contents: write
-  pages: write
-  id-token: write
 
 concurrency:
-  group: "pages"
+  group: "pollen"
   cancel-in-progress: false
 
 jobs:
   pollen:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
-
       - name: Fetch pollen.com (one ZIP per 3-digit prefix, see zipgrid.json)
         run: python3 pollen-fetch.py
-
       - name: Commit pollen.json
         run: |
           git config user.name "field-kit-bot"
           git config user.email "field-kit-bot@users.noreply.github.com"
           git add pollen.json
-          git diff --cached --quiet || git commit -m "pollen: $(date -u +%Y-%m-%d\ %H:%M) UTC"
-          git push
-
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: "."
-      - id: deployment
-        uses: actions/deploy-pages@v5
+          git diff --cached --quiet && exit 0
+          git commit -q -m "pollen: $(date -u +%Y-%m-%d\ %H:%M) UTC"
+          for i in 1 2 3 4; do git pull -q --rebase && git push -q && exit 0; sleep 7; done; exit 1
