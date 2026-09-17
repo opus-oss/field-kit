@@ -1,7 +1,7 @@
 {
-  "name": "Intel Wire",
-  "short_name": "Intel Wire",
-  "description": "Threat intel feeds, filtered and tagged.",
+  "name": "Grapevine",
+  "short_name": "Grapevine",
+  "description": "Threat intel heard through the grapevine. Filtered, tagged, converged.",
   "start_url": "./intel.html",
   "scope": "./",
   "display": "standalone",

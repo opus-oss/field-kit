@@ -1,4 +1,4 @@
-# Refreshes intel.json for the Intel Wire page. GitHub starts scheduled runs late on small repos
+# Refreshes intel.json for the Grapevine page. GitHub starts scheduled runs late on small repos
 # (hours, observed), so the times below sit well ahead of when the data is wanted:
 #   04:15 + 08:15 UTC  -> fresh before and just after 5am Central
 #   13:15 + 17:15 UTC  -> fresh for early afternoon Central

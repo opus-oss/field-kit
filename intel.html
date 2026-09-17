@@ -10,11 +10,11 @@
 <meta name="color-scheme" content="dark light">
 <meta name="theme-color" content="#1b1e1f" id="tc">
 <script>(function(){var t='dark';try{t=localStorage.getItem('fk_theme')||'dark'}catch(e){}if(t==='light'){document.documentElement.setAttribute('data-theme','light');document.getElementById('tc').content='#e0cfb0'}})()</script>
-<title>Intel Wire</title>
+<title>Grapevine</title>
 <link rel="manifest" href="manifest-intel.webmanifest">
 <link rel="icon" href="intel-192.png">
 <link rel="apple-touch-icon" href="intel-180.png">
-<meta name="apple-mobile-web-app-title" content="Intel Wire">
+<meta name="apple-mobile-web-app-title" content="Grapevine">
 <style>
 /* Opus — Prima Materia : cold slate ground · monospace metadata · serif headlines · tempered-amber accent */
 :root{
@@ -204,7 +204,7 @@ mark{background:color-mix(in srgb,var(--acc) 24%,transparent); color:inherit; bo
   <div class="switch">
     <a href="./index.html">Weather</a>
     <a href="./markets.html">Markets</a>
-    <a href="./intel.html" class="on">Intel</a>
+    <a href="./intel.html" class="on">Grapevine</a>
     <a href="./tax.html">Tax</a>
     <a href="./mortgage.html">Mortgage</a>
     <a href="./scrub.html">Scrub</a>
@@ -216,7 +216,7 @@ mark{background:color-mix(in srgb,var(--acc) 24%,transparent); color:inherit; bo
 
 <div class="wrap">
   <div class="mast">
-    <h1>Intel Wire</h1>
+    <h1>Grapevine</h1>
     <div class="sub" id="sub"><span>Loading the wire…</span></div>
   </div>
 
@@ -308,7 +308,7 @@ function rowHTML(i){
     <h3>${hl(i.t)}</h3>${i.x&&!i.p?`<p>${hl(i.x)}</p>`:''}${i.p?`<div class="why">filtered · ${esc(i.p)}</div>`:''}${tags&&!i.p?`<div class="tags">${tags}</div>`:''}</div></a>`;
 }
 function renderRiver(){
-  const items=pool(); if(!items.length){$('#main').innerHTML=`<div class="empty">Nothing on the wire for this filter.<br>Widen the range or clear the search.</div>`;return}
+  const items=pool(); if(!items.length){$('#main').innerHTML=`<div class="empty">Nothing on the vine for this filter.<br>Widen the range or clear the search.</div>`;return}
   let html='', last=''; const counts={}; items.forEach(i=>{const k=dayKey(new Date(i.d));counts[k]=(counts[k]||0)+1});
   items.slice(0,S.limit).forEach(i=>{const d=new Date(i.d),k=dayKey(d); if(k!==last){html+=`<div class="day">${dayLabel(d)}<span>${counts[k]} ${counts[k]===1?'story':'stories'}</span></div>`;last=k} html+=rowHTML(i)});
   if(items.length>S.limit) html+=`<button class="more" id="more">Show ${Math.min(150,items.length-S.limit)} more of ${items.length}</button>`;

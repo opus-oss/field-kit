@@ -1,5 +1,5 @@
-# Intel Wire fetcher. Pulls every feed in intel-feeds.json, drops vendor promotion, tags what is left,
-# merges with the previous intel.json so stories outlive short feeds, and writes intel.json for intel.html.
+# Grapevine fetcher. Pulls every feed in intel-feeds.json, drops vendor promotion, tags what is left,
+# merges with the previous intel.json so stories outlive short feeds, and writes intel.json for intel.html (Grapevine).
 # Standard library plus curl only, so it runs the same on a laptop and on the Actions runner.
 import json, os, re, subprocess, time, html, hashlib, concurrent.futures as cf
 import xml.etree.ElementTree as ET
