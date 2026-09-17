@@ -1,7 +1,7 @@
 /* Field Kit suite — offline service worker.
    HTML is network-first (always loads the latest when online, falls back to cache offline),
    static assets are cache-first. Bump CACHE on any change so clients refresh. */
-const CACHE = 'fieldkit-v25';
+const CACHE = 'fieldkit-v26';
 const ASSETS = [
   './',
   './index.html', './scrub.html', './markets.html', './tax.html', './places.html', './mortgage.html', './optout.html', './intel.html',
@@ -46,8 +46,9 @@ self.addEventListener('fetch', e => {
 
   if (isHTML || isData) {
     // network-first: newest version wins; cache is only the offline safety net
+    // no-store: GitHub Pages sends max-age=600, and the browser's HTTP cache would otherwise hand back a 10-minute-old build
     e.respondWith(
-      fetch(req).then(res => {
+      fetch(req.url, { cache: 'no-store', credentials: 'same-origin' }).then(res => {
         const copy = res.clone();
         caches.open(CACHE).then(c => c.put(req, copy));
         return res;
