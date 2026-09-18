@@ -74,6 +74,8 @@ select:focus,input:focus{outline:none; border-color:var(--acc)}
 .hint b{color:var(--ink); font-family:var(--mono); font-weight:600}
 .money .unit{position:absolute; right:12px; top:50%; transform:translateY(-50%); font:12px var(--mono); font-style:normal; color:var(--mut); pointer-events:none}
 .money.pct input{padding-left:13px; padding-right:96px}
+#retireUnit{right:66px}
+.money.pct #retire{padding-right:150px}
 .subhead{font:600 12px var(--mono); text-transform:uppercase; letter-spacing:.08em; color:var(--h2); margin:22px 0 4px; padding-bottom:6px; border-bottom:1px solid var(--line2)}
 .subhead+.r{border-top:none}
 .settle{--sev:var(--h3); margin-top:10px; padding:10px 12px; border-radius:10px; font-size:13px; line-height:1.5; color:var(--ink); background:color-mix(in srgb,var(--sev) 11%,var(--card)); border:1px solid color-mix(in srgb,var(--sev) 35%,transparent); border-left:3px solid var(--sev)}
@@ -123,7 +125,7 @@ footer{text-align:center; font-size:12px; color:var(--faint); padding-top:4px}
 
 <header>
   <h1>Tax Estimator</h1>
-  <p>2025 federal + state income tax. Runs entirely on your device — no tracking, no accounts, nothing sent anywhere.</p>
+  <p>2026 federal + state income tax. Runs entirely on your device — no tracking, no accounts, nothing sent anywhere.</p>
 </header>
 
 <div class="taxwrap">
@@ -163,14 +165,15 @@ footer{text-align:center; font-size:12px; color:var(--faint); padding-top:4px}
   </div>
   <div class="field">
     <label>Pre-tax retirement (401k / 403b / TSP)</label>
-    <div class="money"><span>$</span><input id="retire" type="text" inputmode="numeric" placeholder="0" autocomplete="off"><button class="maxbtn" data-t="retire">Max</button></div>
-    <div class="hint">2025 limit $23,500 ($31,000 if 50+, enter manually). Lowers income tax, not FICA.</div>
+    <div class="seg small" id="retireMode"><button data-v="pct" class="on">% of pay</button><button data-v="usd">Dollar amount</button></div>
+    <div class="money" style="margin-top:8px"><span id="retireSym" hidden>$</span><input id="retire" type="text" inputmode="decimal" placeholder="6" autocomplete="off"><em class="unit" id="retireUnit">% of pay</em><button class="maxbtn" data-t="retire">Max</button></div>
+    <div class="hint" id="retireHint">Taken from base and bonus, like most payroll plans. 2026 limit $24,500. Lowers income tax, not FICA.</div>
   </div>
   <div class="field">
     <label>HSA contribution</label>
     <div class="seg small" id="hsaCov"><button data-v="self" class="on">Self-only</button><button data-v="family">Family</button></div>
     <div class="money" style="margin-top:8px"><span>$</span><input id="hsa" type="text" inputmode="numeric" placeholder="0" autocomplete="off"><button class="maxbtn" data-t="hsa">Max</button></div>
-    <div class="hint">2025 limit $4,300 self / $8,550 family. Lowers income tax and FICA (payroll HSA).</div>
+    <div class="hint">2026 limit $4,400 self / $8,750 family. Lowers income tax and FICA (payroll HSA).</div>
   </div>
   <div class="field">
     <label>Options</label>
@@ -193,7 +196,7 @@ footer{text-align:center; font-size:12px; color:var(--faint); padding-top:4px}
 
 <div class="card">
   <div class="disc">
-    <b>This is an estimate, not tax advice.</b> It uses 2025 federal brackets and standard deductions and each state's 2025 income-tax schedule. It does <b>not</b> include tax credits (child, EITC, education), state-specific deductions or exemptions, local/city income taxes, the QBI deduction, capital-gains rates, AMT, or above-the-line adjustments. State figures for married-joint and head-of-household are approximated from single-filer schedules. Pre-tax retirement is treated as traditional (pre-tax) and HSA as a payroll contribution; a few states differ (PA taxes 401(k) contributions; CA and NJ tax HSA contributions) and that isn't modeled. A bonus is taxed as ordinary income at your normal brackets; only the <b>withholding</b> differs. The bonus breakdown assumes your employer uses the IRS flat percentage method for supplemental wages (22% federal, 37% on supplemental pay above $1 million in a year) rather than the aggregate method, that it's your only supplemental pay this year, and that withholding on your base pay is already accurate. Some states withhold bonuses at their own flat supplemental rate; the breakdown shows the state tax the bonus actually adds. Verify with a professional or the IRS/state site before filing.
+    <b>This is an estimate, not tax advice.</b> It uses 2026 federal brackets and standard deductions (IRS Rev. Proc. 2025-32), the 2026 Social Security wage base, and each state's 2026 income-tax schedule. It does <b>not</b> include tax credits (child, EITC, education), state-specific deductions or exemptions, local/city income taxes, the QBI deduction, capital-gains rates, AMT, above-the-line adjustments, or the 2025 to 2028 deductions for tips, overtime, seniors, and car-loan interest. Married-joint state figures use each state's joint brackets; head-of-household and married-separate use the single schedule. Pre-tax retirement is treated as traditional (pre-tax); a percentage applies to base and bonus and stops at the $24,500 limit, and age 50+ catch-up ($8,000, or $11,250 at ages 60 to 63) needs a dollar amount and HSA as a payroll contribution; a few states differ (PA taxes 401(k) contributions; CA and NJ tax HSA contributions) and that isn't modeled. A bonus is taxed as ordinary income at your normal brackets; only the <b>withholding</b> differs. The bonus breakdown assumes your employer uses the IRS flat percentage method for supplemental wages (22% federal, 37% on supplemental pay above $1 million in a year) rather than the aggregate method, that it's your only supplemental pay this year, and that withholding on your base pay is already accurate. Some states withhold bonuses at their own flat supplemental rate; the breakdown shows the state tax the bonus actually adds. Verify with a professional or the IRS/state site before filing.
   </div>
 </div>
 
@@ -205,71 +208,71 @@ const $=s=>document.querySelector(s), $$=s=>document.querySelectorAll(s);
 const fmt=n=>'$'+Math.round(n).toLocaleString();
 const pct=n=>(n*100).toFixed(1)+'%';
 
-/* ---- 2025 federal ---- */
+/* ---- 2026 federal (IRS Rev. Proc. 2025-32) ---- */
 const FED={
-  single:[[11925,.10],[48475,.12],[103350,.22],[197300,.24],[250525,.32],[626350,.35],[Infinity,.37]],
-  mfj:[[23850,.10],[96950,.12],[206700,.22],[394600,.24],[501050,.32],[751600,.35],[Infinity,.37]],
-  mfs:[[11925,.10],[48475,.12],[103350,.22],[197300,.24],[250525,.32],[375800,.35],[Infinity,.37]],
-  hoh:[[17000,.10],[64850,.12],[103350,.22],[197300,.24],[250500,.32],[626350,.35],[Infinity,.37]]
+  single:[[12400,.10],[50400,.12],[105700,.22],[201775,.24],[256225,.32],[640600,.35],[Infinity,.37]],
+  mfj:[[24800,.10],[100800,.12],[211400,.22],[403550,.24],[512450,.32],[768700,.35],[Infinity,.37]],
+  mfs:[[12400,.10],[50400,.12],[105700,.22],[201775,.24],[256225,.32],[384350,.35],[Infinity,.37]],
+  hoh:[[17700,.10],[67450,.12],[105700,.22],[201750,.24],[256200,.32],[640600,.35],[Infinity,.37]]
 };
-const STD={single:15000,mfj:30000,mfs:15000,hoh:22500};
+const STD={single:16100,mfj:32200,mfs:16100,hoh:24150};
 const ADDMED={single:200000,mfj:250000,mfs:125000,hoh:200000};
-const SS_BASE=176100;
+const SS_BASE=184500;   // 2026 Social Security wage base (SSA)
 
-/* ---- 2025 state income tax (estimate) ----
-   type: 'none' | flat rate number | array of [upperBound, rate] single-filer brackets.
-   m = multiplier applied to bracket thresholds for married-joint (2 = brackets double). */
+/* ---- 2026 state income tax (estimate) ----
+   t:'none' | f: flat rate | b: single-filer brackets [upperBound, rate] | j: married-joint brackets where the state
+   sets its own (otherwise joint filers use b). Bracket floors with no tax (e.g. Ohio's first $26,050) are [bound,0]. */
 const S={
- AL:{n:'Alabama',b:[[500,.02],[3000,.04],[Infinity,.05]],m:2},
+ AL:{n:'Alabama',b:[[500,0.02],[3000,0.04],[Infinity,0.05]],j:[[1000,0.02],[6000,0.04],[Infinity,0.05]]},
  AK:{n:'Alaska',t:'none'},
- AZ:{n:'Arizona',f:.025},
- AR:{n:'Arkansas',b:[[4400,.02],[8800,.03],[Infinity,.039]],m:1},
- CA:{n:'California',b:[[10412,.01],[24684,.02],[38959,.04],[54081,.06],[68350,.08],[349137,.093],[418961,.103],[698271,.113],[1000000,.123],[Infinity,.133]],m:2},
- CO:{n:'Colorado',f:.044},
- CT:{n:'Connecticut',b:[[10000,.03],[50000,.05],[100000,.055],[200000,.06],[250000,.065],[500000,.069],[Infinity,.0699]],m:2},
- DE:{n:'Delaware',b:[[2000,0],[5000,.022],[10000,.039],[20000,.048],[25000,.052],[60000,.0555],[Infinity,.066]],m:1},
- DC:{n:'D.C.',b:[[10000,.04],[40000,.06],[60000,.065],[250000,.085],[500000,.0925],[1000000,.0975],[Infinity,.1075]],m:1},
+ AZ:{n:'Arizona',f:0.025},
+ AR:{n:'Arkansas',b:[[4600,0.02],[Infinity,0.039]]},
+ CA:{n:'California',b:[[11079,0.01],[26264,0.02],[41452,0.04],[57542,0.06],[72724,0.08],[371479,0.093],[445771,0.103],[742953,0.113],[1000000,0.123],[Infinity,0.133]],j:[[22158,0.01],[52528,0.02],[82904,0.04],[115084,0.06],[145448,0.08],[742958,0.093],[891542,0.103],[1000000,0.113],[1485906,0.123],[Infinity,0.133]]},
+ CO:{n:'Colorado',f:0.044},
+ CT:{n:'Connecticut',b:[[10000,0.02],[50000,0.045],[100000,0.055],[200000,0.06],[250000,0.065],[500000,0.069],[Infinity,0.0699]],j:[[20000,0.02],[100000,0.045],[200000,0.055],[400000,0.06],[500000,0.065],[1000000,0.069],[Infinity,0.0699]]},
+ DE:{n:'Delaware',b:[[2000,0],[5000,0.022],[10000,0.039],[20000,0.048],[25000,0.052],[60000,0.0555],[Infinity,0.066]]},
+ DC:{n:'D.C.',b:[[10000,0.04],[40000,0.06],[60000,0.065],[250000,0.085],[500000,0.0925],[1000000,0.0975],[Infinity,0.1075]]},
  FL:{n:'Florida',t:'none'},
- GA:{n:'Georgia',f:.0539},
- HI:{n:'Hawaii',b:[[2400,.014],[4800,.032],[9600,.055],[14400,.064],[19200,.068],[24000,.072],[36000,.076],[48000,.079],[150000,.0825],[175000,.09],[200000,.10],[Infinity,.11]],m:2},
- ID:{n:'Idaho',f:.05695},
- IL:{n:'Illinois',f:.0495},
- IN:{n:'Indiana',f:.03},
- IA:{n:'Iowa',f:.038},
- KS:{n:'Kansas',b:[[23000,.052],[Infinity,.0558]],m:2},
- KY:{n:'Kentucky',f:.04},
- LA:{n:'Louisiana',f:.03},
- ME:{n:'Maine',b:[[26050,.058],[61600,.0675],[Infinity,.0715]],m:2},
- MD:{n:'Maryland',b:[[1000,.02],[2000,.03],[3000,.04],[100000,.0475],[125000,.05],[150000,.0525],[250000,.055],[Infinity,.0575]],m:1},
- MA:{n:'Massachusetts',b:[[1000000,.05],[Infinity,.09]],m:1},
- MI:{n:'Michigan',f:.0425},
- MN:{n:'Minnesota',b:[[31690,.0535],[104090,.068],[193240,.0785],[Infinity,.0985]],m:2},
- MS:{n:'Mississippi',f:.044},
- MO:{n:'Missouri',b:[[1273,0],[2546,.02],[3819,.025],[5092,.03],[6365,.035],[7638,.04],[8911,.045],[Infinity,.048]],m:1},
- MT:{n:'Montana',b:[[20500,.047],[Infinity,.059]],m:2},
- NE:{n:'Nebraska',b:[[3700,.0246],[22170,.0351],[35730,.0501],[Infinity,.0584]],m:2},
+ GA:{n:'Georgia',f:0.0519},
+ HI:{n:'Hawaii',b:[[9600,0.014],[14400,0.032],[19200,0.055],[24000,0.064],[36000,0.068],[48000,0.072],[125000,0.076],[175000,0.079],[225000,0.0825],[275000,0.09],[325000,0.1],[Infinity,0.11]],j:[[19200,0.014],[28800,0.032],[38400,0.055],[48000,0.064],[72000,0.068],[96000,0.072],[250000,0.076],[350000,0.079],[450000,0.0825],[550000,0.09],[650000,0.1],[Infinity,0.11]]},
+ ID:{n:'Idaho',f:0.053},
+ IL:{n:'Illinois',f:0.0495},
+ IN:{n:'Indiana',f:0.0295},
+ IA:{n:'Iowa',f:0.038},
+ KS:{n:'Kansas',b:[[23000,0.052],[Infinity,0.0558]],j:[[46000,0.052],[Infinity,0.0558]]},
+ KY:{n:'Kentucky',f:0.035},
+ LA:{n:'Louisiana',f:0.03},
+ ME:{n:'Maine',b:[[27399,0.058],[64849,0.0675],[Infinity,0.0715]],j:[[54849,0.058],[129749,0.0675],[Infinity,0.0715]]},
+ MD:{n:'Maryland',b:[[1000,0.02],[2000,0.03],[3000,0.04],[100000,0.0475],[125000,0.05],[150000,0.0525],[250000,0.055],[500000,0.0575],[1000000,0.0625],[Infinity,0.065]],j:[[1000,0.02],[2000,0.03],[3000,0.04],[150000,0.0475],[175000,0.05],[225000,0.0525],[300000,0.055],[600000,0.0575],[1200000,0.0625],[Infinity,0.065]]},
+ MA:{n:'Massachusetts',b:[[1083150,0.05],[Infinity,0.09]]},
+ MI:{n:'Michigan',f:0.0425},
+ MN:{n:'Minnesota',b:[[33310,0.0535],[109430,0.068],[203150,0.0785],[Infinity,0.0985]],j:[[48700,0.0535],[193480,0.068],[337930,0.0785],[Infinity,0.0985]]},
+ MS:{n:'Mississippi',b:[[10000,0],[Infinity,0.04]]},
+ MO:{n:'Missouri',b:[[1348,0],[2696,0.02],[4044,0.025],[5392,0.03],[6740,0.035],[8088,0.04],[9436,0.045],[Infinity,0.047]]},
+ MT:{n:'Montana',b:[[47500,0.047],[Infinity,0.0565]],j:[[95000,0.047],[Infinity,0.0565]]},
+ NE:{n:'Nebraska',b:[[4130,0.0246],[24760,0.0351],[Infinity,0.0455]],j:[[8250,0.0246],[49530,0.0351],[Infinity,0.0455]]},
  NV:{n:'Nevada',t:'none'},
  NH:{n:'New Hampshire',t:'none'},
- NJ:{n:'New Jersey',b:[[20000,.014],[35000,.0175],[40000,.035],[75000,.05525],[500000,.0637],[1000000,.0897],[Infinity,.1075]],m:1},
- NM:{n:'New Mexico',b:[[5500,.017],[11000,.032],[16000,.047],[210000,.049],[Infinity,.059]],m:2},
- NY:{n:'New York',b:[[8500,.04],[11700,.045],[13900,.0525],[80650,.055],[215400,.06],[1077550,.0685],[5000000,.0965],[25000000,.103],[Infinity,.109]],m:2},
- NC:{n:'North Carolina',f:.0425},
- ND:{n:'North Dakota',b:[[44725,0],[225975,.0195],[Infinity,.025]],m:2},
- OH:{n:'Ohio',b:[[26050,0],[100000,.0275],[Infinity,.035]],m:1},
- OK:{n:'Oklahoma',b:[[1000,.0025],[2500,.0075],[3750,.0175],[4900,.0275],[7200,.0375],[Infinity,.0475]],m:2},
- OR:{n:'Oregon',b:[[4300,.0475],[10750,.0675],[125000,.0875],[Infinity,.099]],m:2},
- PA:{n:'Pennsylvania',f:.0307},
- RI:{n:'Rhode Island',b:[[77450,.0375],[176050,.0475],[Infinity,.0599]],m:1},
- SC:{n:'South Carolina',b:[[3460,0],[17330,.03],[Infinity,.062]],m:1},
+ NJ:{n:'New Jersey',b:[[20000,0.014],[35000,0.0175],[40000,0.035],[75000,0.05525],[500000,0.0637],[1000000,0.0897],[Infinity,0.1075]],j:[[20000,0.014],[50000,0.0175],[70000,0.0245],[80000,0.035],[150000,0.05525],[500000,0.0637],[1000000,0.0897],[Infinity,0.1075]]},
+ NM:{n:'New Mexico',b:[[5500,0.015],[16500,0.032],[33500,0.043],[66500,0.047],[210000,0.049],[Infinity,0.059]],j:[[8000,0.015],[25000,0.032],[50000,0.043],[100000,0.047],[315000,0.049],[Infinity,0.059]]},
+ NY:{n:'New York',b:[[8500,0.039],[11700,0.044],[13900,0.0515],[80650,0.054],[215400,0.059],[1077550,0.0685],[5000000,0.0965],[25000000,0.103],[Infinity,0.109]],j:[[17150,0.039],[23600,0.044],[27900,0.0515],[161550,0.054],[323200,0.059],[2155350,0.0685],[5000000,0.0965],[25000000,0.103],[Infinity,0.109]]},
+ NC:{n:'North Carolina',f:0.0399},
+ ND:{n:'North Dakota',b:[[48475,0],[244825,0.0195],[Infinity,0.025]],j:[[80975,0],[298075,0.0195],[Infinity,0.025]]},
+ OH:{n:'Ohio',b:[[26050,0],[Infinity,0.0275]]},
+ OK:{n:'Oklahoma',b:[[3750,0],[4900,0.025],[7200,0.035],[Infinity,0.045]],j:[[7500,0],[9800,0.025],[14400,0.035],[Infinity,0.045]]},
+ OR:{n:'Oregon',b:[[4550,0.0475],[11400,0.0675],[125000,0.0875],[Infinity,0.099]],j:[[9100,0.0475],[22800,0.0675],[250000,0.0875],[Infinity,0.099]]},
+ PA:{n:'Pennsylvania',f:0.0307},
+ RI:{n:'Rhode Island',b:[[82050,0.0375],[186450,0.0475],[Infinity,0.0599]]},
+ SC:{n:'South Carolina',b:[[3640,0],[18230,0.03],[Infinity,0.06]]},
  SD:{n:'South Dakota',t:'none'},
  TN:{n:'Tennessee',t:'none'},
  TX:{n:'Texas',t:'none'},
- UT:{n:'Utah',f:.0455},
- VT:{n:'Vermont',b:[[45400,.0335],[110050,.066],[229550,.076],[Infinity,.0875]],m:2},
- VA:{n:'Virginia',b:[[3000,.02],[5000,.03],[17000,.05],[Infinity,.0575]],m:1},
+ UT:{n:'Utah',f:0.045},
+ VT:{n:'Vermont',b:[[49400,0.0335],[119700,0.066],[249700,0.076],[Infinity,0.0875]],j:[[82500,0.0335],[199450,0.066],[304000,0.076],[Infinity,0.0875]]},
+ VA:{n:'Virginia',b:[[3000,0.02],[5000,0.03],[17000,0.05],[Infinity,0.0575]]},
  WA:{n:'Washington',t:'none'},
- WV:{n:'West Virginia',b:[[10000,.0236],[25000,.0315],[40000,.0354],[60000,.0472],[Infinity,.0512]],m:1},
- WI:{n:'Wisconsin',b:[[14320,.035],[28640,.044],[315310,.053],[Infinity,.0765]],m:2},
+ WV:{n:'West Virginia',b:[[10000,0.0222],[25000,0.0296],[40000,0.0333],[60000,0.0444],[Infinity,0.0482]]},
+ WI:{n:'Wisconsin',b:[[15110,0.035],[51950,0.044],[332720,0.053],[Infinity,0.0765]],j:[[20150,0.035],[69260,0.044],[443630,0.053],[Infinity,0.0765]]},
  WY:{n:'Wyoming',t:'none'}
 };
 
@@ -287,7 +290,7 @@ function scale(br,m){return m===1?br:br.map(([u,r])=>[u===Infinity?Infinity:u*m,
 function stateCalc(taxable, code, status){
   const st=S[code]; if(!st||st.t==='none')return {tax:0,marg:0};
   if(st.f!=null)return {tax:taxable*st.f, marg:st.f};
-  const br=scale(st.b, status==='mfj'?st.m:1);
+  const br=(status==='mfj'&&st.j)?st.j:st.b;
   return {tax:bracketTax(taxable,br), marg:marginal(taxable,br)};
 }
 function fica(income, status){
@@ -299,8 +302,8 @@ function fica(income, status){
 const num=s=>{const n=parseFloat(String(s).replace(/[^0-9.]/g,''));return isNaN(n)?0:n;};
 
 /* ---- state ---- */
-let status='single', dedMode='std', hsaCov='self', bonusMode='pct';
-const LIMITS={retire:23500, hsaSelf:4300, hsaFamily:8550};
+let status='single', dedMode='std', hsaCov='self', bonusMode='pct', retireMode='pct';
+const LIMITS={retire:24500, hsaSelf:4400, hsaFamily:8750};   // 2026: IRS Notice 2025-67, Rev. Proc. 2025-19
 const hsaMax=()=>hsaCov==='family'?LIMITS.hsaFamily:LIMITS.hsaSelf;
 const stateSel=$('#state');
 Object.keys(S).sort((a,b)=>S[a].n.localeCompare(S[b].n)).forEach(k=>{
@@ -335,7 +338,8 @@ $('#fica').addEventListener('change',compute);
 $$('.maxbtn').forEach(b=>b.onclick=()=>{
   const t=b.dataset.t, field=$('#'+t), on=!b.classList.contains('on');
   b.classList.toggle('on',on);
-  field.value= on ? (t==='hsa'?hsaMax():LIMITS.retire).toLocaleString() : '';
+  if(t==='retire'&&retireMode==='pct'){ const pay=payTotal(); field.value = on&&pay ? +(Math.ceil(LIMITS.retire/pay*10000)/100).toFixed(2) : ''; }
+  else field.value= on ? (t==='hsa'?hsaMax():LIMITS.retire).toLocaleString() : '';
   compute();
 });
 $$('#hsaCov button').forEach(b=>b.onclick=()=>{
@@ -352,16 +356,30 @@ $('#item').addEventListener('input',e=>groom(e.target));
 ['retire','hsa'].forEach(t=>{
   const el=$('#'+t);
   el.addEventListener('input',()=>{
-    groom(el);
-    const mb=document.querySelector(`.maxbtn[data-t="${t}"]`);
-    mb.classList.toggle('on', num(el.value)===(t==='hsa'?hsaMax():LIMITS.retire));
+    if(t==='retire'&&retireMode==='pct') el.value=el.value.replace(/[^0-9.]/g,''); else groom(el);
     compute();
   });
 });
+const payTotal=()=>num($('#income').value)+bonusAmt();
+/* 401(k): a percent applies to all pay (base + bonus) and stops at the annual limit; a dollar amount is taken as entered */
+function retireAmt(pay){ const v=num($('#retire').value); return retireMode==='pct' ? Math.min(pay*v/100, LIMITS.retire) : v; }
+$$('#retireMode button').forEach(b=>b.onclick=()=>{
+  const pay=payTotal(), cur=retireAmt(pay);
+  retireMode=b.dataset.v; $$('#retireMode button').forEach(x=>x.classList.toggle('on',x===b));
+  $('#retire').value = !cur ? '' : retireMode==='usd' ? Math.round(cur).toLocaleString() : (pay?+(cur/pay*100).toFixed(2):'');
+  syncRetireUI(); compute();
+});
+function syncRetireUI(){
+  const pctMode=retireMode==='pct';
+  $('#retireSym').hidden=pctMode; $('#retireUnit').hidden=!pctMode;
+  $('#retire').closest('.money').classList.toggle('pct',pctMode);
+  $('#retire').placeholder=pctMode?'6':'0';
+}
+syncRetireUI();
 
 /* one year of tax at a given gross, with the current 401k / HSA / deduction settings */
 function annual(g){
-  const retire=Math.min(num($('#retire').value), g);
+  const retire=Math.min(retireAmt(g), g);
   const hsa=Math.min(num($('#hsa').value), Math.max(0, g-retire));
   const ded=dedMode==='item'?num($('#item').value):STD[status];
   const taxable=Math.max(0, g-retire-hsa-ded);
@@ -377,6 +395,15 @@ function compute(){
     ? (bonusMode==='pct' ? `That's <b>${fmt(bonus)}</b>. ` : base>0 ? `That's <b>${pct(bonus/base)}</b> of base. ` : '') + 'Taxed as ordinary income, withheld at a flat 22% federal.'
     : 'Taxed as ordinary income, but withheld at a flat 22% federal.';
   const A=annual(gross);
+  { const v=num($('#retire').value), raw=retireMode==='pct'?gross*v/100:v, capped=retireMode==='pct'&&raw>LIMITS.retire;
+    const mb=document.querySelector('.maxbtn[data-t="retire"]');
+    mb.classList.toggle('on', retireMode==='pct' ? (v>0&&raw>=LIMITS.retire-0.5) : v===LIMITS.retire);
+    const tail='Taken from base and bonus, like most payroll plans. 2026 limit $24,500. Lowers income tax, not FICA.';
+    $('#retireHint').innerHTML = !(v>0) ? tail
+      : retireMode==='pct' ? (capped ? `Capped at the <b>$24,500</b> limit, which you reach at <b>${pct(LIMITS.retire/Math.max(gross,1))}</b>. ` : `That's <b>${fmt(raw)}</b> a year. `)+tail
+      : (gross>0?`That's <b>${pct(v/gross)}</b> of pay. `:'')+(v>LIMITS.retire?'Above $24,500 only works with age 50+ catch-up. ':'')+tail;
+  }
+  { const mb=document.querySelector('.maxbtn[data-t="hsa"]'); mb.classList.toggle('on', num($('#hsa').value)===hsaMax()); }
   const {retire, hsa, preTax, ded, taxable, fed, st, fic, total}=A;
   const takeCash=Math.max(0, gross-total-preTax);
 
@@ -429,20 +456,23 @@ function renderBonus(base, bonus, A){
   if(!(bonus>0)){box.innerHTML='';return}
   const B=annual(base);                                   // same year without the bonus
   const fedOwed=A.fed-B.fed, stOwed=A.st.tax-B.st.tax, ficOwed=A.fic-B.fic;
-  const fedWH=SUPP_RATE*Math.min(bonus,SUPP_CAP)+SUPP_TOP*Math.max(0,bonus-SUPP_CAP);
-  const check=bonus-fedWH-ficOwed-stOwed, gap=fedOwed-fedWH;
+  const def=Math.max(0, A.retire-B.retire), whBase=bonus-def;      // 401(k) deferral comes off before income-tax withholding
+  const fedWH=SUPP_RATE*Math.min(whBase,SUPP_CAP)+SUPP_TOP*Math.max(0,whBase-SUPP_CAP);
+  const check=bonus-def-fedWH-ficOwed-stOwed, gap=fedOwed-fedWH;
   const stName=S[stateSel.value].n;
   const r=(l,v,p='',cls='')=>`<div class="r${cls}"><span>${l}${p?` <span class="pill">${p}</span>`:''}</span><b>${v}</b></div>`;
   let h='<div class="subhead">Bonus breakdown</div>';
   h+=r('Bonus', fmt(bonus), bonusMode==='pct'||base>0 ? pct(bonus/Math.max(base,1))+' of base' : '');
+  if(def>0)h+=r('401(k) from bonus', '−'+fmt(def), pct(def/bonus));
   h+=r('Federal withheld', '−'+fmt(fedWH), bonus>SUPP_CAP?'22% / 37% flat':'22% flat');
   if(ficOwed>0)h+=r('Boomer Daycare', '−'+fmt(ficOwed), pct(ficOwed/bonus));
   if(stOwed>0)h+=r(`${stName} tax`, '−'+fmt(stOwed), pct(stOwed/bonus));
   h+=r('Bonus check, estimated', fmt(check), '', ' tot');
-  h+=r('Federal tax it actually adds', fmt(fedOwed), pct(fedOwed/bonus));
-  const brk=pct(marginal(A.taxable,FED[status]));
+  h+=r('Federal tax it actually adds', fmt(fedOwed), whBase>0?pct(fedOwed/whBase):'');   // rate on the taxable part, comparable to the 22%
+  const lo=Math.round(marginal(B.taxable+0.01,FED[status])*100), hi=Math.round(marginal(A.taxable,FED[status])*100);
+  const brk = lo===hi ? `is taxed at your ${hi}% bracket` : `spans your ${lo}% and ${hi}% brackets`;
   let note, cls;
-  if(gap>25){cls='owe'; note=`Withholding comes up short. The flat 22% covers ${fmt(fedWH)}, but the bonus is taxed at your ${brk} bracket, so about <b>${fmt(gap)}</b> more comes due when you file.`}
+  if(gap>25){cls='owe'; note=`Withholding comes up short. The flat 22% covers ${fmt(fedWH)}, but the bonus ${brk}, so about <b>${fmt(gap)}</b> more comes due when you file.`}
   else if(gap<-25){cls='back'; note=`Withholding runs high. The flat 22% takes ${fmt(fedWH)}, more than the ${fmt(fedOwed)} the bonus adds to your federal tax, so about <b>${fmt(-gap)}</b> comes back as a refund.`}
   else {cls=''; note=`The flat 22% lands within a few dollars of the federal tax the bonus actually adds.`}
   h+=`<div class="settle ${cls}">${note}</div>`;
