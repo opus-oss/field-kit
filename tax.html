@@ -71,6 +71,14 @@ select:focus,input:focus{outline:none; border-color:var(--acc)}
 .seg.small button{padding:7px 4px; font-size:12px}
 .dedrow{display:flex; gap:8px; align-items:center; margin-top:8px}
 .hint{font-size:12px; color:var(--faint); margin-top:6px}
+.hint b{color:var(--ink); font-family:var(--mono); font-weight:600}
+.money .unit{position:absolute; right:12px; top:50%; transform:translateY(-50%); font:12px var(--mono); font-style:normal; color:var(--mut); pointer-events:none}
+.money.pct input{padding-left:13px; padding-right:96px}
+.subhead{font:600 12px var(--mono); text-transform:uppercase; letter-spacing:.08em; color:var(--h2); margin:22px 0 4px; padding-bottom:6px; border-bottom:1px solid var(--line2)}
+.subhead+.r{border-top:none}
+.settle{--sev:var(--h3); margin-top:10px; padding:10px 12px; border-radius:10px; font-size:13px; line-height:1.5; color:var(--ink); background:color-mix(in srgb,var(--sev) 11%,var(--card)); border:1px solid color-mix(in srgb,var(--sev) 35%,transparent); border-left:3px solid var(--sev)}
+.settle.owe{--sev:var(--bad)} .settle.back{--sev:var(--good)}
+.settle b{font-family:var(--mono); color:var(--sev)}
 #itemWrap{display:none} #itemWrap.show{display:block}
 
 /* result */
@@ -134,9 +142,15 @@ footer{text-align:center; font-size:12px; color:var(--faint); padding-top:4px}
     <select id="state"></select>
   </div>
   <div class="field">
-    <label>Total income (gross)</label>
+    <label>Base salary</label>
     <div class="money"><span>$</span><input id="income" type="text" inputmode="numeric" placeholder="85,000" autocomplete="off"></div>
-    <div class="hint">Wages, salary, and other taxable income before deductions.</div>
+    <div class="hint">Annual salary or wages before any bonus. Add other taxable income here too.</div>
+  </div>
+  <div class="field">
+    <label>Bonus</label>
+    <div class="seg small" id="bonusMode"><button data-v="pct" class="on">% of base</button><button data-v="usd">Dollar amount</button></div>
+    <div class="money" style="margin-top:8px"><span id="bonusSym" hidden>$</span><input id="bonus" type="text" inputmode="decimal" placeholder="10" autocomplete="off"><em class="unit" id="bonusUnit">% of base</em></div>
+    <div class="hint" id="bonusHint">Taxed as ordinary income, but withheld at a flat 22% federal.</div>
   </div>
   <div class="field">
     <label>Deduction</label>
@@ -173,12 +187,13 @@ footer{text-align:center; font-size:12px; color:var(--faint); padding-top:4px}
   <div class="bar" id="bar"></div>
   <div class="legend" id="legend"></div>
   <div class="rows" id="rows"></div>
+  <div id="bonusBox"></div>
 </div>
 </div>
 
 <div class="card">
   <div class="disc">
-    <b>This is an estimate, not tax advice.</b> It uses 2025 federal brackets and standard deductions and each state's 2025 income-tax schedule. It does <b>not</b> include tax credits (child, EITC, education), state-specific deductions or exemptions, local/city income taxes, the QBI deduction, capital-gains rates, AMT, or above-the-line adjustments. State figures for married-joint and head-of-household are approximated from single-filer schedules. Pre-tax retirement is treated as traditional (pre-tax) and HSA as a payroll contribution; a few states differ (PA taxes 401(k) contributions; CA and NJ tax HSA contributions) and that isn't modeled. Verify with a professional or the IRS/state site before filing.
+    <b>This is an estimate, not tax advice.</b> It uses 2025 federal brackets and standard deductions and each state's 2025 income-tax schedule. It does <b>not</b> include tax credits (child, EITC, education), state-specific deductions or exemptions, local/city income taxes, the QBI deduction, capital-gains rates, AMT, or above-the-line adjustments. State figures for married-joint and head-of-household are approximated from single-filer schedules. Pre-tax retirement is treated as traditional (pre-tax) and HSA as a payroll contribution; a few states differ (PA taxes 401(k) contributions; CA and NJ tax HSA contributions) and that isn't modeled. A bonus is taxed as ordinary income at your normal brackets; only the <b>withholding</b> differs. The bonus breakdown assumes your employer uses the IRS flat percentage method for supplemental wages (22% federal, 37% on supplemental pay above $1 million in a year) rather than the aggregate method, that it's your only supplemental pay this year, and that withholding on your base pay is already accurate. Some states withhold bonuses at their own flat supplemental rate; the breakdown shows the state tax the bonus actually adds. Verify with a professional or the IRS/state site before filing.
   </div>
 </div>
 
@@ -284,7 +299,7 @@ function fica(income, status){
 const num=s=>{const n=parseFloat(String(s).replace(/[^0-9.]/g,''));return isNaN(n)?0:n;};
 
 /* ---- state ---- */
-let status='single', dedMode='std', hsaCov='self';
+let status='single', dedMode='std', hsaCov='self', bonusMode='pct';
 const LIMITS={retire:23500, hsaSelf:4300, hsaFamily:8550};
 const hsaMax=()=>hsaCov==='family'?LIMITS.hsaFamily:LIMITS.hsaSelf;
 const stateSel=$('#state');
@@ -297,6 +312,22 @@ $$('#status button').forEach(b=>b.onclick=()=>{status=b.dataset.v;$$('#status bu
 $$('#ded button').forEach(b=>b.onclick=()=>{dedMode=b.dataset.v;$$('#ded button').forEach(x=>x.classList.toggle('on',x===b));
   $('#itemWrap').classList.toggle('show',dedMode==='item'); $('#stdWrap').style.display=dedMode==='item'?'none':'block'; compute();});
 ['#income','#item'].forEach(id=>$(id).addEventListener('input',compute));
+$$('#bonusMode button').forEach(b=>b.onclick=()=>{
+  const base=num($('#income').value), cur=bonusAmt();
+  bonusMode=b.dataset.v; $$('#bonusMode button').forEach(x=>x.classList.toggle('on',x===b));
+  // carry the same bonus across the switch, so flipping modes never changes the math
+  $('#bonus').value = !cur ? '' : bonusMode==='usd' ? Math.round(cur).toLocaleString() : (base?+(cur/base*100).toFixed(2):'');
+  syncBonusUI(); compute();
+});
+$('#bonus').addEventListener('input',e=>{ if(bonusMode==='usd')groom(e.target); else e.target.value=e.target.value.replace(/[^0-9.]/g,''); compute(); });
+function bonusAmt(){ const v=num($('#bonus').value); return bonusMode==='pct' ? num($('#income').value)*v/100 : v; }
+function syncBonusUI(){
+  const pctMode=bonusMode==='pct';
+  $('#bonusSym').hidden=pctMode; $('#bonusUnit').hidden=!pctMode;
+  $('#bonus').closest('.money').classList.toggle('pct',pctMode);
+  $('#bonus').placeholder=pctMode?'10':'8,500';
+}
+syncBonusUI();
 $('#state').addEventListener('change',compute);
 $('#fica').addEventListener('change',compute);
 
@@ -328,25 +359,31 @@ $('#item').addEventListener('input',e=>groom(e.target));
   });
 });
 
-function compute(){
-  const gross=num($('#income').value);
-  $('#stdAmt').textContent=fmt(STD[status]);
-  const retire=Math.min(num($('#retire').value), gross);
-  const hsa=Math.min(num($('#hsa').value), Math.max(0, gross-retire));
-  const preTax=retire+hsa;
+/* one year of tax at a given gross, with the current 401k / HSA / deduction settings */
+function annual(g){
+  const retire=Math.min(num($('#retire').value), g);
+  const hsa=Math.min(num($('#hsa').value), Math.max(0, g-retire));
   const ded=dedMode==='item'?num($('#item').value):STD[status];
-  const taxable=Math.max(0, gross-preTax-ded);
+  const taxable=Math.max(0, g-retire-hsa-ded);
   const fed=bracketTax(taxable, FED[status]);
   const st=stateCalc(taxable, stateSel.value, status);
-  const ficaWages=Math.max(0, gross-hsa);            // HSA is FICA-exempt, 401k is not
-  const fic=$('#fica').checked?fica(ficaWages,status):0;
-  const total=fed+st.tax+fic;
+  const fic=$('#fica').checked?fica(Math.max(0, g-hsa),status):0;   // HSA is FICA-exempt, 401k is not
+  return {retire, hsa, preTax:retire+hsa, ded, taxable, fed, st, fic, total:fed+st.tax+fic};
+}
+function compute(){
+  const base=num($('#income').value), bonus=bonusAmt(), gross=base+bonus;
+  $('#stdAmt').textContent=fmt(STD[status]);
+  $('#bonusHint').innerHTML = bonus>0
+    ? (bonusMode==='pct' ? `That's <b>${fmt(bonus)}</b>. ` : base>0 ? `That's <b>${pct(bonus/base)}</b> of base. ` : '') + 'Taxed as ordinary income, withheld at a flat 22% federal.'
+    : 'Taxed as ordinary income, but withheld at a flat 22% federal.';
+  const A=annual(gross);
+  const {retire, hsa, preTax, ded, taxable, fed, st, fic, total}=A;
   const takeCash=Math.max(0, gross-total-preTax);
 
   if(gross<=0){
     $('#takeHome').textContent='$0';
     $('#effLine').textContent='enter an income to start';
-    $('#bar').innerHTML=''; $('#legend').innerHTML=''; $('#rows').innerHTML='';
+    $('#bar').innerHTML=''; $('#legend').innerHTML=''; $('#rows').innerHTML=''; $('#bonusBox').innerHTML='';
     return;
   }
   $('#takeHome').textContent=fmt(takeCash);
@@ -369,6 +406,7 @@ function compute(){
   const fedMarg=marginal(taxable,FED[status]);
   const stName=S[stateSel.value].n;
   const rows=[];
+  if(bonus>0){rows.push(['Base salary', fmt(base), '']); rows.push(['Bonus', '+'+fmt(bonus), ''])}
   if(retire>0)rows.push(['Pre-tax retirement', '−'+fmt(retire), '']);
   if(hsa>0)rows.push(['HSA contribution', '−'+fmt(hsa), '']);
   rows.push(['Taxable income', fmt(taxable), '']);
@@ -381,6 +419,34 @@ function compute(){
   html+=`<div class="r"><span>Effective rate <span class="pill">income tax only</span></span><b>${pct((fed+st.tax)/gross)}</b></div>`;
   html+=`<div class="r"><span>Marginal rate</span><b>${pct(fedMarg)} fed + ${pct(st.marg)} state</b></div>`;
   $('#rows').innerHTML=html;
+  renderBonus(base, bonus, A);
+}
+
+/* ---- bonus: what the check looks like vs. what it actually adds to the year ---- */
+const SUPP_RATE=.22, SUPP_TOP=.37, SUPP_CAP=1e6;
+function renderBonus(base, bonus, A){
+  const box=$('#bonusBox');
+  if(!(bonus>0)){box.innerHTML='';return}
+  const B=annual(base);                                   // same year without the bonus
+  const fedOwed=A.fed-B.fed, stOwed=A.st.tax-B.st.tax, ficOwed=A.fic-B.fic;
+  const fedWH=SUPP_RATE*Math.min(bonus,SUPP_CAP)+SUPP_TOP*Math.max(0,bonus-SUPP_CAP);
+  const check=bonus-fedWH-ficOwed-stOwed, gap=fedOwed-fedWH;
+  const stName=S[stateSel.value].n;
+  const r=(l,v,p='',cls='')=>`<div class="r${cls}"><span>${l}${p?` <span class="pill">${p}</span>`:''}</span><b>${v}</b></div>`;
+  let h='<div class="subhead">Bonus breakdown</div>';
+  h+=r('Bonus', fmt(bonus), bonusMode==='pct'||base>0 ? pct(bonus/Math.max(base,1))+' of base' : '');
+  h+=r('Federal withheld', '−'+fmt(fedWH), bonus>SUPP_CAP?'22% / 37% flat':'22% flat');
+  if(ficOwed>0)h+=r('Boomer Daycare', '−'+fmt(ficOwed), pct(ficOwed/bonus));
+  if(stOwed>0)h+=r(`${stName} tax`, '−'+fmt(stOwed), pct(stOwed/bonus));
+  h+=r('Bonus check, estimated', fmt(check), '', ' tot');
+  h+=r('Federal tax it actually adds', fmt(fedOwed), pct(fedOwed/bonus));
+  const brk=pct(marginal(A.taxable,FED[status]));
+  let note, cls;
+  if(gap>25){cls='owe'; note=`Withholding comes up short. The flat 22% covers ${fmt(fedWH)}, but the bonus is taxed at your ${brk} bracket, so about <b>${fmt(gap)}</b> more comes due when you file.`}
+  else if(gap<-25){cls='back'; note=`Withholding runs high. The flat 22% takes ${fmt(fedWH)}, more than the ${fmt(fedOwed)} the bonus adds to your federal tax, so about <b>${fmt(-gap)}</b> comes back as a refund.`}
+  else {cls=''; note=`The flat 22% lands within a few dollars of the federal tax the bonus actually adds.`}
+  h+=`<div class="settle ${cls}">${note}</div>`;
+  box.innerHTML=h;
 }
 compute();
 </script>
