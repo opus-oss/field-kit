@@ -226,7 +226,7 @@ mark{background:color-mix(in srgb,var(--acc) 24%,transparent); color:inherit; bo
     <button class="chip amber" id="bWatch" title="Only stories matching your watchlist (w)">★ Watchlist</button>
     <button class="chip" id="bPromo" title="Show what the promo filter removed (f)">Filtered <em id="nPromo">0</em></button>
     <div class="seg" id="range"></div>
-    <div class="seg" id="view"><button data-v="river">River</button><button data-v="board">Board</button></div>
+    <div class="seg" id="view"><button data-v="board">Board</button><button data-v="river">River</button></div>
   </div>
 
   <div class="mconv" id="mconv"></div>
@@ -253,10 +253,11 @@ const RANGES=[[1,'24h'],[3,'3d'],[7,'7d'],[30,'30d']];
 const WATCH_DEFAULT=['ClickFix','KongTuke','ClearFake','SocGholish','phishkit','AiTM','initial access','infostealer','BYOVD','ESXi','affiliate'];
 
 let DATA={items:[],feeds:[],updated:null}, FEED={};
-const S=Object.assign({cat:'all',src:null,range:7,q:'',view:'river',watch:false,promo:false,limit:150}, store.get('iw_state',{}));
+const _st=store.get('iw_state',{}); if(_st.v!==2){_st.view='board'; _st.v=2}
+const S=Object.assign({cat:'all',src:null,range:7,q:'',view:'board',watch:false,promo:false,limit:150}, _st);
 S.src=null; S.q=''; S.limit=150;
 let WATCH=store.get('iw_watch',WATCH_DEFAULT), READ=new Set(store.get('iw_read',[]));
-const save=()=>store.set('iw_state',{cat:S.cat,range:S.range,view:S.view,watch:S.watch,promo:S.promo});
+const save=()=>store.set('iw_state',{v:2,cat:S.cat,range:S.range,view:S.view,watch:S.watch,promo:S.promo});
 
 /* new-since-last-visit: the marker only advances after 30 quiet minutes, so a reload doesn't wipe it */
 const now=Date.now(); let visit=store.get('iw_visit',null), PREV=store.get('iw_prev',null);

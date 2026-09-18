@@ -326,5 +326,23 @@
   "mode": "adds",
   "cat": "ioc",
   "trust": "high"
+ },
+ {
+  "id": "ioc-elastic",
+  "name": "Elastic protections-artifacts",
+  "url": "https://github.com/elastic/protections-artifacts/commits.atom",
+  "gh": "elastic/protections-artifacts",
+  "mode": "adds",
+  "cat": "ioc",
+  "trust": "high"
+ },
+ {
+  "id": "ioc-mstic",
+  "name": "Microsoft MSTIC",
+  "url": "https://github.com/microsoft/mstic/commits.atom",
+  "gh": "microsoft/mstic",
+  "mode": "adds",
+  "cat": "ioc",
+  "trust": "high"
  }
 ]

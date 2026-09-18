@@ -61,7 +61,7 @@ TAGS = [("ransomware", r"ransomware|\braas\b|extortion|leak site|encryptor|locke
  ("mobile", r"android|\bios\b|\bapk\b|spyware"),
  ("apt", r"\bapt[- ]?\d+|espionage|state-sponsored|nation-state|dprk|north korea|china-nexus|lazarus|kimsuky|sandworm|turla|volt typhoon|salt typhoon"),
  ("detection", r"detection|hunting|sigma\b|yara|\bedr\b|telemetry|\bkql\b|\bxql\b|query|log source|threat hunt"),
- ("byovd", r"byovd|vulnerable driver|edr killer|edr-killer"), ("supply-chain", r"supply[- ]chain|\bnpm\b|pypi|typosquat|malicious package")]
+ ("byovd", r"byovd|vulnerable driver|vulndriver|edr killer|edr-killer"), ("supply-chain", r"supply[- ]chain|\bnpm\b|pypi|typosquat|malicious package")]
 TAGS = [(n, re.compile(p, re.I)) for n, p in TAGS]
 ENTS = """LockBit|Akira|Qilin|Play ransomware|Black Basta|BlackSuit|Medusa|RansomHub|INC Ransom|Lynx|Rhysida|Cl0p|Clop|DragonForce|SafePay|Fog|Hunters International
 |Interlock|Embargo|8Base|BianLian|Cactus|Scattered Spider|ShinyHunters|Lapsus|Lumma|LummaC2|Vidar|RedLine|StealC|Rhadamanthys|Raccoon|Atomic Stealer|AMOS|Poseidon|Meduza
@@ -136,22 +136,49 @@ def pretty(name):
     name = re.sub(r"(?<!\d)-|-(?!\d)", " ", name)                  # hyphens become spaces except inside dates/ranges
     name = re.sub(r"^\d{4}-\d{2}(-\d{2})?\s*", "", name).strip()     # leading date, the row already shows it
     return re.sub(r"\s+", " ", name) or "untitled"
+# folder names that describe a container, not a subject ("yara/rules/X.yar" should title from X, not "rules")
+GENERIC = {"rules", "rule", "yara", "yar", "behavior", "iocs", "ioc", "indicators", "samples", "data", "windows", "linux",
+           "macos", "cross-platform", "hunting", "queries", "detections", "signatures", "src", "files", "misc"}
+def kind_of(p):
+    e = p.rsplit(".", 1)[-1].lower() if "." in p.rsplit("/", 1)[-1] else ""
+    if e in ("yar", "yara"): return "YARA rule"
+    if e == "toml" and "behavior" in p: return "behavior rule"
+    if e in ("toml", "yml", "yaml"): return "detection rule"
+    if e in ("csv", "txt", "json", "md5", "sha1", "sha256", "ioc", "stix", "xml"): return "IOC file"
+    return "file"
+def kind_label(paths):
+    from collections import Counter
+    c = Counter(kind_of(p) for p in paths)
+    if len(c) > 1: c.pop("file", None)                      # stray docs don't get a mention next to real rules
+    parts = [f"{n} {k}{'s' if n > 1 else ''}" for k, n in c.most_common()]
+    return " + ".join(parts)
 def adds_title(repo, sha, files):
     keep = [p for p in files if not SKIP_FILE.search(p)]
     if not keep: return None
+    names = [pretty(p.rsplit("/", 1)[-1]) for p in keep]
+    names = [n[:1].upper() + n[1:] for n in names]
     folders = {p.rsplit("/", 1)[0] if "/" in p else "" for p in keep}
+    leaf = next(iter(folders)).rsplit("/", 1)[-1] if len(folders) == 1 else ""
     kinds = []
     for p in keep:
         for rx, k in KIND:
             if rx.search(p) and k not in kinds: kinds.append(k)
-    if len(folders) == 1 and next(iter(folders)):
-        name = pretty(next(iter(folders)).rsplit("/", 1)[-1])
+    if leaf and leaf.lower() not in GENERIC and len(keep) > 1:
+        # one subject folder with several files (Volexity: "2026-09-09 Chrome/iocs.csv + rules.yar")
+        name = pretty(leaf)
         title = name + (" · " + " + ".join(kinds) if kinds and not re.search(r"\bIOCs?\b|\bYARA\b", name, re.I) else "")
+    elif len(keep) == 1:
+        title = names[0]
+    elif len(keep) == 2:
+        title = names[0] + " · " + names[1]
     else:
-        title = pretty(keep[0].rsplit("/", 1)[-1]) + (f" + {len(keep)-1} more" if len(keep) > 1 else "")
+        # rule drops (Elastic adds 3 to 87 rules per commit): count + kind, the names go in the summary
+        title = kind_label(keep) if len(set(kind_of(p) for p in keep) - {"file"}) > 1 else f"{len(keep)} new {kind_label(keep).split(' ', 1)[1]}"
     from urllib.parse import quote
     url = f"https://github.com/{repo}/blob/{sha}/{quote(keep[0])}" if len(keep) == 1 else f"https://github.com/{repo}/commit/{sha}"
-    return [title, url, "Added " + ", ".join(p.rsplit("/", 1)[-1] for p in keep[:4]) + (" …" if len(keep) > 4 else "")]
+    shown = names[:6] if len(keep) > 2 else [p.rsplit("/", 1)[-1] for p in keep[:4]]
+    summary = ("Added " if len(keep) <= 2 else "") + ", ".join(shown) + (f", and {len(keep) - len(shown)} more" if len(keep) > len(shown) else "")
+    return [title, url, summary]
 def gh_adds(feed):
     repo, rows = feed["gh"], []
     for c in gh_api(f"repos/{repo}/commits?per_page=20"):
