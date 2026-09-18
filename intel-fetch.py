@@ -118,6 +118,52 @@ def relay(url):
                     "pubdate": datetime.fromtimestamp(ms / 1000, timezone.utc).isoformat() if ms else "",
                     "description": (i.get("summary") or i.get("content") or {}).get("content", "")})
     return out
+# ---------- GitHub repos in "adds" mode ----------
+# Noisy IOC repos (upload-button commits, the same note edited five times) are read through the API instead of
+# the commit feed: a drop is a commit that ADDS files, titled from what it added. Edits, renames and deletes are ignored.
+GH_CACHE, GH_OLD = {}, {}
+SKIP_FILE = re.compile(r"(^|/)(readme[^/]*|license[^/]*|\.[^/]+)$|\.(png|jpe?g|gif|svg|webp)$", re.I)
+KIND = [(re.compile(r"\.ya?ra?$", re.I), "YARA"), (re.compile(r"\.(rules|suricata)$", re.I), "Suricata"),
+        (re.compile(r"\.(csv|txt|json|md5|sha1|sha256|ioc|stix|xml)$", re.I), "IOCs")]
+def gh_api(path):
+    hdr = {"Accept": "application/vnd.github+json", "User-Agent": UA_READER, "X-GitHub-Api-Version": "2022-11-28"}
+    if os.environ.get("GITHUB_TOKEN"): hdr["Authorization"] = "Bearer " + os.environ["GITHUB_TOKEN"]
+    import urllib.request
+    with urllib.request.urlopen(urllib.request.Request("https://api.github.com/" + path, headers=hdr), timeout=25) as r:
+        return json.load(r)
+def pretty(name):
+    name = re.sub(r"\.[A-Za-z0-9]{1,8}$", "", name).replace("_", " ")
+    name = re.sub(r"(?<!\d)-|-(?!\d)", " ", name)                  # hyphens become spaces except inside dates/ranges
+    name = re.sub(r"^\d{4}-\d{2}(-\d{2})?\s*", "", name).strip()     # leading date, the row already shows it
+    return re.sub(r"\s+", " ", name) or "untitled"
+def adds_title(repo, sha, files):
+    keep = [p for p in files if not SKIP_FILE.search(p)]
+    if not keep: return None
+    folders = {p.rsplit("/", 1)[0] if "/" in p else "" for p in keep}
+    kinds = []
+    for p in keep:
+        for rx, k in KIND:
+            if rx.search(p) and k not in kinds: kinds.append(k)
+    if len(folders) == 1 and next(iter(folders)):
+        name = pretty(next(iter(folders)).rsplit("/", 1)[-1])
+        title = name + (" · " + " + ".join(kinds) if kinds and not re.search(r"\bIOCs?\b|\bYARA\b", name, re.I) else "")
+    else:
+        title = pretty(keep[0].rsplit("/", 1)[-1]) + (f" + {len(keep)-1} more" if len(keep) > 1 else "")
+    from urllib.parse import quote
+    url = f"https://github.com/{repo}/blob/{sha}/{quote(keep[0])}" if len(keep) == 1 else f"https://github.com/{repo}/commit/{sha}"
+    return [title, url, "Added " + ", ".join(p.rsplit("/", 1)[-1] for p in keep[:4]) + (" …" if len(keep) > 4 else "")]
+def gh_adds(feed):
+    repo, rows = feed["gh"], []
+    for c in gh_api(f"repos/{repo}/commits?per_page=20"):
+        sha, date = c["sha"], c["commit"]["author"]["date"]
+        hit = GH_OLD.get(sha)
+        if hit is None:
+            files = [f["filename"] for f in gh_api(f"repos/{repo}/commits/{sha}").get("files", []) if f.get("status") == "added"]
+            hit = adds_title(repo, sha, files) or 0                   # 0 = looked at, added nothing worth showing
+        GH_CACHE[sha] = hit
+        if hit: rows.append({"title": hit[0], "link": hit[1], "pubdate": date, "description": hit[2]})
+    return rows
+
 def local(tag): return tag.rsplit("}", 1)[-1].lower()
 def parse(raw):
     raw = re.sub(rb"[\x00-\x08\x0b\x0c\x0e-\x1f]", b"", raw)
@@ -144,6 +190,12 @@ def parse(raw):
 def run(feed):
     res = {"id": feed["id"], "name": feed.get("show_as") or feed["name"], "cat": feed["cat"], "ok": False, "n": 0, "err": ""}
     rows = []
+    if feed.get("mode") == "adds":
+        try:
+            rows = gh_adds(feed); res["ok"] = True; res["via"] = "adds only"
+        except Exception as e:
+            res["err"] = "GitHub API: " + str(e)[:70]
+        return finish(feed, res, rows)
     for url in [feed["url"]] + feed.get("alt", []):
         for ua in (UA_READER, UA_BROWSER):
             try:
@@ -161,13 +213,16 @@ def run(feed):
                 if got: rows = got; res["ok"] = True; res["err"] = ""; res["via"] = "feedly"; break
             except Exception as e:
                 res["err"] = (res["err"] + "; relay: " + str(e))[:110]
+    return finish(feed, res, rows)
+
+def finish(feed, res, rows):
     items = []
     for f in rows[:200]:
         u = clean_url(f.get("link"))
         t = strip(f.get("title"))
         if not u or not t: continue
         if feed.get("exclude_url") and re.search(feed["exclude_url"], u): continue
-        if feed["cat"] == "ioc" and re.search(r"^(merge |initial commit|add files via upload|update \S+$|create \S+$|delete )|readme|typo|formatting", t, re.I): continue
+        if feed["cat"] == "ioc" and feed.get("mode") != "adds" and re.search(r"^(merge |initial commit|add files via upload|update \S+$|create \S+$|delete |fix|rename|remove)|readme|typo|formatting", t, re.I): continue
         d = when(f.get("pubdate") or f.get("published") or f.get("date") or f.get("updated"))
         x = strip(f.get("description") or f.get("summary") or f.get("encoded") or f.get("content"), 210)
         if x.lower().startswith(t.lower()[:40]): x = x[len(t):].lstrip(" .:-–—…")
@@ -193,6 +248,7 @@ def main():
     except Exception: old = {"items": [], "feeds": []}
     known = {i["u"]: i for i in old.get("items", [])}
     last_ok = {f["id"]: f.get("last_ok") for f in old.get("feeds", [])}
+    GH_OLD.update(old.get("gh", {}))
     with cf.ThreadPoolExecutor(8) as ex: results = list(ex.map(run, feeds))
     live_ids = {f["id"] for f in feeds}; fresh = {}
     for res, items in results:
@@ -213,7 +269,7 @@ def main():
             if not i.get(k): i.pop(k, None)
     ok = sum(1 for r, _ in results if r["ok"])
     if ok < len(feeds) // 3: raise SystemExit("most feeds failed, keeping the previous intel.json")
-    json.dump({"updated": stamp, "feeds": [r for r, _ in results], "items": items}, open("intel.json", "w"),
+    json.dump({"updated": stamp, "feeds": [r for r, _ in results], "items": items, "gh": GH_CACHE}, open("intel.json", "w"),
               separators=(",", ":"), ensure_ascii=False)
     promo = sum(1 for i in items if "p" in i)
     print(f"{ok}/{len(feeds)} feeds ok, {len(items)} stories kept, {promo} flagged as promo")

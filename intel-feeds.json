@@ -222,23 +222,9 @@
   "trust": "mid"
  },
  {
-  "id": "ioc-prodaft",
-  "name": "PRODAFT malware-ioc",
-  "url": "https://github.com/prodaft/malware-ioc/commits.atom",
-  "cat": "ioc",
-  "trust": "high"
- },
- {
   "id": "ioc-netskope",
   "name": "Netskope Threat Labs IOCs",
   "url": "https://github.com/netskopeoss/NetskopeThreatLabsIOCs/commits.atom",
-  "cat": "ioc",
-  "trust": "high"
- },
- {
-  "id": "ioc-executemalware",
-  "name": "executemalware IOCs",
-  "url": "https://github.com/executemalware/Malware-IOCs/commits.atom",
   "cat": "ioc",
   "trust": "high"
  },
@@ -311,6 +297,33 @@
   "id": "ioc-sophos",
   "name": "SophosLabs IoCs",
   "url": "https://github.com/sophoslabs/IoCs/commits.atom",
+  "cat": "ioc",
+  "trust": "high",
+  "gh": "sophoslabs/IoCs",
+  "mode": "adds"
+ },
+ {
+  "id": "ioc-unit42",
+  "name": "Unit 42 timely intel",
+  "url": "https://github.com/PaloAltoNetworks/Unit42-timely-threat-intel/commits.atom",
+  "gh": "PaloAltoNetworks/Unit42-timely-threat-intel",
+  "mode": "adds",
+  "cat": "ioc",
+  "trust": "high"
+ },
+ {
+  "id": "ioc-eset",
+  "name": "ESET malware-ioc",
+  "url": "https://github.com/eset/malware-ioc/commits.atom",
+  "cat": "ioc",
+  "trust": "high"
+ },
+ {
+  "id": "ioc-volexity",
+  "name": "Volexity threat-intel",
+  "url": "https://github.com/volexity/threat-intel/commits.atom",
+  "gh": "volexity/threat-intel",
+  "mode": "adds",
   "cat": "ioc",
   "trust": "high"
  }

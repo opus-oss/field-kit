@@ -26,6 +26,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Fetch feeds
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # higher API rate limit for the adds-only IOC repos
         run: python3 intel-fetch.py
       - name: Commit intel.json
         run: |
