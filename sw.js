@@ -1,11 +1,11 @@
 /* Field Kit suite — offline service worker.
    HTML is network-first (always loads the latest when online, falls back to cache offline),
    static assets are cache-first. Bump CACHE on any change so clients refresh. */
-const CACHE = 'fieldkit-v37';
+const CACHE = 'fieldkit-v38';
 const ASSETS = [
   './',
   './index.html', './scrub.html', './markets.html', './tax.html', './places.html', './mortgage.html', './optout.html', './intel.html', './radar.html',
-  './leaflet.js', './leaflet.css',
+  './leaflet.js', './leaflet.css', './nowcast.js',
   './manifest-field.webmanifest', './manifest-scrub.webmanifest', './manifest-markets.webmanifest', './manifest-tax.webmanifest', './manifest-places.webmanifest', './manifest-mortgage.webmanifest', './manifest-optout.webmanifest', './manifest-intel.webmanifest', './manifest-radar.webmanifest',
   './field-192.png', './field-512.png', './field-180.png',
   './scrub-192.png', './scrub-512.png', './scrub-180.png',

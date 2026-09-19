@@ -82,19 +82,26 @@ body.vel #cleanBtn{display:none}
 #when{min-width:0; flex:1}
 #when b{display:block; font:700 20px var(--mono); letter-spacing:-.01em; font-variant-numeric:tabular-nums}
 #when span{display:block; font-size:12.5px; color:var(--mut); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
-#when span.fc{color:var(--h3)} #when span.warn{color:var(--bad)}
+#when span.fc{color:var(--h3)} #when span.warn{color:var(--bad)} #when span.pj{color:var(--h2)} #when span.bl{color:color-mix(in srgb,var(--h2) 50%,var(--h3))}
+#spot{margin:-2px 0 9px; padding-bottom:9px; border-bottom:1px solid var(--line); display:grid; gap:5px}
+#spot .ln{display:flex; gap:8px; align-items:baseline; font-size:13.5px; line-height:1.4}
+#spot .ln i{font-style:normal; width:16px; flex-shrink:0; text-align:center; color:var(--h2)}
+#spot .ln.soon i,#spot .ln.soon b{color:var(--acc)} #spot .ln.rain i{color:var(--h3)} #spot .ln.dry span{color:var(--mut)}
+#spot .ln.storm i{color:var(--h3)} #spot .ln.storm.hail i{color:var(--acc)} #spot .ln.storm.rot i,#spot .ln.storm.rot b{color:var(--bad)}
+#spot .mut{color:var(--mut)}
+.arrow{width:0; height:0; border-left:6px solid transparent; border-right:6px solid transparent; border-bottom:12px solid var(--c)}
 #hz{margin-top:0; flex-shrink:0}
 #hz button{padding:5px 8px; font-size:11.5px}
 #track{position:relative; height:30px; margin-top:8px; cursor:pointer; touch-action:none; user-select:none; -webkit-user-select:none}
 #track .seg-p,#track .seg-f{position:absolute; top:13px; height:4px; border-radius:2px}
 #track .seg-p{left:0; background:color-mix(in srgb,var(--mut) 55%,transparent)}
-#track .seg-f{right:0; background:repeating-linear-gradient(90deg,var(--h3) 0 5px,transparent 5px 8px)}
+#track .seg-f{right:0; opacity:.85}
 #track .tk{position:absolute; top:12px; width:2px; height:6px; margin-left:-1px; border-radius:1px; background:var(--faint); opacity:.7}
-#track .tk.fc{background:var(--h3)} #track .tk.ld{opacity:1}
+#track .tk.fc{background:var(--h3)} #track .tk.pj{background:var(--h2)} #track .tk.blend{background:color-mix(in srgb,var(--h2) 50%,var(--h3))} #track .tk.proj{background:var(--h2)} #track .tk.ld{opacity:1}
 #track .nowmk{position:absolute; top:4px; width:2px; height:22px; margin-left:-1px; background:var(--acc); border-radius:1px}
 #track .knob{position:absolute; top:7px; width:16px; height:16px; margin-left:-8px; border-radius:50%; background:var(--h1); border:3px solid var(--card); box-shadow:0 0 0 1px var(--line2); transition:left .08s linear}
 .tlabels{display:flex; justify-content:space-between; font:10.5px var(--mono); color:var(--faint); letter-spacing:.05em; text-transform:uppercase; margin-top:1px}
-.tlabels .n{color:var(--acc)} .tlabels .f{color:var(--h3)}
+.tlabels .n{color:var(--acc)} .tlabels .f{color:var(--h3)} .tlabels .pj{color:var(--h2)}
 .legend{display:flex; align-items:center; gap:8px; font-size:11px; color:var(--mut); margin-top:7px; flex-wrap:wrap}
 .legend i{flex:0 0 132px; height:7px; border-radius:4px}
 .ramp{background:linear-gradient(90deg,#65aee4,#2c6fd6,#2ad32a,#0f8f0f,#f5ec2a,#f0b41c,#f07a14,#e61e1e,#a81414,#d833d8)}
@@ -146,8 +153,10 @@ body.local #localbox{display:block}
     <button class="tb" id="zout" title="Zoom out" aria-label="Zoom out">−</button>
     <button class="tb" id="home" title="Back to my location" aria-label="Back to my location">◎</button>
     <button class="tb on" id="warnBtn" title="Storm warnings on the map" aria-label="Toggle storm warnings">⚠</button>
+    <button class="tb on" id="tracksBtn" title="Storm tracks: where each storm is heading over the next hour" aria-label="Toggle storm tracks">➚</button>
   </div>
   <div class="panel" id="dock">
+    <div id="spot" hidden></div>
     <div class="row1">
       <button id="play" title="Play / pause (space)" aria-label="Play or pause">▶</button>
       <div id="when"><b>–</b><span>Loading radar…</span></div>
@@ -161,6 +170,7 @@ body.local #localbox{display:block}
 </div>
 
 <script src="leaflet.js"></script>
+<script src="nowcast.js"></script>
 <script>
 'use strict';
 const IEM='https://mesonet.agron.iastate.edu';
@@ -227,8 +237,17 @@ const RadarLayer=L.GridLayer.extend({
 });
 function layer(name,native,clean=true){return new RadarLayer({url:tileURL(name),pane:'radar',opacity:0,maxNativeZoom:native,keepBuffer:1,clean})}
 
-/* ---------- composite loop + model forecast ---------- */
+/* ---------- timeline: real radar, then the radar projected forward, then the model ----------
+   0-60 min: the latest radar pushed along its measured motion (nowcast.js). 60-180 min: the projection fades into the
+   HRRR model. Beyond 180 min: model only. Past frames are real NEXRAD composite scans. */
 let frames=[], idx=-1, nowIdx=0, horizon=store.get('rd_h',2), playing=false, timer=null, compValid=null, hrrrInit=null;
+let eng=null, engBusy=false, engErr='', projL=null, projCanvas=null, projCtx=null, projImg=null, projTau=null, lastSpot=null, hint='';
+const PROJ_END=60, BLEND_END=180;
+function modelFrame(t){
+  if(!hrrrInit)return null;
+  const F=Math.round((t-hrrrInit)/60000/15)*15; if(F<15||F>1080)return null;
+  return {F,name:`hrrr::REFD-F${pad(F,4)}-${stamp(hrrrInit)}`,native:8};
+}
 async function buildFrames(){
   const [m,h]=await Promise.all([j(`${IEM}/data/gis/images/4326/USCOMP/n0q_0.json`), j(`${IEM}/data/gis/images/4326/hrrr/refd_0000.json`).catch(()=>null)]);
   compValid=new Date(m.meta.valid); hrrrInit=h?new Date(h.model_init_utc):null;
@@ -237,33 +256,65 @@ async function buildFrames(){
     const t=new Date(compValid-k*60000);
     past.push({kind:'past',t,name:k?`ridge::USCOMP-N0Q-${stamp(t)}`:'nexrad-n0q-900913',native:10});   // pinned by time; newest isn't pinnable yet
   }
-  const fc=[];
-  if(hrrrInit){
-    const step=horizon>6?30:15, end=new Date(+compValid+horizon*3600e3);
-    let F=Math.ceil(((compValid-hrrrInit)/60000+1)/15)*15;
-    if(step===30)F=Math.ceil(F/30)*30;
-    const run=stamp(hrrrInit);
-    for(;F<=1080;F+=step){
-      const t=new Date(+hrrrInit+F*60000); if(t>end)break;
-      fc.push({kind:'fc',t,F,name:`hrrr::REFD-F${pad(F,4)}-${run}`,native:8});
-    }
-  }
-  frames.forEach(f=>f.L&&map.removeLayer(f.L));
-  frames=[...past,...fc]; nowIdx=past.length-1;
+  const fut=[], end=horizon*60, at=tau=>new Date(+compValid+tau*60000);
+  for(let tau=10;tau<=Math.min(PROJ_END,end);tau+=10) fut.push({kind:'proj',tau,t:at(tau)});
+  for(let tau=PROJ_END+15;tau<=Math.min(BLEND_END,end);tau+=15){ const mf=modelFrame(at(tau)); fut.push(Object.assign({kind:mf?'blend':'proj',tau,t:at(tau)},mf||{})) }
+  if(end>BLEND_END){ const step=horizon>6?30:15; for(let tau=BLEND_END+step;tau<=end;tau+=step){ const mf=modelFrame(at(tau)); if(mf)fut.push(Object.assign({kind:'fc',tau,t:at(tau)},mf)) } }
+  frames.forEach(f=>{ f.L&&map.removeLayer(f.L); f.fb&&map.removeLayer(f.fb) });
+  frames=[...past,...fut]; nowIdx=past.length-1;
   renderTrack();
-  // only the current frame loads at open; the loop and forecast load when you press play or scrub
-  show(nowIdx);
+  show(nowIdx);                                            // only the current frame loads at open
+  eng=null; hint=''; buildEngine();                        // the projection builds in the background
+}
+async function buildEngine(){
+  if(engBusy)return; engBusy=true; engErr=''; paintSpot();
+  try{
+    const c=map.getCenter(), home=map.getBounds().contains([loc.lat,loc.lon]);
+    const ctr=home?{lat:loc.lat,lng:loc.lon}:c;
+    if(!Nowcast.CONUS(ctr.lat,ctr.lng))throw new Error('outside US radar coverage');
+    const sz=map.getSize(), span=Math.min(6,Math.max(3,Math.ceil(Math.max(sz.x,sz.y)*2**(7-map.getZoom())/256)+1));
+    const nm=d=>`ridge::USCOMP-N0Q-${stamp(d)}`;
+    eng=await Nowcast.build({lat:ctr.lat,lon:ctr.lng,z:7,span,clean:cleanOn,
+      frames:{valid:compValid,names:[nm(new Date(compValid-20*60000)),nm(new Date(compValid-10*60000)),'nexrad-n0q-900913']}});
+    setupProjLayer();
+  }catch(e){ eng=null; engErr=e.message||'unavailable' }
+  engBusy=false;
+  if(idx>nowIdx)show(idx);
+  paintSpot();
+  if(eng&&!hint&&lastSpot&&lastSpot.tone==='dry')modelHint().then(t=>{hint=t;paintSpot()});
+}
+function setupProjLayer(){
+  const W=eng.W;
+  if(!projCanvas||projCanvas.width!==W){ projCanvas=document.createElement('canvas'); projCanvas.width=projCanvas.height=W; projCtx=projCanvas.getContext('2d'); projImg=projCtx.createImageData(W,W) }
+  const b=eng.bounds, sw=map.unproject([b.x0,b.y1],7), ne=map.unproject([b.x1,b.y0],7);
+  if(projL)map.removeLayer(projL);
+  projL=L.svgOverlay(projCanvas,L.latLngBounds(sw,ne),{pane:'radar',opacity:0,interactive:false}).addTo(map);
+  projTau=null;
+}
+function drawProj(tau){
+  if(!eng)return false;
+  if(projTau!==tau){ eng.render(tau,projImg,1-0.3*Math.min(1,tau/PROJ_END)); projCtx.putImageData(projImg,0,0); projTau=tau }
+  return true;
 }
 function ensure(i){
-  const f=frames[i]; if(!f||f.L)return;
+  const f=frames[i]; if(!f||f.L||!f.name)return;
   f.L=layer(f.name,f.native).addTo(map);
   f.L.on('load',()=>{f.ok=true; const tk=$(`#track .tk[data-i="${i}"]`); tk&&tk.classList.add('ld')});
 }
 function show(i){
   if(view!=='comp')return;
   i=Math.max(0,Math.min(frames.length-1,i));
+  const f=frames[i];
   ensure(i); if(playing||dragging){ ensure(i+1); ensure(i+2) }
-  frames.forEach((f,k)=>f.L&&f.L.setOpacity(k===i?OP:0));
+  const useProj=(f.kind==='proj'||f.kind==='blend')&&drawProj(f.tau);
+  const w=f.kind==='blend'?(f.tau-PROJ_END)/(BLEND_END-PROJ_END):0;
+  // a projection frame with no projection available falls back to the model for that time
+  if(f.kind==='proj'&&!useProj&&!engBusy&&!f.fb){ const mf=modelFrame(f.t); if(mf){ f.fb=layer(mf.name,mf.native).addTo(map); f.fb.on('load',()=>f.ok=true) } }
+  frames.forEach((g,k)=>{
+    if(g.L)g.L.setOpacity(k!==i?0 : g.kind==='blend'?(useProj?OP*w:OP) : OP);
+    if(g.fb)g.fb.setOpacity(k===i&&!useProj?OP:0);
+  });
+  if(projL)projL.setOpacity(useProj?(f.kind==='blend'?OP*(1-w):OP):0);
   idx=i; paintWhen(); placeKnob();
 }
 function paintWhen(){
@@ -273,7 +324,12 @@ function paintWhen(){
   if(f.kind==='past'){
     sub = idx===nowIdx ? `Latest radar · ${Math.max(0,Math.round(age))} min old` : `Radar · ${span(-mins)} before latest`;
     if(age>20){sub=`Radar feed delayed · latest frame is ${Math.round(age)} min old`; cls='warn'}
-  } else { sub=`Model forecast · +${span(mins)} · HRRR ${t12(hrrrInit)} run`; cls='fc' }
+  } else if(f.kind==='proj'){
+    if(eng){ sub=`Radar projection · +${span(mins)} · today's storms carried forward`; cls='pj' }
+    else if(engBusy){ sub='Projecting from the last 20 minutes of radar…'; cls='pj' }
+    else { sub=`Model forecast · +${span(mins)} · projection ${engErr}`; cls='fc' }
+  } else if(f.kind==='blend'){ sub=`Projection handing off to the model · +${span(mins)}`; cls='bl' }
+  else { sub=`Model forecast · +${span(mins)} · HRRR ${t12(hrrrInit)} run`; cls='fc' }
   $('#when').innerHTML=`<b>${t12(f.t)}</b><span class="${cls}">${sub}</span>`;
 }
 /* track: past gets a fixed share so a 50-minute loop doesn't vanish next to an 18-hour forecast */
@@ -285,12 +341,15 @@ function xOf(i){
 }
 function renderTrack(){
   const nf=frames.length-1-nowIdx, w=nf?PAST_SHARE:1;
+  const rel=k=>k<0?0:((xOf(k)-PAST_SHARE)/(1-PAST_SHARE))*100;
+  let lp=-1, lb=-1; frames.forEach((f,i)=>{ if(f.kind==='proj')lp=i; if(f.kind==='blend')lb=i });
+  const a=rel(lp), b=lb<0?a:rel(lb);
   let h=`<div class="seg-p" style="width:${w*100}%"></div>`;
-  if(nf)h+=`<div class="seg-f" style="left:${w*100}%"></div>`;
-  frames.forEach((f,i)=>{h+=`<div class="tk ${f.kind==='fc'?'fc':''}" data-i="${i}" style="left:${xOf(i)*100}%"></div>`});
+  if(nf)h+=`<div class="seg-f" style="left:${w*100}%;background:linear-gradient(90deg,var(--h2) 0 ${a}%,var(--h3) ${Math.max(b,a+0.1)}% 100%)"></div>`;
+  frames.forEach((f,i)=>{h+=`<div class="tk ${f.kind==='past'?'':f.kind}" data-i="${i}" style="left:${xOf(i)*100}%"></div>`});
   h+=`<div class="nowmk" style="left:${w*100}%"></div><div class="knob" id="knob"></div>`;
   $('#track').innerHTML=h;
-  $('#tlFc').textContent=nf?`+${span((frames[frames.length-1].t-compValid)/60000)} forecast`:(hrrrInit?'forecast':'model forecast unavailable');
+  $('#tlFc').innerHTML=nf?`<span class="pj">projection</span> then <span>model</span> · +${span((frames[frames.length-1].t-compValid)/60000)}`:'forecast unavailable';
   $('#tlPast').textContent=`−${span((compValid-frames[0].t)/60000)}`;
   $$('#hz button').forEach(b=>b.classList.toggle('on',+b.dataset.h===horizon));
 }
@@ -304,7 +363,8 @@ $('#track').addEventListener('pointerdown',e=>{dragging=true; e.target.setPointe
 $('#track').addEventListener('pointermove',e=>{if(dragging)show(idxAt(e.clientX))});
 addEventListener('pointerup',()=>dragging=false);
 
-/* play: waits for the next frame's tiles (max 1.5 s) so a slow frame never flashes blank */
+/* play: waits for the next frame (max 1.5 s) so a slow frame never flashes blank */
+const ready=f=> f.kind==='proj' ? (!!eng||(!engBusy&&(!f.fb||!!f.ok))) : !!f.ok;
 function tick(){
   if(!playing)return;
   let n=idx+1; if(n>=frames.length)n=0;
@@ -312,9 +372,9 @@ function tick(){
   const f=frames[n], started=Date.now();
   (function wait(){
     if(!playing)return;
-    if(f.ok||Date.now()-started>1500){
+    if(ready(f)||Date.now()-started>1500){
       show(n);
-      const dwell = n===nowIdx?1100 : n===frames.length-1?1400 : 260;
+      const dwell = n===nowIdx?1100 : n===frames.length-1?1400 : f.kind==='past'?260:330;
       timer=setTimeout(tick,dwell);
     } else timer=setTimeout(wait,80);
   })();
@@ -328,7 +388,43 @@ addEventListener('keydown',e=>{
   if(e.key===' '){e.preventDefault(); playing?stop():play()}
   if(e.key==='ArrowRight'){stop(); show(idx+1)} if(e.key==='ArrowLeft'){stop(); show(idx-1)}
 });
+/* re-centre the projection when the map moves off it */
+let moveT=null;
+map.on('moveend',()=>{ clearTimeout(moveT); moveT=setTimeout(()=>{
+  drawTracks();
+  if(view!=='comp'||!compValid||engBusy)return;
+  if(!eng){ buildEngine(); return }
+  const c=map.project(map.getCenter(),7), b=eng.bounds, m=(b.x1-b.x0)*0.2;
+  const need=map.getSize().x*2**(7-map.getZoom())>(b.x1-b.x0)*1.05;
+  if(c.x<b.x0+m||c.x>b.x1-m||c.y<b.y0+m||c.y>b.y1-m||need)buildEngine();
+},600) });
 
+/* ---------- rain at your spot ---------- */
+async function modelHint(){
+  if(!hrrrInit)return '';
+  const z=7, px=Nowcast.lon2x(loc.lon,z), py=Nowcast.lat2y(loc.lat,z), tx=Math.floor(px/256), ty=Math.floor(py/256), ix=Math.round(px-tx*256), iy=Math.round(py-ty*256);
+  const c=document.createElement('canvas'); c.width=c.height=256; const x=c.getContext('2d',{willReadFrequently:true});
+  for(let tau=75;tau<=360;tau+=15){
+    const mf=modelFrame(new Date(+compValid+tau*60000)); if(!mf)continue;
+    const img=await Nowcast.loadImg(Nowcast.tile(mf.name,z,tx,ty)); if(!img)continue;
+    x.clearRect(0,0,256,256); x.drawImage(img,0,0);
+    const d=x.getImageData(Math.max(0,ix-2),Math.max(0,iy-2),5,5).data;
+    for(let i=0;i<d.length;i+=4) if(d[i+3]&&!Nowcast.weak(d[i],d[i+1],d[i+2])) return `The model brings rain around ${t12(new Date(+compValid+tau*60000))}.`;
+  }
+  return 'The model keeps it dry for the next several hours.';
+}
+function paintSpot(){
+  const el=$('#spot');
+  if(!Nowcast.CONUS(loc.lat,loc.lon)){ el.hidden=true; return }
+  el.hidden=false;
+  if(eng){ const s=eng.spot(loc.lat,loc.lon); if(s)lastSpot=Nowcast.describe(s) }
+  const st=storyForYou();
+  let html='';
+  if(lastSpot) html=`<div class="ln ${lastSpot.tone}"><i>☂</i><span>${esc(lastSpot.text)}${lastSpot.tone==='dry'&&hint?' '+esc(hint):''}</span></div>`;
+  else if(engBusy) html=`<div class="ln"><i>☂</i><span class="mut">Reading the radar around your spot…</span></div>`;
+  if(st) html+=`<div class="ln storm ${st.sev}"><i>⚡</i><span>${st.html}</span></div>`;
+  el.innerHTML=html; el.hidden=!html;
+}
 /* ---------- local radar (nearest NEXRAD site): reflectivity and storm-relative velocity ---------- */
 let view=store.get('rd_view','comp'), site=null, localL=null, siteMk=null;
 async function nearestSite(){
@@ -369,14 +465,14 @@ function setView(v){
     $('#legend').innerHTML='<span>Light</span><i class="ramp"></i><span>Heavy</span><span class="src">NOAA radar · HRRR model</span>';
     frames.forEach(f=>f.L&&f.L.setOpacity(0)); show(idx<0?nowIdx:idx);
   } else {
-    frames.forEach(f=>f.L&&f.L.setOpacity(0));
+    frames.forEach(f=>{f.L&&f.L.setOpacity(0); f.fb&&f.fb.setOpacity(0)}); if(projL)projL.setOpacity(0);
     showLocal();
   }
 }
 $$('#view button').forEach(b=>b.onclick=()=>setView(b.dataset.v));
 function syncClean(){ $('#cleanBtn').classList.toggle('on',cleanOn); $('#cleanBtn').textContent=cleanOn?'Clutter hidden':'Hide clutter'; }
 $('#cleanBtn').onclick=()=>{ cleanOn=!cleanOn; store.set('rd_clean',cleanOn); syncClean();
-  frames.forEach(f=>{ if(f.L){ f.ok=false; f.L.redraw() } }); if(localL&&localL.options.clean)localL.redraw(); };
+  frames.forEach(f=>{ if(f.L){ f.ok=false; f.L.redraw() } }); if(localL&&localL.options.clean)localL.redraw(); eng=null; lastSpot=null; if(compValid)buildEngine(); };
 syncClean();
 
 /* ---------- storm-based warnings (polygons) ---------- */
@@ -398,11 +494,79 @@ async function loadWarnings(){
 $('#warnBtn').classList.toggle('on',warnOn); $('#warnBtn').classList.toggle('off',!warnOn);
 $('#warnBtn').onclick=()=>{warnOn=!warnOn; store.set('rd_warn',warnOn); $('#warnBtn').classList.toggle('on',warnOn); $('#warnBtn').classList.toggle('off',!warnOn); loadWarnings()};
 
+/* ---------- storm tracks: NOAA's per-storm tracking from every NEXRAD site ----------
+   Each cell carries motion (drct = the direction it moves FROM, sknt = knots), hail probability and size,
+   and mesocyclone / tornado vortex flags. Cells are advanced to now, de-duplicated across radars, drawn 60 min ahead. */
+let cells=[], cellsAt=0, tracksOn=store.get('rd_tracks',true), trackL=null;
+const COMPASS=['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW'];
+const compass=deg=>COMPASS[Math.round(((deg%360)+360)%360/22.5)%16];
+const KM_MI=0.621371;
+function stepKm(lat,lon,headingDeg,km){const r=headingDeg*Math.PI/180;return [lat+km*Math.cos(r)/111.32, lon+km*Math.sin(r)/(111.32*Math.cos(lat*Math.PI/180))]}
+function sevOf(c){ if((c.tvs&&c.tvs!=='NONE')||(c.meso&&c.meso!=='NONE'))return 'rot'; if(c.poh>=50||c.max_size>=1)return 'hail'; return 'plain' }
+const SEVCOL={rot:'var(--bad)',hail:'var(--acc)',plain:'var(--h3)'};
+async function loadCells(force){
+  if(!tracksOn){ if(trackL){map.removeLayer(trackL);trackL=null} cells=[]; paintSpot(); return }
+  if(!force&&cells.length&&Date.now()-cellsAt<9.5*60e3){ drawTracks(); return }
+  try{
+    const d=await j(`${IEM}/geojson/nexrad_attr.geojson`); cellsAt=Date.now();
+    const now=Date.now(), raw=(d.features||[]).map(f=>Object.assign({},f.properties,{lon:f.geometry.coordinates[0],lat:f.geometry.coordinates[1]}))
+      .filter(c=>c.max_dbz>=40&&c.sknt>0&&now-Date.parse(c.valid)<25*60e3).sort((a,b)=>a.range-b.range);
+    const kept=[];
+    for(const c of raw){                                       // one storm seen by two radars: keep the closer radar's read
+      c.to=(c.drct+180)%360; c.kmh=c.sknt*1.852;
+      const [la,lo]=stepKm(c.lat,c.lon,c.to,c.kmh*(now-Date.parse(c.valid))/3.6e6); c.nlat=la; c.nlon=lo;
+      if(!kept.some(k=>Math.hypot((k.nlat-la)*111.32,(k.nlon-lo)*111.32*Math.cos(la*Math.PI/180))<12))kept.push(c);
+    }
+    cells=kept;
+  }catch(e){}
+  drawTracks(); paintSpot();
+}
+function etaFor(c){                                          // closest approach to you within 90 minutes
+  const kx=111.32*Math.cos(loc.lat*Math.PI/180), rx=(loc.lon-c.nlon)*kx, ry=(loc.lat-c.nlat)*111.32;
+  const r=c.to*Math.PI/180, vx=c.kmh*Math.sin(r), vy=c.kmh*Math.cos(r), v2=vx*vx+vy*vy; if(!v2)return null;
+  const t=(rx*vx+ry*vy)/v2; if(t<0||t>1.5)return null;
+  const miss=Math.hypot(rx-vx*t,ry-vy*t); if(miss>16)return null;
+  return {hours:t, miss, dist:Math.hypot(rx,ry), from:(Math.atan2(-rx,-ry)*180/Math.PI+360)%360};
+}
+function drawTracks(){
+  if(trackL){map.removeLayer(trackL);trackL=null}
+  if(!tracksOn||!cells.length)return;
+  const z=map.getZoom(), bb=map.getBounds().pad(0.35), g=L.layerGroup();
+  for(const c of cells){
+    if(!bb.contains([c.nlat,c.nlon]))continue;
+    const sev=sevOf(c); if(z<6&&sev==='plain')continue;
+    const col=css(SEVCOL[sev]), pts=[0,15,30,45,60].map(m=>stepKm(c.nlat,c.nlon,c.to,c.kmh*m/60));
+    L.polyline(pts,{color:col,weight:sev==='plain'?1.6:2.4,opacity:.9,dashArray:'5 5',interactive:false}).addTo(g);
+    pts.slice(1,4).forEach(p=>L.circleMarker(p,{radius:2,color:col,weight:1,fillColor:col,fillOpacity:1,interactive:false}).addTo(g));
+    L.marker(pts[4],{icon:L.divIcon({className:'',html:`<div class="arrow" style="--c:${col};transform:rotate(${c.to}deg)"></div>`,iconSize:[12,12],iconAnchor:[6,6]}),interactive:false,keyboard:false}).addTo(g);
+    const eta=etaFor(c);
+    const pop=`<div class="wpop" style="--c:${SEVCOL[sev]}"><b>Storm ${esc(c.storm_id)} · ${esc(c.nexrad)}</b>`+
+      `<div class="until">moving ${compass(c.to)} at ${Math.round(c.kmh*KM_MI)} mph</div><div class="area">`+
+      [c.poh>0?`Hail ${c.poh}% chance${c.max_size>0?`, up to ${c.max_size} in`:''}`:'No hail signal',
+       c.meso&&c.meso!=='NONE'?'Rotation detected (mesocyclone)':'', c.tvs&&c.tvs!=='NONE'?'Tornado vortex signature':'',
+       `Peak ${c.max_dbz} dBZ${c.top?`, tops ${c.top} kft`:''}`].filter(Boolean).join(' · ')+
+      `</div>${eta?`<div class="until" style="color:var(--acc)">Reaches you about ${t12(new Date(Date.now()+eta.hours*3.6e6))}</div>`:''}</div>`;
+    L.circleMarker([c.nlat,c.nlon],{radius:sev==='plain'?4:6,color:col,weight:2,fillColor:col,fillOpacity:.35}).bindPopup(pop).addTo(g);
+  }
+  trackL=g.addTo(map);
+}
+function storyForYou(){                                      // the storm most likely to reach you next
+  if(!tracksOn||!cells.length)return null;
+  let best=null;
+  for(const c of cells){ const e=etaFor(c); if(e&&(!best||e.hours<best.e.hours))best={c,e} }
+  if(!best)return null;
+  const {c,e}=best, sev=sevOf(c), at=t12(new Date(Date.now()+e.hours*3.6e6));
+  const flag=sev==='rot'?', showing rotation':sev==='hail'?`, hail possible (${c.poh}%)`:'';
+  return {sev, html:`Storm ${Math.round(e.dist*KM_MI)} mi ${compass(e.from)}, moving ${compass(c.to)} at ${Math.round(c.kmh*KM_MI)} mph${esc(flag)}. Reaches you about <b>${at}</b>.`};
+}
+$('#tracksBtn').classList.toggle('on',tracksOn); $('#tracksBtn').classList.toggle('off',!tracksOn);
+$('#tracksBtn').onclick=()=>{ tracksOn=!tracksOn; store.set('rd_tracks',tracksOn); $('#tracksBtn').classList.toggle('on',tracksOn); $('#tracksBtn').classList.toggle('off',!tracksOn); loadCells(true) };
+
 /* ---------- boot + refresh ---------- */
 (async()=>{
   try{ await buildFrames() }catch(e){ $('#when').innerHTML=`<b>–</b><span class="warn">Radar unavailable (${esc(e.message)})</span>` }
   setView(view);
-  loadWarnings(); fitDock();
+  loadWarnings(); loadCells(); fitDock();
 })();
 setInterval(async()=>{                                   // new radar every ~5 min, new model run hourly
   if(playing||dragging)return;
@@ -412,6 +576,7 @@ setInterval(async()=>{                                   // new radar every ~5 m
   }catch(e){}
   if(view!=='comp')showLocal();
   loadWarnings();
+  if(document.visibilityState==='visible')loadCells();      // the storm feed is ~0.5 MB, so it refreshes every 10 min
 },120000);
 if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});
 </script>
