@@ -196,6 +196,7 @@ nav button.on{color:var(--acc)}
   <a class="brand" href="./index.html">◆&nbsp;FIELD KIT</a>
   <div class="switch">
     <a href="./index.html" class="on">Weather</a>
+    <a href="./radar.html">Radar</a>
     <a href="./markets.html">Markets</a>
     <a href="./intel.html">Grapevine</a>
     <a href="./tax.html">Tax</a>
@@ -261,11 +262,12 @@ nav button.on{color:var(--acc)}
   </div>
   <div class="card">
     <h2>Radar</h2>
-    <a class="radarbtn" id="radarBtn" target="_blank" rel="noopener" href="#">
+    <a class="radarbtn" id="radarBtn" href="./radar.html">
       <span class="ic">◉</span>
-      <span class="rt"><b>Open radar loop</b><span id="radarSub">centered here</span></span>
-      <span class="arr">↗</span>
+      <span class="rt"><b>Open radar</b><span id="radarSub">live loop, model forecast, storm warnings</span></span>
+      <span class="arr">→</span>
     </a>
+    <div class="radarrow"><a id="windyBtn" target="_blank" rel="noopener" href="#">Windy ↗</a></div>
   </div>
   <div class="card">
     <h2>Sun &amp; moon — <span id="sunWhere"></span></h2>
@@ -281,6 +283,7 @@ nav button.on{color:var(--acc)}
   <div class="card">
     <h2>Companion</h2>
     <a class="link" href="./scrub.html"><b>Scrub</b><span>Strip tracking &amp; personal IDs from share links</span></a>
+    <a class="link" href="./radar.html"><b>Radar</b><span>Live NOAA radar loop, HRRR model forecast, local velocity, storm warnings</span></a>
     <a class="link" href="./markets.html"><b>Market Board</b><span>Heatmap, vol tape, bonds, metals, congress flow</span></a>
     <a class="link" href="./intel.html"><b>Grapevine</b><span>Threat intel heard through the grapevine, promo filtered, tagged, converging actors and CVEs</span></a>
     <a class="link" href="./tax.html"><b>Tax Estimator</b><span>2025 federal + state income tax, pre-tax contributions</span></a>
@@ -340,8 +343,8 @@ let loc=store.get('fk_loc',HOME);
 function setRadar(){
   const b=$('#radarBtn'); if(!b)return;
   const la=loc.lat, lo=loc.lon;
-  b.href=`https://www.windy.com/?radar,${la.toFixed(4)},${lo.toFixed(4)},8`;
-  $('#radarSub').textContent=`Windy · centered on ${loc.label}`;
+  const w=$('#windyBtn'); if(w)w.href=`https://www.windy.com/?radar,${la.toFixed(4)},${lo.toFixed(4)},8`;
+  $('#radarSub').textContent=`Live loop, model forecast and warnings around ${loc.label}`;
 }
 function setLoc(l,mode){
   loc=l; store.set('fk_loc',loc);

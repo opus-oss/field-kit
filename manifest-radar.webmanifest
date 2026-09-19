@@ -1,0 +1,24 @@
+{
+  "name": "Radar",
+  "short_name": "Radar",
+  "description": "Live NOAA radar loop, model forecast and storm warnings.",
+  "start_url": "./radar.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#1b1e1f",
+  "theme_color": "#1b1e1f",
+  "icons": [
+    {
+      "src": "radar-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "radar-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
