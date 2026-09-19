@@ -53,7 +53,7 @@
         const k = y * W + x; if (!lv[k]) continue; let c = 0;
         for (let dy = -1; dy <= 1; dy++) { const yy = y + dy; if (yy < 0 || yy >= W) continue;
           for (let dx = -1; dx <= 1; dx++) { if (!dx && !dy) continue; const xx = x + dx; if (xx < 0 || xx >= W) continue; if (lv[yy * W + xx]) c++; } }
-        if (c >= 3) keep[k] = 1;
+        if (c >= 2) keep[k] = 1;                            // a notch looser than the map tiles: this grid is coarser, so thin rain lines have fewer neighbours
       }
       for (let k = 0; k < n; k++) if (!keep[k]) { lv[k] = 0; d[k * 4 + 3] = 0; }
     }
@@ -163,6 +163,24 @@
             if (sx < 0 || sy < 0 || sx >= W || sy >= W) continue;
             const si = (sy * W + sx) * 4; if (!src[si + 3]) continue;
             const di = (y * W + x) * 4; d[di] = src[si]; d[di + 1] = src[si + 1]; d[di + 2] = src[si + 2]; d[di + 3] = src[si + 3] * fade; } }
+        return img;
+      },
+      /* motion at a world pixel (zoom z), in world pixels per 10 minutes; the regional mean outside the region */
+      vecAt(wx, wy) {
+        const lx = wx - ox, ly = wy - oy;
+        if (lx < 0 || ly < 0 || lx >= W || ly >= W) return [fl.mean[0] * F, fl.mean[1] * F];
+        const gi = ((ly / F) | 0) * G + ((lx / F) | 0); return [fl.dxg[gi] * F, fl.dyg[gi] * F];
+      },
+      /* draw the projection for a screen-sized buffer: pixel (x,y) sits at world (wx0 + x*step, wy0 + y*step) */
+      renderView(tau, img, w, h, wx0, wy0, step, fade = 1) {
+        const k = tau / 10, d = img.data, mx = fl.mean[0] * F * k, my = fl.mean[1] * F * k; d.fill(0);
+        for (let y = 0; y < h; y++) { const ly = wy0 + y * step - oy;
+          for (let x = 0; x < w; x++) { const lx = wx0 + x * step - ox; let sx, sy;
+            if (lx >= 0 && ly >= 0 && lx < W && ly < W) { const gi = ((ly / F) | 0) * G + ((lx / F) | 0); sx = Math.round(lx - fl.dxg[gi] * F * k); sy = Math.round(ly - fl.dyg[gi] * F * k); }
+            else { sx = Math.round(lx - mx); sy = Math.round(ly - my); }
+            if (sx < 0 || sy < 0 || sx >= W || sy >= W) continue;
+            const si = (sy * W + sx) * 4; if (!src[si + 3]) continue;
+            const di = (y * w + x) * 4; d[di] = src[si]; d[di + 1] = src[si + 1]; d[di + 2] = src[si + 2]; d[di + 3] = src[si + 3] * fade; } }
         return img;
       },
       /* strongest rain level near a point, tau minutes ahead (0 = now) */

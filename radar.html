@@ -261,7 +261,7 @@ async function buildFrames(){
   for(let tau=PROJ_END+15;tau<=Math.min(BLEND_END,end);tau+=15){ const mf=modelFrame(at(tau)); fut.push(Object.assign({kind:mf?'blend':'proj',tau,t:at(tau)},mf||{})) }
   if(end>BLEND_END){ const step=horizon>6?30:15; for(let tau=BLEND_END+step;tau<=end;tau+=step){ const mf=modelFrame(at(tau)); if(mf)fut.push(Object.assign({kind:'fc',tau,t:at(tau)},mf)) } }
   frames.forEach(f=>{ f.L&&map.removeLayer(f.L); f.fb&&map.removeLayer(f.fb) });
-  frames=[...past,...fut]; nowIdx=past.length-1;
+  frames=[...past,...fut]; nowIdx=past.length-1; vgrid=null;
   renderTrack();
   show(nowIdx);                                            // only the current frame loads at open
   eng=null; hint=''; buildEngine();                        // the projection builds in the background
@@ -305,8 +305,10 @@ function show(i){
   if(view!=='comp')return;
   i=Math.max(0,Math.min(frames.length-1,i));
   const f=frames[i];
+  hideSmooth();
   ensure(i); if(playing||dragging){ ensure(i+1); ensure(i+2) }
-  const useProj=(f.kind==='proj'||f.kind==='blend')&&drawProj(f.tau);
+  const useProj=(f.kind==='proj'||f.kind==='blend')&&!!eng;
+  if(useProj){ projView(f.tau) }
   const w=f.kind==='blend'?(f.tau-PROJ_END)/(BLEND_END-PROJ_END):0;
   // a projection frame with no projection available falls back to the model for that time
   if(f.kind==='proj'&&!useProj&&!engBusy&&!f.fb){ const mf=modelFrame(f.t); if(mf){ f.fb=layer(mf.name,mf.native).addTo(map); f.fb.on('load',()=>f.ok=true) } }
@@ -314,23 +316,26 @@ function show(i){
     if(g.L)g.L.setOpacity(k!==i?0 : g.kind==='blend'?(useProj?OP*w:OP) : OP);
     if(g.fb)g.fb.setOpacity(k===i&&!useProj?OP:0);
   });
-  if(projL)projL.setOpacity(useProj?(f.kind==='blend'?OP*(1-w):OP):0);
-  idx=i; paintWhen(); placeKnob();
+  if(projL)projL.setOpacity(0);
+  if(useProj)sc.style.opacity=f.kind==='blend'?OP*(1-w):OP;
+  idx=i; pos=i; paintAt(tauOf(f)); placeKnob(i);
 }
-function paintWhen(){
-  const f=frames[idx]; if(!f)return;
-  const mins=(f.t-compValid)/60000, age=(Date.now()-compValid)/60000;
+const tauOf=f=>f.kind==='past'?(f.t-compValid)/60000:f.tau;
+function paintWhen(){ const f=frames[idx]; if(f)paintAt(tauOf(f)) }
+function paintAt(tau){
+  const age=(Date.now()-compValid)/60000, t=new Date(+compValid+tau*60000);
   let sub, cls='';
-  if(f.kind==='past'){
-    sub = idx===nowIdx ? `Latest radar · ${Math.max(0,Math.round(age))} min old` : `Radar · ${span(-mins)} before latest`;
+  if(tau<=0.01){
+    sub = tau>-0.5 ? `Latest radar · ${Math.max(0,Math.round(age))} min old` : `Radar · ${span(-tau)} before latest`;
     if(age>20){sub=`Radar feed delayed · latest frame is ${Math.round(age)} min old`; cls='warn'}
-  } else if(f.kind==='proj'){
-    if(eng){ sub=`Radar projection · +${span(mins)} · today's storms carried forward`; cls='pj' }
+  } else if(tau<=PROJ_END){
+    if(eng){ sub=`Radar projection · +${span(tau)} · today's storms carried forward`; cls='pj' }
     else if(engBusy){ sub='Projecting from the last 20 minutes of radar…'; cls='pj' }
-    else { sub=`Model forecast · +${span(mins)} · projection ${engErr}`; cls='fc' }
-  } else if(f.kind==='blend'){ sub=`Projection handing off to the model · +${span(mins)}`; cls='bl' }
-  else { sub=`Model forecast · +${span(mins)} · HRRR ${t12(hrrrInit)} run`; cls='fc' }
-  $('#when').innerHTML=`<b>${t12(f.t)}</b><span class="${cls}">${sub}</span>`;
+    else { sub=`Model forecast · +${span(tau)} · projection ${engErr}`; cls='fc' }
+  } else if(tau<=BLEND_END&&eng){ sub=`Projection handing off to the model · +${span(tau)}`; cls='bl' }
+  else { sub=`Model forecast · +${span(tau)} · HRRR ${t12(hrrrInit)} run`; cls='fc' }
+  const html=`<b>${t12(t)}</b><span class="${cls}">${sub}</span>`;
+  if(html!==paintAt.last){ $('#when').innerHTML=html; paintAt.last=html }
 }
 /* track: past gets a fixed share so a 50-minute loop doesn't vanish next to an 18-hour forecast */
 const PAST_SHARE=.32;
@@ -353,19 +358,144 @@ function renderTrack(){
   $('#tlPast').textContent=`−${span((compValid-frames[0].t)/60000)}`;
   $$('#hz button').forEach(b=>b.classList.toggle('on',+b.dataset.h===horizon));
 }
-function placeKnob(){const k=$('#knob'); if(k)k.style.left=(xOf(idx)*100)+'%'}
-function idxAt(clientX){
+function placeKnob(p){ const k=$('#knob'); if(!k)return; const A=Math.floor(p), B=Math.min(frames.length-1,A+1), a=p-A; k.style.left=((xOf(A)+(xOf(B)-xOf(A))*a)*100)+'%' }
+function posAt(clientX){                                   // continuous position under the pointer
   const r=$('#track').getBoundingClientRect(), x=Math.max(0,Math.min(1,(clientX-r.left)/r.width));
-  let best=0,bd=9; frames.forEach((_,i)=>{const d=Math.abs(xOf(i)-x); if(d<bd){bd=d;best=i}}); return best;
+  for(let i=0;i<frames.length-1;i++){ const a=xOf(i), b=xOf(i+1); if(x<=b) return x<=a?i:i+(x-a)/(b-a) }
+  return frames.length-1;
 }
-let dragging=false;
-$('#track').addEventListener('pointerdown',e=>{dragging=true; e.target.setPointerCapture&&e.target.setPointerCapture(e.pointerId); stop(); show(idxAt(e.clientX))});
-$('#track').addEventListener('pointermove',e=>{if(dragging)show(idxAt(e.clientX))});
-addEventListener('pointerup',()=>dragging=false);
 
-/* play: waits for the next frame (max 1.5 s) so a slow frame never flashes blank */
+/* ---------- smooth playback ----------
+   Between two frames the earlier one is pushed forward and the later one pulled back along the measured motion,
+   then blended, so storms glide instead of stepping. Past frames are read from the tiles the loop already loaded;
+   projection frames are drawn straight from the engine; model frames cross-fade. Falls back to stepping on slow devices. */
+const sc=L.DomUtil.create('canvas','smooth',map.getPane('radar'));
+Object.assign(sc.style,{position:'absolute',pointerEvents:'none',opacity:0,left:0,top:0});
+const oc=document.createElement('canvas'), octx=oc.getContext('2d',{willReadFrequently:true});
+let sctx=sc.getContext('2d'), simg=null, scS=1, viewKey='', vgrid=null, pos=0, smoothOK=true, rtimes=[], hidden=false;
+function hideSmooth(){ sc.style.opacity=0 }
+function placeSmooth(){
+  const sz=map.getSize(); scS=Math.min(1,Math.sqrt(420000/Math.max(1,sz.x*sz.y)));
+  sc.width=oc.width=Math.max(1,Math.round(sz.x*scS)); sc.height=oc.height=Math.max(1,Math.round(sz.y*scS));
+  sc.style.width=sz.x+'px'; sc.style.height=sz.y+'px';
+  L.DomUtil.setPosition(sc,map.containerPointToLayerPoint([0,0]));
+  simg=sctx.createImageData(sc.width,sc.height); viewKey=map.getZoom()+'|'+map.getPixelOrigin().toString()+'|'+map.getPixelBounds().min.toString()+'|'+sz.toString();
+  vgrid=null;
+}
+map.on('movestart zoomstart',()=>{ sc.style.visibility='hidden'; hidden=true });
+map.on('moveend zoomend resize',()=>{ placeSmooth(); sc.style.visibility=''; hidden=false; if(!Number.isInteger(pos)&&view==='comp')renderAt(pos) });
+placeSmooth();
+function capture(k){                                        // a past frame's loaded tiles, drawn into a screen buffer
+  const f=frames[k]; if(!f||!f.L||!f.ok)return null;
+  if(f.cap&&f.cap.key===viewKey)return f.cap.data;
+  octx.clearRect(0,0,oc.width,oc.height);
+  const z=map.getZoom();
+  for(const t of Object.values(f.L._tiles||{})){
+    if(!t.loaded||!t.el)continue; const c=t.coords;
+    const cp=map.latLngToContainerPoint(map.unproject([c.x*256,c.y*256],c.z)), s=256*2**(z-c.z)*scS;
+    octx.drawImage(t.el,cp.x*scS,cp.y*scS,s,s);
+  }
+  const data=octx.getImageData(0,0,oc.width,oc.height).data; f.cap={key:viewKey,data}; return data;
+}
+function motionGrid(){                                      // motion per 8 screen pixels, in buffer pixels per 10 min
+  if(vgrid&&vgrid.key===viewKey+(eng?eng.valid:''))return vgrid;
+  const W=sc.width,H=sc.height,step=8,gw=Math.ceil(W/step),gh=Math.ceil(H/step),mx=new Float32Array(gw*gh),my=new Float32Array(gw*gh);
+  const k=2**(map.getZoom()-7)*scS;
+  if(eng) for(let gy=0;gy<gh;gy++)for(let gx=0;gx<gw;gx++){
+    const wp=map.project(map.containerPointToLatLng([(gx*step+4)/scS,(gy*step+4)/scS]),7), v=eng.vecAt(wp.x,wp.y);
+    mx[gy*gw+gx]=v[0]*k; my[gy*gw+gx]=v[1]*k;
+  }
+  return vgrid={key:viewKey+(eng?eng.valid:''),gw,mx,my};
+}
+function mixPast(A,B,a,gapMin){
+  const W=sc.width,H=sc.height,d=simg.data,g=motionGrid(),s=gapMin/10;
+  for(let y=0;y<H;y++){ const gr=(y>>3)*g.gw;
+    for(let x=0;x<W;x++){ const gi=gr+(x>>3), vx=g.mx[gi]*s, vy=g.my[gi]*s, i=(y*W+x)*4;
+      const ax=Math.round(x-a*vx), ay=Math.round(y-a*vy), bx=Math.round(x+(1-a)*vx), by=Math.round(y+(1-a)*vy);
+      const ai=(ax>=0&&ay>=0&&ax<W&&ay<H)?(ay*W+ax)*4:-1, bi=(bx>=0&&by>=0&&bx<W&&by<H)?(by*W+bx)*4:-1;
+      const aa=ai<0?0:A[ai+3], ba=bi<0?0:B[bi+3];
+      if(!aa&&!ba){ d[i+3]=0; continue }
+      if(aa&&ba){ d[i]=A[ai]+(B[bi]-A[ai])*a; d[i+1]=A[ai+1]+(B[bi+1]-A[ai+1])*a; d[i+2]=A[ai+2]+(B[bi+2]-A[ai+2])*a; d[i+3]=aa+(ba-aa)*a }
+      else if(aa){ d[i]=A[ai]; d[i+1]=A[ai+1]; d[i+2]=A[ai+2]; d[i+3]=aa*(1-a) }
+      else { d[i]=B[bi]; d[i+1]=B[bi+1]; d[i+2]=B[bi+2]; d[i+3]=ba*a }
+    } }
+  sctx.putImageData(simg,0,0);
+}
+function projView(tau){
+  // coarse engine pass first (it covers rain drifting in from off-screen), then the on-screen latest scan at full
+  // resolution carried along the same motion, so the projection starts exactly where the real radar ends
+  const z=map.getZoom(), wp=map.project(map.containerPointToLatLng([0,0]),7), fade=1-0.3*Math.min(1,tau/PROJ_END);
+  const W=sc.width,H=sc.height;
+  eng.renderView(tau,simg,W,H,wp.x,wp.y,2**(7-z)/scS,fade);
+  const now=capture(nowIdx);
+  if(now){ const g=motionGrid(), k=tau/10, d=simg.data;
+    for(let y=0;y<H;y++){ const gr=(y>>3)*g.gw;
+      for(let x=0;x<W;x++){ const gi=gr+(x>>3), sx=Math.round(x-g.mx[gi]*k), sy=Math.round(y-g.my[gi]*k);
+        if(sx<0||sy<0||sx>=W||sy>=H)continue;
+        const si=(sy*W+sx)*4, di=(y*W+x)*4;
+        if(now[si+3]){ d[di]=now[si]; d[di+1]=now[si+1]; d[di+2]=now[si+2]; d[di+3]=now[si+3]*fade } else d[di+3]=0;
+      } } }
+  sctx.putImageData(simg,0,0);
+}
+/* draw any fractional position p on the timeline */
+function renderAt(p){
+  if(view!=='comp'||!frames.length)return;
+  p=Math.max(0,Math.min(frames.length-1,p));
+  if((Number.isInteger(p)&&!playing)||p>=frames.length-1){ show(Math.round(p)); return }   // paused on a frame: full-resolution tiles
+  const t0=performance.now();
+  const A=Math.floor(p), B=A+1, a=p-A, fa=frames[A], fb=frames[B];
+  ensure(A); ensure(B);
+  const tau=tauOf(fa)+(tauOf(fb)-tauOf(fa))*a;
+  if(projL)projL.setOpacity(0);
+  let vis=new Set();
+  if(fb.kind==='past'){                                     // both real scans
+    const Ad=capture(A), Bd=capture(B);
+    if(!Ad||!Bd){ if(playing&&Ad&&a<.02){ mixPast(Ad,Ad,0,5); sc.style.opacity=OP; } else { show(a<.5?A:B); return } }
+    mixPast(Ad,Bd,a,(fb.t-fa.t)/60000); sc.style.opacity=OP;
+  } else {
+    const P=!eng?0: tau<=PROJ_END?1 : tau<=BLEND_END?1-(tau-PROJ_END)/(BLEND_END-PROJ_END) : 0, M=1-P;
+    if(P>0){ projView(tau); sc.style.opacity=OP*P } else hideSmooth();
+    const mA=fa.L&&fa.kind!=='past'?fa.L:(fa.fb||null), mB=fb.L?fb.L:(fb.fb||null);
+    if(M>0){
+      if(mA&&mB){ mA.setOpacity(OP*M*(1-a)); mB.setOpacity(OP*M*a); vis.add(mA).add(mB) }
+      else if(mB){ mB.setOpacity(OP*M); vis.add(mB) } else if(mA){ mA.setOpacity(OP*M); vis.add(mA) }
+    }
+  }
+  frames.forEach(g=>{ if(g.L&&!vis.has(g.L))g.L.setOpacity(0); if(g.fb&&!vis.has(g.fb))g.fb.setOpacity(0) });
+  idx=Math.round(p); pos=p; paintAt(tau); placeKnob(p);
+  rtimes.push(performance.now()-t0); if(rtimes.length>12)rtimes.shift();
+  if(rtimes.length===12&&rtimes.reduce((s,x)=>s+x,0)/12>110){ smoothOK=false }   // too slow on this device: step instead
+}
+
+let dragging=false;
+$('#track').addEventListener('pointerdown',e=>{dragging=true; e.target.setPointerCapture&&e.target.setPointerCapture(e.pointerId); stop(); scrub(e)});
+$('#track').addEventListener('pointermove',e=>{if(dragging)scrub(e)});
+addEventListener('pointerup',()=>{ if(!dragging)return; dragging=false; const r=Math.round(pos); if(Math.abs(pos-r)<.12)show(r) });
+function scrub(e){
+  const p=posAt(e.clientX); const A=Math.floor(p); ensure(A); ensure(A+1);
+  if(smoothOK)renderAt(p); else show(Math.round(p));
+}
+
+/* play: smooth by default, stepping as the fallback; always waits for the next frame so nothing flashes blank */
 const ready=f=> f.kind==='proj' ? (!!eng||(!engBusy&&(!f.fb||!!f.ok))) : !!f.ok;
-function tick(){
+const RATE={past:3.2,proj:2.4,blend:2.2,fc:2.2};           // frames per second in each part of the timeline
+let raf=null, lastT=0, hold=0, waitSince=0, waitedFor=-1;
+function loop(now){
+  if(!playing)return;
+  const dt=Math.min(.1,(now-lastT)/1000); lastT=now;
+  if(!smoothOK){ playing=false; play(); return }            // switch to stepping mid-play
+  if(hold>0){ hold-=dt; raf=requestAnimationFrame(loop); return }
+  const A=Math.floor(pos+1e-9);
+  if(A>=frames.length-1){ show(0); hold=.35; raf=requestAnimationFrame(loop); return }
+  const fb=frames[A+1]; ensure(A+1); ensure(A+2);
+  if(!ready(fb)&&waitedFor!==A+1){ if(!waitSince)waitSince=now; if(now-waitSince<1500){ raf=requestAnimationFrame(loop); return } waitedFor=A+1 }   // wait once per frame, then move on
+  waitSince=0;
+  let p=pos+dt*(RATE[fb.kind]||2.4);
+  if(p>=A+1){ p=A+1; renderAt(p); if(p===nowIdx)hold=.9; else if(p===frames.length-1)hold=1.3 }
+  else if(!hidden) renderAt(p);
+  pos=p; raf=requestAnimationFrame(loop);
+}
+function tick(){                                            // stepping fallback
   if(!playing)return;
   let n=idx+1; if(n>=frames.length)n=0;
   ensure(n);
@@ -379,14 +509,20 @@ function tick(){
     } else timer=setTimeout(wait,80);
   })();
 }
-function play(){ if(view!=='comp')return; for(let k=0;k<=nowIdx;k++)ensure(k); playing=true; $('#play').textContent='❚❚'; if(idx===nowIdx||idx>=frames.length-1)show(0); timer=setTimeout(tick,120) }   // from "now", replay the past into the forecast
-function stop(){ playing=false; clearTimeout(timer); $('#play').textContent='▶' }
+function play(){
+  if(view!=='comp')return;
+  for(let k=0;k<=nowIdx;k++)ensure(k);
+  playing=true; $('#play').textContent='❚❚';
+  if(idx===nowIdx||pos>=frames.length-1){ show(0) }        // from "now", replay the past into the forecast
+  if(smoothOK){ lastT=performance.now(); hold=.15; raf=requestAnimationFrame(loop) } else timer=setTimeout(tick,120);
+}
+function stop(){ const was=playing; playing=false; clearTimeout(timer); cancelAnimationFrame(raf); $('#play').textContent='▶'; if(was&&Number.isInteger(pos))show(pos) }
 $('#play').onclick=()=>playing?stop():play();
 $$('#hz button').forEach(b=>b.onclick=async()=>{horizon=+b.dataset.h; store.set('rd_h',horizon); const was=idx>nowIdx; stop(); await buildFrames(); if(was)show(nowIdx+1)});
 addEventListener('keydown',e=>{
   if(e.target.tagName==='INPUT')return;
   if(e.key===' '){e.preventDefault(); playing?stop():play()}
-  if(e.key==='ArrowRight'){stop(); show(idx+1)} if(e.key==='ArrowLeft'){stop(); show(idx-1)}
+  if(e.key==='ArrowRight'){stop(); show(Math.floor(pos)+1)} if(e.key==='ArrowLeft'){stop(); show(Math.ceil(pos)-1)}
 });
 /* re-centre the projection when the map moves off it */
 let moveT=null;
@@ -465,7 +601,7 @@ function setView(v){
     $('#legend').innerHTML='<span>Light</span><i class="ramp"></i><span>Heavy</span><span class="src">NOAA radar · HRRR model</span>';
     frames.forEach(f=>f.L&&f.L.setOpacity(0)); show(idx<0?nowIdx:idx);
   } else {
-    frames.forEach(f=>{f.L&&f.L.setOpacity(0); f.fb&&f.fb.setOpacity(0)}); if(projL)projL.setOpacity(0);
+    frames.forEach(f=>{f.L&&f.L.setOpacity(0); f.fb&&f.fb.setOpacity(0)}); if(projL)projL.setOpacity(0); hideSmooth(); stop();
     showLocal();
   }
 }
