@@ -74,6 +74,25 @@
   "drop": "APEX Wire|Historical Scan|CompassOne|Why MSPs|Why Your "
  },
  {
+  "id": "esentire",
+  "name": "eSentire TRU",
+  "type": "html",
+  "url": "https://www.esentire.com/resources/blog",
+  "link": "https://www\\.esentire\\.com/blog/[a-z0-9-]{8,}",
+  "cat": "research",
+  "trust": "mid",
+  "drop": "named a Leader|MarketScape|\\bG2\\b|\\bawards?\\b|\\bwins\\b|announces|partnership|\\bAtlas\\b|Response Orchestration|webinar|podcast"
+ },
+ {
+  "id": "esentire-adv",
+  "name": "eSentire Advisories",
+  "type": "html",
+  "url": "https://www.esentire.com/resources/security-advisories",
+  "link": "https://www\\.esentire\\.com/security-advisories/[a-z0-9-]{8,}",
+  "cat": "vuln",
+  "trust": "high"
+ },
+ {
   "id": "fortinet",
   "name": "FortiGuard Labs",
   "url": "https://feeds.fortinet.com/fortinet/blog/threat-research",
@@ -279,14 +298,6 @@
   "cat": "ecrime",
   "trust": "high",
   "show_as": "CISA #StopRansomware"
- },
- {
-  "id": "ga-esentire",
-  "name": "eSentire (alert)",
-  "url": "https://www.google.com/alerts/feeds/07341400213507682692/16846215417098353339",
-  "cat": "research",
-  "trust": "mid",
-  "show_as": "eSentire"
  },
  {
   "id": "ga-trellix",

@@ -191,6 +191,33 @@ def gh_adds(feed):
         if hit: rows.append({"title": hit[0], "link": hit[1], "pubdate": date, "description": hit[2]})
     return rows
 
+# ---------- sites with no feed at all: read the listing page, then each NEW article once ----------
+KNOWN = {}                                                   # url -> item from the previous run (set in main)
+def meta(page, *names):
+    for n in names:
+        m = re.search(r'<meta[^>]+(?:property|name)=["\']%s["\'][^>]*content=["\']([^"\']*)' % re.escape(n), page, re.I) or \
+            re.search(r'<meta[^>]+content=["\']([^"\']*)["\'][^>]*(?:property|name)=["\']%s["\']' % re.escape(n), page, re.I)
+        if m: return html.unescape(m.group(1)).strip()
+    return ""
+def site_pages(feed):
+    listing = curl(feed["url"], UA_BROWSER).decode("utf8", "replace")
+    if not re.search(feed["link"], listing): raise RuntimeError("listing had no article links")
+    links = []
+    for m in re.finditer(feed["link"], listing):
+        u = m.group(0)
+        if u not in links: links.append(u)
+    rows = []
+    for u in links[:feed.get("max", 30)]:
+        k = KNOWN.get(clean_url(u))
+        if k:
+            rows.append({"title": k["t"], "link": u, "pubdate": k["d"], "description": k.get("x", "")}); continue
+        page = curl(u, UA_BROWSER).decode("utf8", "replace")
+        t = meta(page, "og:title") or strip((re.search(r"<title>(.*?)</title>", page, re.S) or [None, ""])[1])
+        dp = (re.search(r'"datePublished"\s*:\s*"([^"]+)"', page) or [None, ""])[1] or meta(page, "article:published_time")
+        rows.append({"title": t, "link": u, "pubdate": dp, "description": meta(page, "og:description", "description")})
+        time.sleep(0.3)
+    return rows
+
 def local(tag): return tag.rsplit("}", 1)[-1].lower()
 def parse(raw):
     raw = re.sub(rb"[\x00-\x08\x0b\x0c\x0e-\x1f]", b"", raw)
@@ -217,6 +244,12 @@ def parse(raw):
 def run(feed):
     res = {"id": feed["id"], "name": feed.get("show_as") or feed["name"], "cat": feed["cat"], "ok": False, "n": 0, "err": ""}
     rows = []
+    if feed.get("type") == "html":
+        try:
+            rows = site_pages(feed); res["ok"] = True; res["via"] = "site pages"
+        except Exception as e:
+            res["err"] = "site pages: " + str(e)[:70]
+        return finish(feed, res, rows)
     if feed.get("type") == "wp":                                # WordPress REST (sites with no RSS for their blog)
         try:
             raw = curl(feed["url"], UA_BROWSER)
@@ -298,6 +331,7 @@ def main():
         if i["s"] not in since or i["f"] < since[i["s"]]: since[i["s"]] = min(i["f"], since.get(i["s"], i["f"]))
     last_ok = {f["id"]: f.get("last_ok") for f in old.get("feeds", [])}
     GH_OLD.update(old.get("gh", {}))
+    KNOWN.update(known)
     with cf.ThreadPoolExecutor(8) as ex: results = list(ex.map(run, feeds))
     live_ids = {f["id"] for f in feeds}; fresh = {}
     for res, items in results:
