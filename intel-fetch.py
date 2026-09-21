@@ -217,6 +217,17 @@ def parse(raw):
 def run(feed):
     res = {"id": feed["id"], "name": feed.get("show_as") or feed["name"], "cat": feed["cat"], "ok": False, "n": 0, "err": ""}
     rows = []
+    if feed.get("type") == "wp":                                # WordPress REST (sites with no RSS for their blog)
+        try:
+            raw = curl(feed["url"], UA_BROWSER)
+            posts = json.loads(raw)
+            rows = [{"title": p["title"]["rendered"], "link": p["link"], "pubdate": (p.get("date_gmt") or "") + "Z",
+                     "description": (p.get("excerpt") or {}).get("rendered", "")} for p in posts
+                    if feed.get("path", "") in p.get("link", "")]
+            res["ok"] = True; res["via"] = "site API"
+        except Exception as e:
+            res["err"] = "site API: " + str(e)[:70]
+        return finish(feed, res, rows)
     if feed.get("mode") == "adds":
         try:
             rows = gh_adds(feed); res["ok"] = True; res["via"] = "adds only"
@@ -260,6 +271,7 @@ def finish(feed, res, rows):
         blob = i["t"] + " " + i["x"]
         promo, why = (False, "") if feed["cat"] == "ioc" else judge(i["t"], i["x"], i["u"], feed.get("trust", "mid"))
         if promo and feed.get("keep") and re.search(feed["keep"], i["t"], re.I): promo, why = False, ""
+        if feed.get("drop") and re.search(feed["drop"], i["t"], re.I): promo, why = True, "newsletter or marketing series"
         i["t"] = re.sub(r"\s+\|\s+[A-Z][\w ]{2,24}$", "", i["t"])
         i["g"] = [n for n, rx in TAGS if rx.search(blob)][:5]
         i["c"] = sorted({c.upper() for c in CVE.findall(blob)})[:4]
@@ -274,21 +286,44 @@ def main():
     try: old = json.load(open("intel.json"))
     except Exception: old = {"items": [], "feeds": []}
     known = {i["u"]: i for i in old.get("items", [])}
+    norm = lambda t: re.sub(r"\W+", " ", t.lower()).strip()
+    known_t = {}
+    for i in old.get("items", []): known_t.setdefault((i["s"], norm(i["t"])), []).append(i)
+    oldest = {}                                                         # oldest post date already covered per source
+    for i in old.get("items", []): oldest[i["s"]] = min(i["d"], oldest.get(i["s"], i["d"]))
+    replaced = set()
+    # when each source was first read, so a post that shows up in a feed days after its date can be flagged as late
+    since = {f["id"]: f.get("since") for f in old.get("feeds", []) if f.get("since")}
+    for i in old.get("items", []):
+        if i["s"] not in since or i["f"] < since[i["s"]]: since[i["s"]] = min(i["f"], since.get(i["s"], i["f"]))
     last_ok = {f["id"]: f.get("last_ok") for f in old.get("feeds", [])}
     GH_OLD.update(old.get("gh", {}))
     with cf.ThreadPoolExecutor(8) as ex: results = list(ex.map(run, feeds))
     live_ids = {f["id"] for f in feeds}; fresh = {}
     for res, items in results:
         res["last_ok"] = stamp if res["ok"] else last_ok.get(res["id"])
+        res["since"] = since.get(res["id"]) or (stamp if res["ok"] else None)
+        grace = None
+        if res["since"]:
+            grace = (when(res["since"]) + timedelta(hours=20)).strftime("%Y-%m-%dT%H:%M:%SZ")
         print(f'{"ok " if res["ok"] else "ERR"} {res["n"]:>3}  {res["id"]:<18} {"via " + res["via"] if res.get("via") else ""} {res["err"]}')
         for i in items:
             prev = known.get(i["u"])
+            if not prev:                                                 # same post under a new link: same title AND same date
+                near = [k for k in known_t.get((res["id"], norm(i["t"])), [])
+                        if i["d"] and abs((when(k["d"]) - (i["d"] if isinstance(i["d"], datetime) else when(i["d"]))).total_seconds()) < 36 * 3600]
+                prev = near[0] if near else None
+                if prev and prev["u"] != i["u"]: replaced.add(prev["u"])
             i["f"] = prev["f"] if prev else stamp                       # first seen by this cron
             d = i["d"] or when(i["f"]); i["d"] = d.strftime("%Y-%m-%dT%H:%M:%SZ")
+            # late post: it first appeared a day or more after its own date, after we were already reading this
+            # source, and inside the date range we had already covered (so it wasn't simply out of reach before)
+            if grace and i["f"] >= grace and when(i["f"]) - d > timedelta(hours=36) and i["d"] >= oldest.get(res["id"], "9999"):
+                i["l"] = 1
             if d > now + timedelta(hours=12): i["d"] = i["f"]           # feeds that post-date entries
             fresh.setdefault(i["u"], i)
     for u, i in known.items():                                          # keep history the feeds have rotated out
-        if u not in fresh and i.get("s") in live_ids: fresh[u] = i
+        if u not in fresh and u not in replaced and i.get("s") in live_ids: fresh[u] = i
     cutoff = (now - timedelta(days=KEEP_DAYS)).strftime("%Y-%m-%dT%H:%M:%SZ")
     items = sorted((i for i in fresh.values() if i["d"] >= cutoff), key=lambda i: i["d"], reverse=True)[:MAX_ITEMS]
     for i in items:

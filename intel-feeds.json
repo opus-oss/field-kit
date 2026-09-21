@@ -63,6 +63,17 @@
   "trust": "low"
  },
  {
+  "id": "blackpoint",
+  "name": "Blackpoint Cyber",
+  "type": "wp",
+  "url": "https://blackpointcyber.com/wp-json/wp/v2/bp_resources?per_page=40&orderby=date&order=desc&_fields=date_gmt,link,title,excerpt",
+  "path": "/blog/",
+  "cat": "research",
+  "trust": "low",
+  "keep": "Threat Snapshot|Threat Pulse",
+  "drop": "APEX Wire|Historical Scan|CompassOne|Why MSPs|Why Your "
+ },
+ {
   "id": "fortinet",
   "name": "FortiGuard Labs",
   "url": "https://feeds.fortinet.com/fortinet/blog/threat-research",

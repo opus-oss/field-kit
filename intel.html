@@ -130,6 +130,7 @@ a{color:inherit; text-decoration:none}
 .row .src .tile{width:18px; height:18px; font-size:8px; border-radius:5px}
 .row .src .cat{color:var(--faint); font-weight:400; letter-spacing:.08em}
 .row .src .star{color:var(--acc); font-size:12px; margin-left:2px}
+.row .src .late{color:var(--faint); font-weight:400; letter-spacing:.06em; text-transform:none; margin-left:4px}
 .row h3{font-family:var(--sans); font-size:1.06rem; line-height:1.4; font-weight:600; color:var(--ink)}
 .row:hover h3{color:var(--h1)}
 .row.read h3{color:var(--faint); font-weight:500}
@@ -264,6 +265,8 @@ const save=()=>store.set('iw_state',{v:2,cat:S.cat,range:S.range,view:S.view,wat
 const now=Date.now(); let visit=store.get('iw_visit',null), PREV=store.get('iw_prev',null);
 if(!visit||now-visit>30*60e3){PREV=visit; store.set('iw_prev',PREV); store.set('iw_visit',now)}
 const isNew=i=>PREV&&Date.parse(i.f)>PREV;
+/* a post a feed published late (backdated) counts from when it actually appeared */
+const eff=i=>i.l?i.f:i.d;
 
 const mono=n=>{const w=n.replace(/[^A-Za-z0-9 ]/g,'').split(/\s+/).filter(Boolean);return ((w[0]||'?')[0]+((w[1]||w[0]||'?')[w[1]?0:1]||'')).toUpperCase()};
 const tile=(f,cls='')=>`<span class="tile ${cls}" style="--c:${CATS[f.cat][1]}">${esc(mono(f.name))}</span>`;
@@ -281,14 +284,14 @@ const hl=s=>{let h=esc(s);if(WRX){WRX.lastIndex=0;h=h.replace(WRX,'<mark>$1</mar
 function pool({ignoreCat=false,ignoreSrc=false}={}){
   const cut=Date.now()-S.range*864e5, q=S.q.trim().toLowerCase().split(/\s+/).filter(Boolean);
   return DATA.items.filter(i=>{
-    if(Date.parse(i.d)<cut) return false;
+    if(!q.length&&Date.parse(eff(i))<cut) return false;          // searching looks through all 45 days
     if(i.p&&!S.promo) return false;
     const f=FEED[i.s]; if(!f) return false;
     if(!ignoreSrc&&S.src&&i.s!==S.src) return false;
     if(!ignoreCat){ if(S.cat==='all'){ if(f.cat==='ioc'&&!S.src&&!q.length) return false } else if(f.cat!==S.cat) return false }
     if(S.watch&&!watched(i)) return false;
     if(q.length){const h=hay(i); if(!q.every(w=>h.includes(w))) return false}
-    return true});
+    return true}).sort((a,b)=>Date.parse(eff(b))-Date.parse(eff(a)));
 }
 
 function renderCtl(){
@@ -302,26 +305,26 @@ function renderCtl(){
 }
 
 function rowHTML(i){
-  const f=FEED[i.s], d=new Date(i.d), c=CATS[f.cat][1], w=watched(i);
+  const f=FEED[i.s], d=new Date(eff(i)), c=CATS[f.cat][1], w=watched(i);
   const tags=[...(i.c||[]).map(x=>`<span class="tag cve" data-q="${esc(x)}">${esc(x)}</span>`),...(i.e||[]).map(x=>`<span class="tag ent" data-q="${esc(x)}">${esc(x)}</span>`),...(i.g||[]).map(x=>`<span class="tag" data-q="${esc(x)}">#${esc(x)}</span>`)].join('');
   return `<a class="row${isNew(i)?' new':''}${READ.has(i.u)?' read':''}${i.p?' promo':''}" href="${esc(i.u)}" target="_blank" rel="noopener noreferrer" data-u="${esc(i.u)}" style="--c:${c}">
     <div class="when">${t12(d)}</div>
-    <div><div class="src">${tile(f)}<span>${esc(f.name)}</span><span class="cat">· ${CATS[f.cat][0]}</span>${w?'<span class="star">★</span>':''}</div>
+    <div><div class="src">${tile(f)}<span>${esc(f.name)}</span><span class="cat">· ${CATS[f.cat][0]}</span>${w?'<span class="star">★</span>':''}${i.l?`<span class="late">published ${esc(new Date(i.d).toLocaleDateString(undefined,{month:'short',day:'numeric'}))}</span>`:''}</div>
     <h3>${hl(i.t)}</h3>${i.x&&!i.p?`<p>${hl(i.x)}</p>`:''}${i.p?`<div class="why">filtered · ${esc(i.p)}</div>`:''}${tags&&!i.p?`<div class="tags">${tags}</div>`:''}</div></a>`;
 }
 function renderRiver(){
   const items=pool(); if(!items.length){$('#main').innerHTML=`<div class="empty">Nothing on the vine for this filter.<br>Widen the range or clear the search.</div>`;return}
-  let html='', last=''; const counts={}; items.forEach(i=>{const k=dayKey(new Date(i.d));counts[k]=(counts[k]||0)+1});
-  items.slice(0,S.limit).forEach(i=>{const d=new Date(i.d),k=dayKey(d); if(k!==last){html+=`<div class="day">${dayLabel(d)}<span>${counts[k]} ${counts[k]===1?'story':'stories'}</span></div>`;last=k} html+=rowHTML(i)});
+  let html='', last=''; const counts={}; items.forEach(i=>{const k=dayKey(new Date(eff(i)));counts[k]=(counts[k]||0)+1});
+  items.slice(0,S.limit).forEach(i=>{const d=new Date(eff(i)),k=dayKey(d); if(k!==last){html+=`<div class="day">${dayLabel(d)}<span>${counts[k]} ${counts[k]===1?'story':'stories'}</span></div>`;last=k} html+=rowHTML(i)});
   if(items.length>S.limit) html+=`<button class="more" id="more">Show ${Math.min(150,items.length-S.limit)} more of ${items.length}</button>`;
   $('#main').innerHTML=html;
 }
 function renderBoard(){
   const items=pool({ignoreSrc:true}), by={}; items.forEach(i=>(by[i.s]=by[i.s]||[]).push(i));
-  const ids=Object.keys(by).sort((a,b)=>Date.parse(by[b][0].d)-Date.parse(by[a][0].d));
+  const ids=Object.keys(by).sort((a,b)=>Date.parse(eff(by[b][0]))-Date.parse(eff(by[a][0])));
   if(!ids.length){$('#main').innerHTML=`<div class="empty">No sources have stories for this filter.</div>`;return}
   $('#main').innerHTML=`<div class="board">`+ids.map(id=>{const f=FEED[id];return `<section class="bcard" style="--c:${CATS[f.cat][1]}"><header>${tile(f)}<b>${esc(f.name)}</b><span>${by[id].length} · ${CATS[f.cat][0]}</span></header>`+
-    by[id].slice(0,7).map(i=>`<a href="${esc(i.u)}" target="_blank" rel="noopener noreferrer" data-u="${esc(i.u)}" class="${READ.has(i.u)?'read':''}${isNew(i)?' new':''}"><span class="bt">${hl(i.t)}</span><span class="bd">${rel(i.d)}</span></a>`).join('')+`</section>`}).join('')+`</div>`;
+    by[id].slice(0,7).map(i=>`<a href="${esc(i.u)}" target="_blank" rel="noopener noreferrer" data-u="${esc(i.u)}" class="${READ.has(i.u)?'read':''}${isNew(i)?' new':''}"><span class="bt">${hl(i.t)}</span><span class="bd">${rel(eff(i))}</span></a>`).join('')+`</section>`}).join('')+`</div>`;
 }
 function renderSources(){
   const base=pool({ignoreSrc:true,ignoreCat:true}), n={}; base.forEach(i=>n[i.s]=(n[i.s]||0)+1);
