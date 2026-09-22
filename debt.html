@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="darkreader-lock">
+<meta name="color-scheme" content="dark light">
+<meta name="theme-color" content="#1b1e1f" id="tc">
+<script>(function(){var t='dark';try{t=localStorage.getItem('fk_theme')||'dark'}catch(e){}if(t==='light'){document.documentElement.setAttribute('data-theme','light');document.getElementById('tc').content='#e0cfb0'}})()</script>
+<title>US Debt</title>
+<link rel="manifest" href="manifest-debt.webmanifest">
+<link rel="icon" href="debt-192.png">
+<link rel="apple-touch-icon" href="debt-180.png">
+<meta name="apple-mobile-web-app-title" content="US Debt">
+<style>
+/* Opus Prima Materia. Data: US Treasury Fiscal Data API (debt to the penny, interest expense, average rates, Monthly
+   Treasury Statement, historical debt since 1790); GDP and population from FRED via macro.json, World Bank fallback. */
+:root{
+  color-scheme:light;
+  --bg:#e0cfb0; --card:#e8d9bf; --chip:#d4c29e; --raised:#eee1cb;
+  --ink:#2b2114; --mut:#5f5236; --faint:#8a7c5e; --line:color-mix(in srgb,#1e160e 12%,transparent); --line2:color-mix(in srgb,#1e160e 24%,transparent);
+  --acc:#b0631f; --good:#14776a; --bad:#b23e37; --blue:#2f6fb0;
+  --h1:color-mix(in srgb,var(--acc),#000 26%); --h2:#3d6e63; --h3:#44618c; --h4:#71537f; --h5:#5c7150; --on-acc:#fffaf0;
+  --mono:"SF Mono","JetBrains Mono","Menlo",ui-monospace,"Consolas",monospace;
+}
+:root:not([data-theme="light"]){
+    --h1:color-mix(in srgb,var(--acc),#fff 16%); --h2:#7cb5a4; --h3:#8fa8c9; --h4:#ab8fc0; --h5:#97ab8a; --on-acc:#1b1e1f;
+    --bg:#1b1e1f; --card:#222627; --chip:#292e2f; --raised:#2e3334;
+    --ink:#e7e4d9; --mut:#b1afa1; --faint:#828175; --line:#353b3c; --line2:#434a4b;
+    --acc:#d98a3d; --good:#4bbfa6; --bad:#d0655c; --blue:#5b9cff;
+  color-scheme:dark;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg); color:var(--ink); font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+button{font:inherit; cursor:pointer}
+a{color:var(--acc)}
+.suitebar{position:sticky; top:0; z-index:60; display:flex; align-items:center; gap:10px; background:var(--card); border-bottom:1px solid var(--line); padding:7px 12px; margin:0; overflow-x:auto; scrollbar-width:none}
+.suitebar::-webkit-scrollbar{display:none}
+.suitebar .brand{font-family:var(--mono); font-weight:700; font-size:13px; letter-spacing:.05em; color:var(--acc); text-decoration:none; white-space:nowrap; flex-shrink:0}
+.suitebar .switch{display:flex; gap:3px}
+.suitebar .switch a{font-family:var(--mono); font-size:12.5px; padding:5px 10px; border-radius:8px; color:var(--mut); text-decoration:none; white-space:nowrap}
+.suitebar .switch a.on{background:var(--chip); color:var(--h1); box-shadow:inset 0 -2px 0 var(--acc)}
+.suitebar .themebtn{margin-left:auto; position:sticky; right:0; flex-shrink:0; font-size:15px; line-height:1; padding:5px 9px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--mut); cursor:pointer; box-shadow:-10px 0 8px -2px var(--card)}
+.suitebar .themebtn:hover{color:var(--acc); border-color:var(--line2)}
+
+.wrap{max-width:1120px; margin:0 auto; padding:26px 18px 60px}
+h1{font:700 2.1rem var(--mono); letter-spacing:-.02em; color:var(--h1); border-bottom:1px solid var(--line2); padding-bottom:.45rem}
+.eyebrow{font:600 .74rem var(--mono); letter-spacing:.15em; text-transform:uppercase; color:var(--acc)}
+.sub{margin:.65rem 0 1.4rem}
+.card{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:18px 20px}
+h2{font:600 1.05rem var(--mono); color:var(--h2); margin-bottom:12px; letter-spacing:-.005em}
+.hero{padding:26px 22px 22px}
+.big{font:700 clamp(22px,6.4vw,70px)/1.05 var(--mono); letter-spacing:-.03em; font-variant-numeric:tabular-nums; color:var(--ink); white-space:nowrap; overflow:hidden; text-overflow:clip}
+.big .cur{color:var(--h1)}
+.rate{margin-top:10px; font-size:15px; color:var(--ink)}
+.rate b{font-family:var(--mono); color:var(--h1)}
+.note{margin-top:6px; font-size:13px; color:var(--mut)}
+.grid{display:grid; gap:14px; margin-top:14px; grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+.stat .v{font:700 1.7rem var(--mono); font-variant-numeric:tabular-nums; letter-spacing:-.02em; margin:2px 0}
+.stat .d{font-size:13px; color:var(--mut)}
+.split{display:flex; height:12px; border-radius:6px; overflow:hidden; margin:12px 0 8px; background:var(--chip)}
+.split i{display:block; height:100%}
+.legend{display:flex; gap:16px; flex-wrap:wrap; font-size:13px; color:var(--mut)}
+.legend b{display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:6px; vertical-align:-1px}
+.legend span em{font-style:normal; font-family:var(--mono); color:var(--ink)}
+.two{display:grid; gap:14px; margin-top:14px; grid-template-columns:1fr}
+@media(min-width:860px){ .two{grid-template-columns:1fr 1fr} }
+.rows .r{display:flex; justify-content:space-between; gap:12px; padding:9px 0; border-top:1px solid var(--line); font-size:14.5px}
+.rows .r:first-child{border-top:none}
+.rows .r span{color:var(--mut)}
+.rows .r b{font-family:var(--mono); font-variant-numeric:tabular-nums; font-weight:600; text-align:right}
+.rows .r.tot b{color:var(--h1)}
+.bars{display:flex; align-items:flex-end; gap:5px; height:120px; margin:14px 0 4px; padding-bottom:2px; border-bottom:1px solid var(--line2); position:relative}
+.bars .b{flex:1; display:flex; flex-direction:column; justify-content:flex-end; align-items:center; height:100%; position:relative}
+.bars .b i{display:block; width:100%; border-radius:4px 4px 0 0; background:var(--bad); min-height:2px}
+.bars .b.sur i{background:var(--good); border-radius:0 0 4px 4px}
+.bars .b small{position:absolute; bottom:-18px; font:10.5px var(--mono); color:var(--faint)}
+.bars .b:hover i{filter:brightness(1.15)}
+.bnote{margin-top:24px; font-size:13px; color:var(--mut)}
+.chartcard{margin-top:14px}
+.chead{display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; margin-bottom:10px}
+.chead h2{margin:0}
+.seg{display:flex; border:1px solid var(--line); border-radius:9px; overflow:hidden; margin-left:auto}
+.seg button{border:0; background:var(--chip); color:var(--mut); font:600 12px var(--mono); padding:6px 11px}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button.on{color:var(--h1); box-shadow:inset 0 -2px 0 var(--acc)}
+#chart{width:100%; height:300px; display:block; touch-action:none}
+#chart text{font:11px var(--mono); fill:var(--faint)}
+#readout{font:13px var(--mono); color:var(--mut); min-height:20px; margin-top:6px}
+#readout b{color:var(--ink)}
+.miles{display:flex; flex-wrap:wrap; gap:8px; margin-top:6px}
+.miles span{font:12.5px var(--mono); padding:5px 10px; border-radius:8px; background:var(--chip); border:1px solid var(--line); color:var(--mut)}
+.miles span b{color:var(--ink); font-weight:600}
+.miles span.next{border-color:color-mix(in srgb,var(--acc) 50%,transparent); color:var(--h1)}
+.src{margin-top:26px; font-size:12px; color:var(--faint); line-height:1.6}
+.err{color:var(--bad)}
+@media(max-width:620px){ .hero .big{font-size:7.1vw} .wrap{padding:20px 14px 50px} h1{font-size:1.7rem} .hero{padding:20px 16px} .card{padding:16px} #chart{height:230px} }
+</style>
+</head>
+<body>
+<div class="suitebar">
+  <a class="brand" href="./index.html">◆&nbsp;FIELD KIT</a>
+  <div class="switch">
+    <a href="./index.html">Weather</a>
+    <a href="./radar.html">Radar</a>
+    <a href="./markets.html">Markets</a>
+    <a href="./debt.html" class="on">Debt</a>
+    <a href="./intel.html">Grapevine</a>
+    <a href="./tax.html">Tax</a>
+    <a href="./mortgage.html">Mortgage</a>
+    <a href="./scrub.html">Scrub</a>
+    <a href="./optout.html">Opt Out</a>
+    <a href="./places.html">Places</a>
+  </div>
+  <button class="themebtn" id="themeBtn" title="Light / dark" aria-label="Toggle light or dark mode">◐</button>
+</div>
+
+<div class="wrap">
+  <h1>US Debt</h1>
+  <div class="eyebrow sub" id="asof">Loading Treasury data…</div>
+
+  <div class="card hero">
+    <div class="eyebrow">Total public debt outstanding</div>
+    <div class="big" id="total">$—</div>
+    <div class="rate" id="rate"></div>
+    <div class="note" id="official"></div>
+  </div>
+
+  <div class="grid">
+    <div class="card stat"><div class="eyebrow">Per person</div><div class="v" id="perPerson">—</div><div class="d" id="perPersonD"></div></div>
+    <div class="card stat"><div class="eyebrow">Debt to GDP</div><div class="v" id="toGdp">—</div><div class="d" id="toGdpD"></div></div>
+    <div class="card stat"><div class="eyebrow">Next trillion</div><div class="v" id="nextT">—</div><div class="d" id="nextTD"></div></div>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <h2>Who is owed</h2>
+    <div class="split" id="split"></div>
+    <div class="legend" id="splitLegend"></div>
+  </div>
+
+  <div class="two">
+    <div class="card">
+      <h2>Interest</h2>
+      <div class="eyebrow" style="color:var(--mut);letter-spacing:.1em">Paid to bondholders this fiscal year</div>
+      <div class="big" id="interest" style="font-size:clamp(26px,4.2vw,40px);margin:4px 0 10px">$—</div>
+      <div class="rows" id="intRows"></div>
+    </div>
+    <div class="card">
+      <h2 id="budgetH">This fiscal year</h2>
+      <div class="rows" id="budRows"></div>
+      <div class="bars" id="bars"></div>
+      <div class="bnote" id="bnote"></div>
+    </div>
+  </div>
+
+  <div class="card chartcard">
+    <div class="chead"><h2>History</h2>
+      <div class="seg" id="range"><button data-r="3y" class="on">3 years</button><button data-r="30y">30 years</button><button data-r="all">Since 1790</button></div>
+    </div>
+    <svg id="chart" preserveAspectRatio="none"></svg>
+    <div id="readout"></div>
+    <div class="eyebrow" style="margin-top:16px">Trillion-dollar marks</div>
+    <div class="miles" id="miles"></div>
+  </div>
+
+  <div class="src">Sources: U.S. Treasury Fiscal Data, Debt to the Penny (daily), Interest Expense on the Public Debt Outstanding, Average Interest Rates on Treasury Securities, Monthly Treasury Statement, Historical Debt Outstanding (1790 on). GDP and population from the St. Louis Fed (FRED), with World Bank figures as a fallback. The running total is an estimate that carries Treasury's latest official figure forward at the past year's pace; Treasury publishes each business day with a one-day lag.</div>
+</div>
+
+<script>
+'use strict';
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const FD='https://api.fiscaldata.treasury.gov/services/api/fiscal_service';
+async function j(u){const r=await fetch(u,{cache:'no-store'});if(!r.ok)throw new Error('HTTP '+r.status);return r.json()}
+const q=(path,params)=>`${FD}${path}?${params}`;
+const num=s=>parseFloat(s);
+const DAY=864e5;
+const usd0=n=>'$'+Math.round(n).toLocaleString('en-US');
+function short(n,d=2){const a=Math.abs(n);const s=a>=1e12?(n/1e12).toFixed(d)+' trillion':a>=1e9?(n/1e9).toFixed(d>1?1:d)+' billion':a>=1e6?(n/1e6).toFixed(1)+' million':Math.round(n).toLocaleString('en-US');return '$'+s}
+const dstr=d=>d.toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'});
+const dshort=d=>d.toLocaleDateString(undefined,{month:'short',day:'numeric'});
+const pday=s=>new Date(s+'T12:00:00');
+const pct=x=>{const a=Math.abs(x*100);return (a<10?a.toFixed(1):a.toFixed(0))+'%'};
+
+let D={};                                                   // everything loaded
+/* ---------- load ---------- */
+async function load(){
+  const [penny, hist, rates, macro] = await Promise.all([
+    j(q('/v2/accounting/od/debt_to_penny','sort=-record_date&page[size]=900&fields=record_date,tot_pub_debt_out_amt,debt_held_public_amt,intragov_hold_amt')),
+    j(q('/v2/accounting/od/debt_outstanding','sort=record_date&page[size]=400&fields=record_date,record_fiscal_year,debt_outstanding_amt')).catch(()=>({data:[]})),
+    j(q('/v2/accounting/od/avg_interest_rates','sort=-record_date&page[size]=30&fields=record_date,security_desc,avg_interest_rate_amt')).catch(()=>({data:[]})),
+    fetch('macro.json',{cache:'no-cache'}).then(r=>r.ok?r.json():null).catch(()=>null)
+  ]);
+  D.daily=penny.data.map(r=>({t:pday(r.record_date),v:num(r.tot_pub_debt_out_amt),pub:num(r.debt_held_public_amt),gov:num(r.intragov_hold_amt)})).reverse();
+  D.annual=hist.data.map(r=>({t:new Date(+r.record_fiscal_year,8,30),v:num(r.debt_outstanding_amt)}));
+  const rr=rates.data.find(r=>r.security_desc==='Total Interest-bearing Debt'); D.avgRate=rr?num(rr.avg_interest_rate_amt):null; D.rateDate=rr&&rr.record_date;
+  D.macro=macro;
+  if(!macro||!macro.gdp||!macro.pop){ try{                 // World Bank annual figures as a fallback
+    const [p,g]=await Promise.all([j('https://api.worldbank.org/v2/country/USA/indicator/SP.POP.TOTL?format=json&mrv=1'),j('https://api.worldbank.org/v2/country/USA/indicator/NY.GDP.MKTP.CD?format=json&mrv=1')]);
+    D.macro=Object.assign({},macro||{}, (macro&&macro.pop)?{}:{pop:{date:p[1][0].date,people:p[1][0].value,wb:1}}, (macro&&macro.gdp)?{}:{gdp:{date:g[1][0].date,usd:g[1][0].value,wb:1}});
+  }catch(e){} }
+  // the pace: growth over the past 12 months, using 10-day averages at each end. A full year evens out the tax
+  // calendar (April and September receipts flatten the debt for weeks); shorter windows swing from $3B to $9B a day.
+  const last=D.daily[D.daily.length-1], cut=+last.t-365*DAY;
+  const early=D.daily.filter(x=>+x.t>=cut).slice(0,10), late=D.daily.slice(-10), avg=(a,f)=>a.reduce((s,x)=>s+f(x),0)/a.length;
+  D.slope=(avg(late,x=>x.v)-avg(early,x=>x.v))/(avg(late,x=>+x.t)-avg(early,x=>+x.t));   // dollars per millisecond
+  D.yearGrowth=D.slope*365*DAY;
+  D.last=last; D.base=+last.t+DAY*0.5;                       // the official figure is end of that business day
+  loadBudget();
+}
+async function loadBudget(){
+  try{
+    const mts=await j(q('/v1/accounting/mts/mts_table_1','sort=-record_date,src_line_nbr&page[size]=60&fields=record_date,src_line_nbr,classification_desc,current_month_gross_rcpt_amt,current_month_gross_outly_amt,current_month_dfct_sur_amt'));
+    const date=mts.data[0].record_date, rows=mts.data.filter(r=>r.record_date===date).sort((a,b)=>+a.src_line_nbr-+b.src_line_nbr);
+    const fy={}; let cur=null;
+    for(const r of rows){ const m=/^FY (\d{4})/.exec(r.classification_desc); if(m){cur=+m[1]; fy[cur]={months:[],ytd:null}; continue}
+      if(!cur)continue; const o={name:r.classification_desc,rc:num(r.current_month_gross_rcpt_amt),ou:num(r.current_month_gross_outly_amt),df:num(r.current_month_dfct_sur_amt)};
+      if(/Year-to-Date/i.test(o.name))fy[cur].ytd=o; else fy[cur].months.push(o) }
+    const years=Object.keys(fy).map(Number).sort(); D.fy=years[years.length-1]; D.bud=fy[D.fy]; D.prevBud=fy[D.fy-1]; D.budDate=pday(date);
+  }catch(e){ D.budErr=e.message }
+  try{
+    const end=D.budDate?D.budDate.toISOString().slice(0,10):null;
+    const lastYr=end?(+end.slice(0,4)-1)+end.slice(4):null;
+    const ie=await j(q('/v2/accounting/od/interest_expense',`filter=record_date:in:(${end},${lastYr})&page[size]=200&fields=record_date,expense_catg_desc,fytd_expense_amt`));
+    const sum=(d,cat)=>ie.data.filter(r=>r.record_date===d&&(cat?r.expense_catg_desc===cat:true)).reduce((s,r)=>s+num(r.fytd_expense_amt),0);
+    D.intPub=sum(end,'INTEREST EXPENSE ON PUBLIC ISSUES'); D.intGov=sum(end,'INTEREST EXPENSE ON GOVT ACCOUNT SERIES');
+    D.intPubPrev=sum(lastYr,'INTEREST EXPENSE ON PUBLIC ISSUES'); D.intDate=pday(end);
+    D.fyStart=new Date(D.fy-1,9,1);
+  }catch(e){ D.intErr=e.message }
+  paintStatic(); drawChart();
+}
+
+/* ---------- live numbers ---------- */
+const est=()=>D.last.v+D.slope*(Date.now()-D.base);
+function tick(){
+  if(!D.last)return;
+  const v=est(); $('#total').innerHTML=`<span class="cur">$</span>${Math.round(v).toLocaleString('en-US')}`;
+  if(D.macro&&D.macro.pop)$('#perPerson').textContent=usd0(v/D.macro.pop.people);
+  if(D.intPub!=null){ const per=D.intPub/((+D.intDate-+D.fyStart)/DAY+1); const nowFy=Date.now()<+new Date(D.fy,9,1);
+    $('#interest').textContent=usd0(nowFy?D.intPub+per*Math.max(0,(Date.now()-+D.intDate-DAY)/DAY):D.intPub) }
+}
+function paintStatic(){
+  const L=D.last, perSec=D.slope*1000, perDay=D.slope*DAY;
+  $('#asof').textContent=`Treasury data through ${dstr(L.t)} · updates each business day`;
+  $('#rate').innerHTML=`Rising about <b>${short(perDay,1)}</b> a day, <b>${usd0(perSec)}</b> a second. It grew <b>${short(D.yearGrowth,2)}</b> over the past year.`;
+  $('#official').textContent=`Treasury's official figure is ${usd0(L.v)} on ${dstr(L.t)}. The clock carries it forward from there.`;
+  // per person, GDP
+  const M=D.macro||{};
+  if(M.pop)$('#perPersonD').textContent=`${(M.pop.people/1e6).toFixed(1)} million people${M.pop.wb?' (World Bank, '+M.pop.date+')':', Census estimate for '+new Date(M.pop.date+'T12:00').toLocaleDateString(undefined,{month:'long',year:'numeric'})}`;
+  if(M.gdp){ const r=est()/M.gdp.usd*100; $('#toGdp').textContent=r.toFixed(1)+'%';
+    const q=new Date(M.gdp.date+'T12:00'); $('#toGdpD').textContent=M.gdp.wb?`against ${M.gdp.date} GDP of ${short(M.gdp.usd)} (World Bank)`:`against ${short(M.gdp.usd)} GDP, annual rate, Q${Math.floor(q.getMonth()/3)+1} ${q.getFullYear()}` }
+  // next trillion
+  const nextT=Math.ceil(est()/1e12)*1e12, when=new Date(D.base+(nextT-D.last.v)/D.slope);
+  $('#nextT').textContent=dshort(when);
+  $('#nextTD').textContent=`when it passes ${short(nextT,0)}, about ${Math.round((when-Date.now())/DAY)} days away`;
+  // who is owed
+  const tot=L.pub+L.gov, a=L.pub/tot*100;
+  $('#split').innerHTML=`<i style="width:${a}%;background:var(--acc)"></i><i style="width:${100-a}%;background:var(--h3)"></i>`;
+  $('#splitLegend').innerHTML=`<span><b style="background:var(--acc)"></b>Held by the public <em>${short(L.pub)}</em> · ${a.toFixed(0)}%</span><span><b style="background:var(--h3)"></b>Owed to federal trust funds (Social Security, Medicare, pensions) <em>${short(L.gov)}</em> · ${(100-a).toFixed(0)}%</span>`;
+  // interest
+  if(D.intPub!=null){
+    const days=(+D.intDate-+D.fyStart)/DAY+1, per=D.intPub/days, ytd=D.bud&&D.bud.ytd;
+    const rows=[['Per day, this fiscal year',short(per,2)],
+      ['Through '+dshort(D.intDate)+' (official)',short(D.intPub)],
+      ['Same point last year',short(D.intPubPrev)+(D.intPubPrev?` · ${D.intPub>=D.intPubPrev?'up':'down'} ${pct(D.intPub/D.intPubPrev-1)}`:'')],
+      ['Share of tax receipts',ytd?(D.intPub/ytd.rc*100).toFixed(0)+'¢ of every dollar':'—'],
+      ['Average rate on the debt',D.avgRate!=null?D.avgRate.toFixed(2)+'%':'—'],
+      ['Credited to trust funds (not cash out)',short(D.intGov)]];
+    $('#intRows').innerHTML=rows.map(([l,v])=>`<div class="r"><span>${l}</span><b>${v}</b></div>`).join('');
+  } else $('#intRows').innerHTML=`<div class="r err">Interest data unavailable (${D.intErr||''})</div>`;
+  // budget
+  if(D.bud&&D.bud.ytd){
+    const y=D.bud.ytd, p=D.prevBud, pSame=p?p.months.slice(0,D.bud.months.length).reduce((s,m)=>s+m.df,0):null;
+    $('#budgetH').textContent=`Fiscal ${D.fy} so far`;
+    $('#budRows').innerHTML=[['Tax and other receipts',short(y.rc)],['Spending',short(y.ou)],['Deficit',short(y.df),'tot'],
+      ['Same months last year',pSame!=null?short(pSame)+` · ${y.df>=pSame?'up':'down'} ${pct(y.df/pSame-1)}`:'—']]
+      .map(([l,v,c])=>`<div class="r ${c||''}"><span>${l}</span><b>${v}</b></div>`).join('');
+    const mx=Math.max(...D.bud.months.map(m=>Math.abs(m.df)));
+    $('#bars').innerHTML=D.bud.months.map(m=>`<div class="b ${m.df<0?'sur':''}" title="${m.name}: ${m.df<0?'surplus':'deficit'} ${short(Math.abs(m.df))}"><i style="height:${Math.abs(m.df)/mx*100}%"></i><small>${m.name.slice(0,3)}</small></div>`).join('');
+    $('#bnote').textContent=`Monthly deficit through ${D.budDate.toLocaleDateString(undefined,{month:'long'})}. Green is a surplus month, usually April when taxes are due. The fiscal year starts October 1.`;
+  } else $('#budRows').innerHTML=`<div class="r err">Budget data unavailable (${D.budErr||''})</div>`;
+  // trillion marks from the daily series
+  const marks=[]; for(let i=1;i<D.daily.length;i++){ const a=D.daily[i-1],b=D.daily[i]; const T=Math.floor(b.v/1e12); if(Math.floor(a.v/1e12)<T)marks.push({T,t:b.t}) }
+  const seen={}; const uniq=marks.filter(m=>seen[m.T]?false:(seen[m.T]=1));
+  $('#miles').innerHTML=uniq.map((m,i)=>`<span><b>$${m.T}T</b> ${dstr(m.t)}${i?` · ${Math.round((m.t-uniq[i-1].t)/DAY)} days`:''}</span>`).join('')+
+    `<span class="next"><b>$${nextT/1e12}T</b> around ${dstr(when)}</span>`;
+}
+
+/* ---------- history chart ---------- */
+let range='3y';
+function series(){
+  if(range==='3y'){ const cut=Date.now()-3*365*DAY; return D.daily.filter(x=>+x.t>=cut).map(x=>({t:x.t,v:x.v})) }
+  const a=D.annual.filter(x=>range==='all'||x.t.getFullYear()>=1995);
+  return [...a,{t:D.last.t,v:D.last.v}];
+}
+function drawChart(){
+  const svg=$('#chart'), W=svg.clientWidth||900, H=svg.clientHeight||300, P={l:62,r:14,t:12,b:24};
+  svg.setAttribute('viewBox',`0 0 ${W} ${H}`);
+  const S=series(); if(!S.length)return;
+  const t0=+S[0].t, t1=+S[S.length-1].t, vmax=Math.max(...S.map(x=>x.v))*1.04, vmin=range==='3y'?Math.min(...S.map(x=>x.v))*0.97:0;
+  const X=t=>P.l+(t-t0)/(t1-t0)*(W-P.l-P.r), Y=v=>H-P.b-(v-vmin)/(vmax-vmin)*(H-P.t-P.b);
+  const line=S.map((p,i)=>(i?'L':'M')+X(+p.t).toFixed(1)+','+Y(p.v).toFixed(1)).join('');
+  const area=line+`L${X(t1).toFixed(1)},${H-P.b}L${X(t0).toFixed(1)},${H-P.b}Z`;
+  let grid=''; const step=niceStep((vmax-vmin)/4);
+  for(let v=Math.ceil(vmin/step)*step;v<=vmax;v+=step){ const y=Y(v).toFixed(1); grid+=`<line x1="${P.l}" x2="${W-P.r}" y1="${y}" y2="${y}" stroke="var(--line)" stroke-width="1"/><text x="${P.l-8}" y="${+y+4}" text-anchor="end">${axis(v)}</text>` }
+  const yrs=range==='3y'?1:range==='30y'?5:40, y0=new Date(t0).getFullYear(), y1=new Date(t1).getFullYear();
+  for(let y=Math.ceil(y0/yrs)*yrs;y<=y1;y+=yrs){ const x=X(+new Date(y,0,1)); if(x<P.l||x>W-P.r)continue; grid+=`<text x="${x.toFixed(1)}" y="${H-6}" text-anchor="middle">${y}</text>` }
+  svg.innerHTML=`<defs><linearGradient id="fill" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="var(--acc)" stop-opacity=".28"/><stop offset="1" stop-color="var(--acc)" stop-opacity="0"/></linearGradient></defs>`+
+    grid+`<path d="${area}" fill="url(#fill)"/><path d="${line}" fill="none" stroke="var(--acc)" stroke-width="2" vector-effect="non-scaling-stroke"/>`+
+    `<line id="hx" y1="${P.t}" y2="${H-P.b}" stroke="var(--line2)" stroke-width="1" visibility="hidden"/><circle id="hd" r="4" fill="var(--h1)" visibility="hidden"/>`;
+  const first=S[0], lastP=S[S.length-1];
+  $('#readout').innerHTML=`<b>${short(first.v,2)}</b> ${range==='3y'?dstr(first.t):first.t.getFullYear()} to <b>${short(lastP.v,2)}</b> ${dstr(lastP.t)}`;
+  svg.onpointermove=e=>{ const r=svg.getBoundingClientRect(), x=(e.clientX-r.left)/r.width*W, t=t0+(x-P.l)/(W-P.l-P.r)*(t1-t0);
+    let best=S[0]; for(const p of S) if(Math.abs(+p.t-t)<Math.abs(+best.t-t))best=p;
+    const cx=X(+best.t), cy=Y(best.v); $('#hx').setAttribute('x1',cx); $('#hx').setAttribute('x2',cx); $('#hx').setAttribute('visibility','visible');
+    $('#hd').setAttribute('cx',cx); $('#hd').setAttribute('cy',cy); $('#hd').setAttribute('visibility','visible');
+    $('#readout').innerHTML=`<b>${short(best.v,2)}</b> · ${range==='3y'?dstr(best.t):'fiscal '+best.t.getFullYear()}` };
+  svg.onpointerleave=()=>{ $('#hx').setAttribute('visibility','hidden'); $('#hd').setAttribute('visibility','hidden') };
+}
+function niceStep(x){const p=10**Math.floor(Math.log10(x)), m=x/p; return (m<1.5?1:m<3?2:m<7?5:10)*p}
+function axis(v){return v>=1e12?'$'+(v/1e12).toFixed(v%1e12?1:0)+'T':v>=1e9?'$'+Math.round(v/1e9)+'B':'$'+Math.round(v/1e6)+'M'}
+$$('#range button').forEach(b=>b.onclick=()=>{range=b.dataset.r; $$('#range button').forEach(x=>x.classList.toggle('on',x===b)); drawChart()});
+addEventListener('resize',()=>{ if(D.last)drawChart() });
+
+load().then(()=>{ tick(); setInterval(tick,100) }).catch(e=>{ $('#asof').innerHTML=`<span class="err">Treasury data unavailable (${e.message}).</span>` });
+if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});
+</script>
+<script>(function(){var b=document.getElementById('themeBtn');if(!b)return;b.onclick=function(){var n=document.documentElement.getAttribute('data-theme')==='light'?'dark':'light';if(n==='light')document.documentElement.setAttribute('data-theme','light');else document.documentElement.removeAttribute('data-theme');try{localStorage.setItem('fk_theme',n)}catch(e){}var m=document.getElementById('tc');if(m)m.content=n==='light'?'#e0cfb0':'#1b1e1f';if(window.onFkTheme)window.onFkTheme(n)}})()</script>
+</body>
+</html>

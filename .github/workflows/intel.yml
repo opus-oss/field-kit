@@ -11,7 +11,7 @@ on:
     - cron: "15 4,8,13,17,22 * * *"
   workflow_dispatch:
   push:
-    paths: [".github/workflows/intel.yml", "intel-fetch.py", "intel-feeds.json"]
+    paths: [".github/workflows/intel.yml", "intel-fetch.py", "intel-feeds.json", "macro-fetch.py"]
 
 permissions:
   contents: write
@@ -29,11 +29,13 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # higher API rate limit for the adds-only IOC repos
         run: python3 intel-fetch.py
+      - name: GDP and population for the Debt page
+        run: python3 macro-fetch.py || true
       - name: Commit intel.json
         run: |
           git config user.name "field-kit-bot"
           git config user.email "field-kit-bot@users.noreply.github.com"
-          git add intel.json
+          git add intel.json macro.json
           git diff --cached --quiet && exit 0
           git commit -q -m "intel: $(date -u +%Y-%m-%d\ %H:%M) UTC"
           for i in 1 2 3 4; do git pull -q --rebase && git push -q && exit 0; sleep 7; done; exit 1
