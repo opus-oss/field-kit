@@ -198,12 +198,12 @@ td.x b{color:var(--h1)}
     <div class="card stat"><div class="eyebrow">Gold</div><div class="v" id="gold">—</div><div class="d">per troy ounce</div></div>
     <div class="card stat"><div class="eyebrow">Silver</div><div class="v" id="silver">—</div><div class="d">per troy ounce</div></div>
     <div class="card stat"><div class="eyebrow">Gold to silver ratio</div><div class="v" id="gsr">—</div><div class="d" id="gsrD">ounces of silver to buy one ounce of gold</div></div>
-    <div class="card stat"><div class="eyebrow">US gold reserve</div><div class="v" id="usGold">—</div><div class="d" id="usGoldD">8,133 tonnes at market value</div></div>
+    <div class="card stat"><div class="eyebrow">All gold ever mined</div><div class="v" id="usGold">—</div><div class="d" id="usGoldD">about 216,000 tonnes at today's price</div></div>
   </div>
   <div class="card" style="margin-top:14px">
     <h2>Gold needed to cover the debt</h2>
-    <div class="note" style="margin:-6px 0 10px">The gold price at which each pile of gold would equal each pile of debt.</div>
-    <div class="tbl"><table id="cover"><thead><tr><th>Debt</th><th>Gold behind it</th><th>Price needed</th><th>vs today</th></tr></thead><tbody></tbody></table></div>
+    <div class="note" style="margin:-6px 0 10px">The gold price at which all the gold ever mined, about 216,000 tonnes, would equal each pile of debt.</div>
+    <div class="tbl"><table id="cover"><thead><tr><th>Debt</th><th class="num">Price needed</th><th class="num">vs today</th></tr></thead><tbody></tbody></table></div>
   </div>
   <div class="card" style="margin-top:14px">
     <h2>Paper versus physical</h2>
@@ -223,7 +223,7 @@ td.x b{color:var(--h1)}
     </div>
   </div>
 
-  <div class="src">Sources: U.S. Treasury Fiscal Data, Debt to the Penny (daily), Interest Expense on the Public Debt Outstanding, Average Interest Rates on Treasury Securities, Monthly Treasury Statement, Historical Debt Outstanding (1790 on). GDP, population and world debt from the IMF World Economic Outlook and Global Debt Database, with World Bank figures as a fallback. Gold and silver spot from gold-api.com. COMEX open interest from the CFTC Commitments of Traders report. US gold reserve from the Treasury's status report (261.5 million troy ounces). World gold figures from the World Gold Council: about 216,000 tonnes mined in all of history (end of 2024), about 36,000 tonnes held by central banks, 3,661 tonnes mined in 2024. Silver mine output of 820 million ounces in 2024 from the Silver Institute. All-debt estimate holds household and business debt at its 2024 share of GDP and excludes debt of banks and other financial firms. The running total is an estimate that carries Treasury's latest official figure forward at the past year's pace; Treasury publishes each business day with a one-day lag.</div>
+  <div class="src">Sources: U.S. Treasury Fiscal Data, Debt to the Penny (daily), Interest Expense on the Public Debt Outstanding, Average Interest Rates on Treasury Securities, Monthly Treasury Statement, Historical Debt Outstanding (1790 on). GDP, population and world debt from the IMF World Economic Outlook and Global Debt Database, with World Bank figures as a fallback. Gold and silver spot from gold-api.com. COMEX open interest from the CFTC Commitments of Traders report. World gold figures from the World Gold Council: about 216,000 tonnes mined in all of history (end of 2024) and 3,661 tonnes mined in 2024. Silver mine output of 820 million ounces in 2024 from the Silver Institute. All-debt estimate holds household and business debt at its 2024 share of GDP and excludes debt of banks and other financial firms. The running total is an estimate that carries Treasury's latest official figure forward at the past year's pace; Treasury publishes each business day with a one-day lag.</div>
 </div>
 
 <script>
@@ -374,7 +374,7 @@ function tickWorld(){
 }
 
 /* ---------- hard money ---------- */
-const OZ_T=32150.7466, US_GOLD_OZ=261498926.241, CB_GOLD_T=36000, ALL_GOLD_T=216265, GOLD_MINE_T=3661, SILVER_MINE_OZ=819.7e6;
+const OZ_T=32150.7466, ALL_GOLD_T=216265, GOLD_MINE_T=3661, SILVER_MINE_OZ=819.7e6;
 let GOLD=null, SILVER=null, metalAt=null;
 async function loadMetals(){
   try{
@@ -383,22 +383,17 @@ async function loadMetals(){
     $('#gold').textContent='$'+GOLD.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
     $('#silver').textContent='$'+SILVER.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
     $('#gsr').textContent=(GOLD/SILVER).toFixed(1);
-    $('#usGold').textContent=short(US_GOLD_OZ*GOLD,2);
+    $('#usGold').textContent=short(ALL_GOLD_T*OZ_T*GOLD,1);
     $('#metalAsOf').textContent=`Spot prices as of ${metalAt.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}, refreshed every minute`;
     paintCover(); paintPaper();
   }catch(e){ $('#metalAsOf').textContent='Spot prices unavailable right now' }
 }
 function paintCover(){
   if(!GOLD||!D.last)return;
-  const w=worldAt(Date.now()), L=D.last, us=est();
-  const rows=[
-    ['US federal debt', us, 'US Treasury gold', US_GOLD_OZ, '8,133 tonnes'],
-    ['US debt held by the public', L.pub*(us/L.v), 'US Treasury gold', US_GOLD_OZ, '8,133 tonnes'],
-    w&&['Government debt, all countries', w.gov, 'Central bank gold', CB_GOLD_T*OZ_T, 'about 36,000 tonnes'],
-    w&&w.all&&['All debt worldwide, estimated', w.all, 'All gold ever mined', ALL_GOLD_T*OZ_T, 'about 216,000 tonnes'],
-  ].filter(Boolean);
-  $('#cover tbody').innerHTML=rows.map(([d,v,g,oz,t])=>{ const p=v/oz; return `<tr><td>${d}<small>${short(v,2)}</small></td><td>${g}<small>${t}</small></td><td class="num"><b>${usd0(p)}</b><small>per ounce</small></td><td class="num x"><b>${(p/GOLD).toFixed(0)}×</b><small>today's price</small></td></tr>` }).join('')+
-    `<tr><td colspan="4" style="color:var(--mut);font-size:13px;border-bottom:none">At today's price the US gold reserve covers <b style="color:var(--ink)">${(US_GOLD_OZ*GOLD/us*100).toFixed(1)}%</b> of federal debt. On Treasury's books it's still valued at the statutory $42.22 an ounce, or ${short(US_GOLD_OZ*42.2222,1)}.</td></tr>`;
+  const w=worldAt(Date.now()), L=D.last, us=est(), oz=ALL_GOLD_T*OZ_T;
+  const rows=[['US federal debt',us],['US debt held by the public',L.pub*(us/L.v)],w&&['Government debt, all countries',w.gov],w&&w.all&&['All debt worldwide, estimated',w.all]].filter(Boolean);
+  $('#cover tbody').innerHTML=rows.map(([d,v])=>{ const p=v/oz; return `<tr><td>${d}<small>${short(v,2)}</small></td><td class="num"><b>${usd0(p)}</b><small>per ounce</small></td><td class="num x"><b>${(p/GOLD).toFixed(1)}×</b><small>today's price</small></td></tr>` }).join('')+
+    `<tr><td colspan="3" style="color:var(--mut);font-size:13px;border-bottom:none">At today's price, every ounce ever mined is worth <b style="color:var(--ink)">${short(oz*GOLD,1)}</b>, about <b style="color:var(--ink)">${(oz*GOLD/us*100).toFixed(0)}%</b> of US federal debt alone.</td></tr>`;
 }
 /* ---------- paper versus physical (CFTC weekly open interest) ---------- */
 let OI=null;
@@ -417,7 +412,7 @@ function paintPaper(){
     $('#paperAsOf').textContent=`COMEX futures open interest, CFTC Commitments of Traders, week of ${dstr(G.date)}.`;
     $('#paperGold').innerHTML=[['Gold contracts open',G.oi.toLocaleString('en-US')+(G.prev?` · ${G.oi>=G.prev?'+':''}${(G.oi-G.prev).toLocaleString('en-US')} on the week`:'')],
       ['Ounces on paper',(oz/1e6).toFixed(1)+' million'],['In tonnes',Math.round(t).toLocaleString('en-US')+' t'],
-      ['Months of world mine output',(t/GOLD_MINE_T*12).toFixed(1)],['Share of the US gold reserve',(oz/US_GOLD_OZ*100).toFixed(0)+'%'],
+      ['Months of world mine output',(t/GOLD_MINE_T*12).toFixed(1)],['Share of all gold ever mined',(t/ALL_GOLD_T*100).toFixed(2)+'%'],
       GOLD?['Notional value',short(oz*GOLD,1)]:null].filter(Boolean).map(([l,v])=>`<div class="r"><span>${l}</span><b>${v}</b></div>`).join('') }
   if(S){ const oz=S.oi*5000;
     $('#paperSilver').innerHTML=[['Silver contracts open',S.oi.toLocaleString('en-US')+(S.prev?` · ${S.oi>=S.prev?'+':''}${(S.oi-S.prev).toLocaleString('en-US')} on the week`:'')],
