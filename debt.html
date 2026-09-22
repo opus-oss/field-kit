@@ -94,6 +94,21 @@ h2{font:600 1.05rem var(--mono); color:var(--h2); margin-bottom:12px; letter-spa
 .miles span{font:12.5px var(--mono); padding:5px 10px; border-radius:8px; background:var(--chip); border:1px solid var(--line); color:var(--mut)}
 .miles span b{color:var(--ink); font-weight:600}
 .miles span.next{border-color:color-mix(in srgb,var(--acc) 50%,transparent); color:var(--h1)}
+.section{margin:34px 0 12px; border-bottom:1px solid var(--line2); padding-bottom:.4rem}
+.sh{font:600 1.5rem var(--mono); color:var(--h2); margin:0 0 4px}
+.tbl{overflow-x:auto}
+table{width:100%; border-collapse:collapse; font-size:14px}
+th{font:600 11px var(--mono); letter-spacing:.1em; text-transform:uppercase; color:var(--h3); text-align:left; padding:8px 10px; border-bottom:1px solid var(--line2); white-space:nowrap}
+td{padding:10px; border-bottom:1px solid var(--line); vertical-align:top}
+td b{font-family:var(--mono); font-variant-numeric:tabular-nums; font-weight:600}
+td small{display:block; color:var(--mut); font-size:12px; margin-top:2px}
+td.num{text-align:right; white-space:nowrap} th.num{text-align:right}
+td.x b{color:var(--h1)}
+.reg{margin-top:16px; padding-top:14px; border-top:1px solid var(--line)}
+.regrow{display:flex; gap:12px; flex-wrap:wrap; margin:10px 0 6px}
+.regrow label{display:flex; flex-direction:column; gap:5px; font:600 11px var(--mono); letter-spacing:.08em; text-transform:uppercase; color:var(--mut); flex:1 1 200px}
+.regrow input{font:14px var(--mono); padding:9px 11px; border-radius:9px; border:1px solid var(--line); background:var(--chip); color:var(--ink)}
+.regrow input:focus{outline:none; border-color:var(--acc)}
 .src{margin-top:26px; font-size:12px; color:var(--faint); line-height:1.6}
 .err{color:var(--bad)}
 @media(max-width:620px){ .hero .big{font-size:7.1vw} .wrap{padding:20px 14px 50px} h1{font-size:1.7rem} .hero{padding:20px 16px} .card{padding:16px} #chart{height:230px} }
@@ -165,7 +180,50 @@ h2{font:600 1.05rem var(--mono); color:var(--h2); margin-bottom:12px; letter-spa
     <div class="miles" id="miles"></div>
   </div>
 
-  <div class="src">Sources: U.S. Treasury Fiscal Data, Debt to the Penny (daily), Interest Expense on the Public Debt Outstanding, Average Interest Rates on Treasury Securities, Monthly Treasury Statement, Historical Debt Outstanding (1790 on). GDP and population from the St. Louis Fed (FRED), with World Bank figures as a fallback. The running total is an estimate that carries Treasury's latest official figure forward at the past year's pace; Treasury publishes each business day with a one-day lag.</div>
+  <div class="section"><h2 class="sh">The world</h2><div class="eyebrow" id="worldAsOf">IMF World Economic Outlook and Global Debt Database</div></div>
+  <div class="card hero">
+    <div class="eyebrow">Government debt, all countries</div>
+    <div class="big" id="wGov" style="font-size:clamp(22px,5vw,54px)">$—</div>
+    <div class="rate" id="wGovRate"></div>
+  </div>
+  <div class="grid">
+    <div class="card stat"><div class="eyebrow">All debt, estimated</div><div class="v" id="wAll">—</div><div class="d" id="wAllD"></div></div>
+    <div class="card stat"><div class="eyebrow">World debt to GDP</div><div class="v" id="wGdp">—</div><div class="d" id="wGdpD"></div></div>
+    <div class="card stat"><div class="eyebrow">Per person worldwide</div><div class="v" id="wPer">—</div><div class="d" id="wPerD"></div></div>
+    <div class="card stat"><div class="eyebrow">US share of government debt</div><div class="v" id="wUs">—</div><div class="d" id="wUsD"></div></div>
+  </div>
+
+  <div class="section"><h2 class="sh">Hard money</h2><div class="eyebrow" id="metalAsOf">Spot prices</div></div>
+  <div class="grid">
+    <div class="card stat"><div class="eyebrow">Gold</div><div class="v" id="gold">—</div><div class="d">per troy ounce</div></div>
+    <div class="card stat"><div class="eyebrow">Silver</div><div class="v" id="silver">—</div><div class="d">per troy ounce</div></div>
+    <div class="card stat"><div class="eyebrow">Gold to silver ratio</div><div class="v" id="gsr">—</div><div class="d" id="gsrD">ounces of silver to buy one ounce of gold</div></div>
+    <div class="card stat"><div class="eyebrow">US gold reserve</div><div class="v" id="usGold">—</div><div class="d" id="usGoldD">8,133 tonnes at market value</div></div>
+  </div>
+  <div class="card" style="margin-top:14px">
+    <h2>Gold needed to cover the debt</h2>
+    <div class="note" style="margin:-6px 0 10px">The gold price at which each pile of gold would equal each pile of debt.</div>
+    <div class="tbl"><table id="cover"><thead><tr><th>Debt</th><th>Gold behind it</th><th>Price needed</th><th>vs today</th></tr></thead><tbody></tbody></table></div>
+  </div>
+  <div class="card" style="margin-top:14px">
+    <h2>Paper versus physical</h2>
+    <div class="note" style="margin:-6px 0 10px" id="paperAsOf">COMEX futures open interest, from the CFTC's weekly Commitments of Traders report.</div>
+    <div class="two" style="margin-top:0">
+      <div class="rows" id="paperGold"></div>
+      <div class="rows" id="paperSilver"></div>
+    </div>
+    <div class="reg">
+      <div class="eyebrow" style="letter-spacing:.1em">Paper per registered ounce</div>
+      <div class="note">CME doesn't allow its vault reports to be pulled automatically. Paste the registered ounces from its daily <a href="https://www.cmegroup.com/delivery_reports/Gold_Stocks.xls" target="_blank" rel="noopener">gold</a> and <a href="https://www.cmegroup.com/delivery_reports/Silver_stocks.xls" target="_blank" rel="noopener">silver</a> stock reports to see how many paper ounces stand on each deliverable ounce.</div>
+      <div class="regrow">
+        <label>Gold registered oz<input id="regGold" inputmode="numeric" placeholder="e.g. 18,000,000"></label>
+        <label>Silver registered oz<input id="regSilver" inputmode="numeric" placeholder="e.g. 190,000,000"></label>
+      </div>
+      <div class="rows" id="regOut"></div>
+    </div>
+  </div>
+
+  <div class="src">Sources: U.S. Treasury Fiscal Data, Debt to the Penny (daily), Interest Expense on the Public Debt Outstanding, Average Interest Rates on Treasury Securities, Monthly Treasury Statement, Historical Debt Outstanding (1790 on). GDP, population and world debt from the IMF World Economic Outlook and Global Debt Database, with World Bank figures as a fallback. Gold and silver spot from gold-api.com. COMEX open interest from the CFTC Commitments of Traders report. US gold reserve from the Treasury's status report (261.5 million troy ounces). World gold figures from the World Gold Council: about 216,000 tonnes mined in all of history (end of 2024), about 36,000 tonnes held by central banks, 3,661 tonnes mined in 2024. Silver mine output of 820 million ounces in 2024 from the Silver Institute. All-debt estimate holds household and business debt at its 2024 share of GDP and excludes debt of banks and other financial firms. The running total is an estimate that carries Treasury's latest official figure forward at the past year's pace; Treasury publishes each business day with a one-day lag.</div>
 </div>
 
 <script>
@@ -228,7 +286,7 @@ async function loadBudget(){
     D.intPubPrev=sum(lastYr,'INTEREST EXPENSE ON PUBLIC ISSUES'); D.intDate=pday(end);
     D.fyStart=new Date(D.fy-1,9,1);
   }catch(e){ D.intErr=e.message }
-  paintStatic(); drawChart();
+  paintStatic(); drawChart(); paintWorld(); paintCover();
 }
 
 /* ---------- live numbers ---------- */
@@ -237,6 +295,7 @@ function tick(){
   if(!D.last)return;
   const v=est(); $('#total').innerHTML=`<span class="cur">$</span>${Math.round(v).toLocaleString('en-US')}`;
   if(D.macro&&D.macro.pop)$('#perPerson').textContent=usd0(v/D.macro.pop.people);
+  tickWorld();
   if(D.intPub!=null){ const per=D.intPub/((+D.intDate-+D.fyStart)/DAY+1); const nowFy=Date.now()<+new Date(D.fy,9,1);
     $('#interest').textContent=usd0(nowFy?D.intPub+per*Math.max(0,(Date.now()-+D.intDate-DAY)/DAY):D.intPub) }
 }
@@ -247,9 +306,9 @@ function paintStatic(){
   $('#official').textContent=`Treasury's official figure is ${usd0(L.v)} on ${dstr(L.t)}. The clock carries it forward from there.`;
   // per person, GDP
   const M=D.macro||{};
-  if(M.pop)$('#perPersonD').textContent=`${(M.pop.people/1e6).toFixed(1)} million people${M.pop.wb?' (World Bank, '+M.pop.date+')':', Census estimate for '+new Date(M.pop.date+'T12:00').toLocaleDateString(undefined,{month:'long',year:'numeric'})}`;
+  if(M.pop)$('#perPersonD').textContent=`${(M.pop.people/1e6).toFixed(1)} million people (${M.pop.wb?'World Bank':'IMF'}, ${M.pop.date})`;
   if(M.gdp){ const r=est()/M.gdp.usd*100; $('#toGdp').textContent=r.toFixed(1)+'%';
-    const q=new Date(M.gdp.date+'T12:00'); $('#toGdpD').textContent=M.gdp.wb?`against ${M.gdp.date} GDP of ${short(M.gdp.usd)} (World Bank)`:`against ${short(M.gdp.usd)} GDP, annual rate, Q${Math.floor(q.getMonth()/3)+1} ${q.getFullYear()}` }
+    $('#toGdpD').textContent=`against ${M.gdp.date} GDP of ${short(M.gdp.usd)} (${M.gdp.wb?'World Bank':'IMF projection'})` }
   // next trillion
   const nextT=Math.ceil(est()/1e12)*1e12, when=new Date(D.base+(nextT-D.last.v)/D.slope);
   $('#nextT').textContent=dshort(when);
@@ -287,6 +346,96 @@ function paintStatic(){
     `<span class="next"><b>$${nextT/1e12}T</b> around ${dstr(when)}</span>`;
 }
 
+/* ---------- the world (IMF) ---------- */
+const YEAR=(y)=>+new Date(Date.UTC(y,0,1));
+function worldAt(t){                                         // IMF stocks are end-of-year: interpolate through the year
+  const W=D.macro&&D.macro.world; if(!W)return null;
+  const y=new Date(t).getUTCFullYear(), a=W.gov[String(y-1)], b=W.gov[String(y)]; if(!a||!b)return null;
+  const f=(t-YEAR(y))/(YEAR(y+1)-YEAR(y));
+  const g0=W.gdp[String(y-1)], g1=W.gdp[String(y)], gdp=g0&&g1?g0+(g1-g0)*f:null;
+  const gov=a.usd+(b.usd-a.usd)*f, pr=W.private, g24=W.gdp[String(pr.year)];
+  const priv=gdp&&g24?pr.usd*(gdp/g24):null;                  // household + business debt held at its latest share of GDP
+  return {gov,gdp,priv,all:priv!=null?gov+priv:null,rate:(b.usd-a.usd)/(YEAR(y+1)-YEAR(y)),y};
+}
+function paintWorld(){
+  const w=worldAt(Date.now()), W=D.macro&&D.macro.world; if(!w){ $('#worldAsOf').textContent='World figures unavailable'; return }
+  $('#worldAsOf').textContent=`IMF World Economic Outlook, ${w.y} projection · private debt from the Global Debt Database, ${W.private.year}`;
+  $('#wGovRate').innerHTML=`Rising about <b>${short(w.rate*DAY,1)}</b> a day across ${W.gov[String(w.y)].countries} countries, per the IMF's ${w.y} projection.`;
+  if(w.all){ $('#wAllD').textContent=`governments ${short(w.gov,1)}, households and businesses ${short(w.priv,1)}. Excludes banks and other financial firms.` }
+  if(w.gdp){ $('#wGdpD').textContent=`all debt against world GDP of ${short(w.gdp,1)}` }
+  $('#wPerD').textContent=`${(W.pop/1e9).toFixed(2)} billion people`;
+  $('#wUsD').textContent=`US federal debt against all government debt`;
+}
+function tickWorld(){
+  const w=worldAt(Date.now()), W=D.macro&&D.macro.world; if(!w)return;
+  $('#wGov').innerHTML=`<span class="cur">$</span>${Math.round(w.gov).toLocaleString('en-US')}`;
+  if(w.all){ $('#wAll').textContent=short(w.all,1); if(w.gdp)$('#wGdp').textContent=(w.all/w.gdp*100).toFixed(0)+'%'; $('#wPer').textContent=usd0(w.all/W.pop) }
+  if(D.last)$('#wUs').textContent=(est()/w.gov*100).toFixed(1)+'%';
+}
+
+/* ---------- hard money ---------- */
+const OZ_T=32150.7466, US_GOLD_OZ=261498926.241, CB_GOLD_T=36000, ALL_GOLD_T=216265, GOLD_MINE_T=3661, SILVER_MINE_OZ=819.7e6;
+let GOLD=null, SILVER=null, metalAt=null;
+async function loadMetals(){
+  try{
+    const [g,s]=await Promise.all([j('https://api.gold-api.com/price/XAU'),j('https://api.gold-api.com/price/XAG')]);
+    GOLD=g.price; SILVER=s.price; metalAt=new Date(g.updatedAt||Date.now());
+    $('#gold').textContent='$'+GOLD.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+    $('#silver').textContent='$'+SILVER.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+    $('#gsr').textContent=(GOLD/SILVER).toFixed(1);
+    $('#usGold').textContent=short(US_GOLD_OZ*GOLD,2);
+    $('#metalAsOf').textContent=`Spot prices as of ${metalAt.toLocaleTimeString([],{hour:'numeric',minute:'2-digit'})}, refreshed every minute`;
+    paintCover(); paintPaper();
+  }catch(e){ $('#metalAsOf').textContent='Spot prices unavailable right now' }
+}
+function paintCover(){
+  if(!GOLD||!D.last)return;
+  const w=worldAt(Date.now()), L=D.last, us=est();
+  const rows=[
+    ['US federal debt', us, 'US Treasury gold', US_GOLD_OZ, '8,133 tonnes'],
+    ['US debt held by the public', L.pub*(us/L.v), 'US Treasury gold', US_GOLD_OZ, '8,133 tonnes'],
+    w&&['Government debt, all countries', w.gov, 'Central bank gold', CB_GOLD_T*OZ_T, 'about 36,000 tonnes'],
+    w&&w.all&&['All debt worldwide, estimated', w.all, 'All gold ever mined', ALL_GOLD_T*OZ_T, 'about 216,000 tonnes'],
+  ].filter(Boolean);
+  $('#cover tbody').innerHTML=rows.map(([d,v,g,oz,t])=>{ const p=v/oz; return `<tr><td>${d}<small>${short(v,2)}</small></td><td>${g}<small>${t}</small></td><td class="num"><b>${usd0(p)}</b><small>per ounce</small></td><td class="num x"><b>${(p/GOLD).toFixed(0)}×</b><small>today's price</small></td></tr>` }).join('')+
+    `<tr><td colspan="4" style="color:var(--mut);font-size:13px;border-bottom:none">At today's price the US gold reserve covers <b style="color:var(--ink)">${(US_GOLD_OZ*GOLD/us*100).toFixed(1)}%</b> of federal debt. On Treasury's books it's still valued at the statutory $42.22 an ounce, or ${short(US_GOLD_OZ*42.2222,1)}.</td></tr>`;
+}
+/* ---------- paper versus physical (CFTC weekly open interest) ---------- */
+let OI=null;
+async function loadPaper(){
+  try{
+    const where=encodeURIComponent("market_and_exchange_names in('GOLD - COMMODITY EXCHANGE INC.','SILVER - COMMODITY EXCHANGE INC.')");
+    const d=await j(`https://publicreporting.cftc.gov/resource/6dca-aqww.json?$where=${where}&$order=report_date_as_yyyy_mm_dd%20DESC&$limit=6&$select=report_date_as_yyyy_mm_dd,market_and_exchange_names,open_interest_all`);
+    const pick=n=>{const r=d.filter(x=>x.market_and_exchange_names.startsWith(n)); return r.length?{date:new Date(r[0].report_date_as_yyyy_mm_dd),oi:+r[0].open_interest_all,prev:r[1]?+r[1].open_interest_all:null}:null};
+    OI={gold:pick('GOLD'),silver:pick('SILVER')}; paintPaper();
+  }catch(e){ $('#paperAsOf').textContent='CFTC data unavailable right now' }
+}
+function paintPaper(){
+  if(!OI)return;
+  const G=OI.gold, S=OI.silver;
+  if(G){ const oz=G.oi*100, t=oz/OZ_T;
+    $('#paperAsOf').textContent=`COMEX futures open interest, CFTC Commitments of Traders, week of ${dstr(G.date)}.`;
+    $('#paperGold').innerHTML=[['Gold contracts open',G.oi.toLocaleString('en-US')+(G.prev?` · ${G.oi>=G.prev?'+':''}${(G.oi-G.prev).toLocaleString('en-US')} on the week`:'')],
+      ['Ounces on paper',(oz/1e6).toFixed(1)+' million'],['In tonnes',Math.round(t).toLocaleString('en-US')+' t'],
+      ['Months of world mine output',(t/GOLD_MINE_T*12).toFixed(1)],['Share of the US gold reserve',(oz/US_GOLD_OZ*100).toFixed(0)+'%'],
+      GOLD?['Notional value',short(oz*GOLD,1)]:null].filter(Boolean).map(([l,v])=>`<div class="r"><span>${l}</span><b>${v}</b></div>`).join('') }
+  if(S){ const oz=S.oi*5000;
+    $('#paperSilver').innerHTML=[['Silver contracts open',S.oi.toLocaleString('en-US')+(S.prev?` · ${S.oi>=S.prev?'+':''}${(S.oi-S.prev).toLocaleString('en-US')} on the week`:'')],
+      ['Ounces on paper',(oz/1e6).toFixed(0)+' million'],['In tonnes',Math.round(oz/OZ_T).toLocaleString('en-US')+' t'],
+      ['Months of world mine output',(oz/SILVER_MINE_OZ*12).toFixed(1)],SILVER?['Notional value',short(oz*SILVER,1)]:null].filter(Boolean).map(([l,v])=>`<div class="r"><span>${l}</span><b>${v}</b></div>`).join('') }
+  paintReg();
+}
+const store={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+function paintReg(){
+  const g=parseFloat(($('#regGold').value||'').replace(/[^0-9.]/g,'')), s=parseFloat(($('#regSilver').value||'').replace(/[^0-9.]/g,''));
+  const out=[]; const R=store.get('dc_reg',{});
+  if(OI&&OI.gold&&g>0) out.push(['Gold: paper ounces per registered ounce',(OI.gold.oi*100/g).toFixed(1)+' to 1'+(R.at?` · registered figure entered ${dshort(new Date(R.at))}`:'')]);
+  if(OI&&OI.silver&&s>0) out.push(['Silver: paper ounces per registered ounce',(OI.silver.oi*5000/s).toFixed(1)+' to 1']);
+  $('#regOut').innerHTML=out.map(([l,v])=>`<div class="r tot"><span>${l}</span><b>${v}</b></div>`).join('');
+}
+['regGold','regSilver'].forEach(id=>{ const el=$('#'+id), R=store.get('dc_reg',{}); if(R[id])el.value=R[id];
+  el.addEventListener('input',()=>{ const raw=el.value.replace(/[^0-9]/g,''); el.value=raw?(+raw).toLocaleString('en-US'):''; const R2=store.get('dc_reg',{}); R2[id]=el.value; R2.at=Date.now(); store.set('dc_reg',R2); paintReg() }) });
+
 /* ---------- history chart ---------- */
 let range='3y';
 function series(){
@@ -323,7 +472,8 @@ function axis(v){return v>=1e12?'$'+(v/1e12).toFixed(v%1e12?1:0)+'T':v>=1e9?'$'+
 $$('#range button').forEach(b=>b.onclick=()=>{range=b.dataset.r; $$('#range button').forEach(x=>x.classList.toggle('on',x===b)); drawChart()});
 addEventListener('resize',()=>{ if(D.last)drawChart() });
 
-load().then(()=>{ tick(); setInterval(tick,100) }).catch(e=>{ $('#asof').innerHTML=`<span class="err">Treasury data unavailable (${e.message}).</span>` });
+load().then(()=>{ tick(); setInterval(tick,100); setInterval(paintCover,5000) }).catch(e=>{ $('#asof').innerHTML=`<span class="err">Treasury data unavailable (${e.message}).</span>` });
+loadMetals(); setInterval(loadMetals,60000); loadPaper();
 if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});
 </script>
 <script>(function(){var b=document.getElementById('themeBtn');if(!b)return;b.onclick=function(){var n=document.documentElement.getAttribute('data-theme')==='light'?'dark':'light';if(n==='light')document.documentElement.setAttribute('data-theme','light');else document.documentElement.removeAttribute('data-theme');try{localStorage.setItem('fk_theme',n)}catch(e){}var m=document.getElementById('tc');if(m)m.content=n==='light'?'#e0cfb0':'#1b1e1f';if(window.onFkTheme)window.onFkTheme(n)}})()</script>
