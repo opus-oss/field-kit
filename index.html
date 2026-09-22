@@ -116,6 +116,8 @@ a{color:var(--acc)}
 .hrow{display:flex; overflow-x:auto; gap:6px; padding-bottom:4px}
 .hcell{min-width:74px; text-align:center; background:var(--chip); border-radius:10px; padding:8px 4px; font-size:12px}
 .hcell .t{font-size:17px; font-weight:700}
+.hcell.now{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--acc) 45%,transparent)}
+.hnote{font-size:12.5px; color:var(--mut); margin-top:8px}
 .hcell .p{color:var(--acc); font-size:11.5px; font-variant-numeric:tabular-nums}
 .ncl{--sev:var(--h3); margin-top:12px; padding:9px 12px; border-radius:10px; font-size:14px; line-height:1.45; background:color-mix(in srgb,var(--sev) 10%,var(--chip)); border-left:3px solid var(--sev)}
 .ncl.dry{--sev:var(--good)} .ncl.soon{--sev:var(--acc)} .ncl.rain{--sev:var(--h3)}
@@ -462,7 +464,7 @@ async function loadNWS(){
     if(st.features&&st.features.length){
       now.station=st.features[0].properties.name;
       const o=(await j(st.features[0].id+'/observations/latest')).properties;
-      if(o.temperature.value!=null)now.tempF=c2f(o.temperature.value);
+      if(o.temperature.value!=null){now.tempF=c2f(o.temperature.value); now.obsAt=o.timestamp}
       now.desc=o.textDescription||'';
       if(o.windSpeed.value!=null)now.windMph=kmh2mph(o.windSpeed.value);
       if(o.windGust&&o.windGust.value!=null)now.gustMph=kmh2mph(o.windGust.value);
@@ -475,7 +477,7 @@ async function loadNWS(){
   const p0=hr.properties.periods[0];
   if(now.tempF==null){now.tempF=p0.temperature; now.desc=now.desc||p0.shortForecast; now.windMph=now.windMph==null?windMax(p0.windSpeed):now.windMph}
   return {source:'nws',now,
-    hourly:hr.properties.periods.slice(0,12).map(p=>({time:p.startTime,tempF:p.temperature,
+    hourly:hr.properties.periods.filter(p=>new Date(p.endTime)>Date.now()).slice(0,12).map(p=>({time:p.startTime,tempF:p.temperature,
       pop:(p.probabilityOfPrecipitation&&p.probabilityOfPrecipitation.value)||0,wind:p.windSpeed,short:p.shortForecast,
       dewF:(p.dewpoint&&p.dewpoint.value!=null)?c2f(p.dewpoint.value):null})),
     dailyNws:fc.properties.periods,
@@ -545,13 +547,30 @@ function renderNow(){
 /* dew point comfort, in °F: under 55 dry, 55-64 comfortable to sticky, 65-69 muggy, 70+ oppressive */
 function dewFeel(f){ if(f==null)return ['',''];
   return f>=70?['oppressive','hot']:f>=65?['muggy','warm']:f>=55?['sticky','']:['dry','cool']; }
+/* The hourly forecast is issued a few times a day and can miss what's happening now (a cloud deck, rain-cooled air).
+   When a fresh station reading disagrees with the forecast for this hour, the first cell shows the reading and the
+   next hours are shifted by the miss, fading out over a few hours as the forecast's own timing takes over. */
+function anchoredHourly(){
+  const H=WX.hourly, n=WX.now, out=H.map(p=>Object.assign({},p,{adj:0}));
+  const fresh=n&&n.tempF!=null&&n.obsAt&&Date.now()-Date.parse(n.obsAt)<90*60e3;
+  if(!fresh||!out.length)return {rows:out,miss:0};
+  const miss=n.tempF-out[0].tempF;
+  out[0].tempF=n.tempF; out[0].isNow=true;
+  if(Math.abs(miss)>=2) for(let i=1;i<out.length;i++){
+    const hrs=(Date.parse(out[i].time)-Date.now())/36e5, w=Math.exp(-Math.max(0,hrs)/4);
+    out[i].adj=miss*w; out[i].tempF=out[i].tempF+out[i].adj;
+  }
+  return {rows:out,miss};
+}
 function renderHourly(){
-  $('#hourly').innerHTML=`<div class="hrow">${WX.hourly.map(p=>{
-    const t=new Date(p.time).toLocaleTimeString([],{hour:'numeric'});
+  const A=anchoredHourly();
+  $('#hourly').innerHTML=`<div class="hrow">${A.rows.map(p=>{
+    const t=p.isNow?'Now':new Date(p.time).toLocaleTimeString([],{hour:'numeric'});
     const dw=dewFeel(p.dewF);
-    return `<div class="hcell"><div>${t}</div><div class="t">${tT(p.tempF)}</div>
+    const tip=p.isNow?'Current station reading':Math.abs(p.adj)>=0.5?`Forecast ${tT(p.tempF-p.adj)}, adjusted to current conditions`:'Forecast';
+    return `<div class="hcell${p.isNow?' now':''}"><div>${t}</div><div class="t" title="${esc(tip)}">${tT(p.tempF)}</div>
       <div class="p" title="Chance of precipitation this hour">rain ${p.pop}%</div>${p.dewF!=null?`<div class="dw ${dw[1]}" title="Dew point ${tT(p.dewF)}, ${dw[0]}">dew ${tT(p.dewF)}</div>`:''}<div class="muted">${esc(wStr(p.wind))}</div></div>`;
-  }).join('')}</div>`;
+  }).join('')}</div>`+(Math.abs(A.miss)>=2?`<div class="hnote">The forecast has it ${Math.abs(Math.round(A.miss))}° ${A.miss<0?'warmer':'cooler'} than the ${tT(WX.now.tempF)} reading right now, so the next few hours are adjusted toward what's actually happening.</div>`:'');
 }
 function renderDaily(){
   if(WX.dailyNws){
