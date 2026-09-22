@@ -104,7 +104,16 @@ td b{font-family:var(--mono); font-variant-numeric:tabular-nums; font-weight:600
 td small{display:block; color:var(--mut); font-size:12px; margin-top:2px}
 td.num{text-align:right; white-space:nowrap} th.num{text-align:right}
 td.x b{color:var(--h1)}
-.reg{margin-top:16px; padding-top:14px; border-top:1px solid var(--line)}
+.pp{display:grid; gap:14px; grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+.ppm{background:var(--chip); border:1px solid var(--line); border-radius:12px; padding:14px 16px}
+.ppv{font:700 1.8rem var(--mono); letter-spacing:-.02em; margin:2px 0 4px}
+.ppd{font-size:14px; color:var(--mut); line-height:1.45}
+.ppd b{color:var(--h1); font-family:var(--mono)}
+.reg{margin-top:16px; padding-top:12px; border-top:1px solid var(--line)}
+.reg summary{cursor:pointer; font:600 13px var(--mono); color:var(--mut)}
+.reg summary:hover{color:var(--ink)}
+.reg[open] summary{color:var(--h2); margin-bottom:8px}
+.regline{font-size:14.5px; margin-top:6px} .regline b{font-family:var(--mono); color:var(--h1)}
 .regrow{display:flex; gap:12px; flex-wrap:wrap; margin:10px 0 6px}
 .regrow label{display:flex; flex-direction:column; gap:5px; font:600 11px var(--mono); letter-spacing:.08em; text-transform:uppercase; color:var(--mut); flex:1 1 200px}
 .regrow input{font:14px var(--mono); padding:9px 11px; border-radius:9px; border:1px solid var(--line); background:var(--chip); color:var(--ink)}
@@ -207,20 +216,20 @@ td.x b{color:var(--h1)}
   </div>
   <div class="card" style="margin-top:14px">
     <h2>Paper versus physical</h2>
-    <div class="note" style="margin:-6px 0 10px" id="paperAsOf">COMEX futures open interest, from the CFTC's weekly Commitments of Traders report.</div>
-    <div class="two" style="margin-top:0">
-      <div class="rows" id="paperGold"></div>
-      <div class="rows" id="paperSilver"></div>
+    <div class="note" style="margin:-6px 0 14px" id="paperAsOf">Gold and silver owed on paper in COMEX futures, set against how much real metal the world mines.</div>
+    <div class="pp">
+      <div class="ppm"><div class="eyebrow">Gold</div><div class="ppv" id="ppGold">—</div><div class="ppd" id="ppGoldD"></div></div>
+      <div class="ppm"><div class="eyebrow">Silver</div><div class="ppv" id="ppSilver">—</div><div class="ppd" id="ppSilverD"></div></div>
     </div>
-    <div class="reg">
-      <div class="eyebrow" style="letter-spacing:.1em">Paper per registered ounce</div>
-      <div class="note">CME doesn't allow its vault reports to be pulled automatically. Paste the registered ounces from its daily <a href="https://www.cmegroup.com/delivery_reports/Gold_Stocks.xls" target="_blank" rel="noopener">gold</a> and <a href="https://www.cmegroup.com/delivery_reports/Silver_stocks.xls" target="_blank" rel="noopener">silver</a> stock reports to see how many paper ounces stand on each deliverable ounce.</div>
+    <details class="reg">
+      <summary>Paper ounces for every ounce in the COMEX vault</summary>
+      <div class="note">This is the classic ratio, but CME doesn't let its vault figures be pulled automatically. Copy the "registered" total from its daily <a href="https://www.cmegroup.com/delivery_reports/Gold_Stocks.xls" target="_blank" rel="noopener">gold</a> or <a href="https://www.cmegroup.com/delivery_reports/Silver_stocks.xls" target="_blank" rel="noopener">silver</a> stock report and paste it here.</div>
       <div class="regrow">
-        <label>Gold registered oz<input id="regGold" inputmode="numeric" placeholder="e.g. 18,000,000"></label>
-        <label>Silver registered oz<input id="regSilver" inputmode="numeric" placeholder="e.g. 190,000,000"></label>
+        <label>Gold registered oz<input id="regGold" inputmode="numeric" placeholder="paste from the gold report"></label>
+        <label>Silver registered oz<input id="regSilver" inputmode="numeric" placeholder="paste from the silver report"></label>
       </div>
-      <div class="rows" id="regOut"></div>
-    </div>
+      <div id="regOut"></div>
+    </details>
   </div>
 
   <div class="src">Sources: U.S. Treasury Fiscal Data, Debt to the Penny (daily), Interest Expense on the Public Debt Outstanding, Average Interest Rates on Treasury Securities, Monthly Treasury Statement, Historical Debt Outstanding (1790 on). GDP, population and world debt from the IMF World Economic Outlook and Global Debt Database, with World Bank figures as a fallback. Gold and silver spot from gold-api.com. COMEX open interest from the CFTC Commitments of Traders report. World gold figures from the World Gold Council: about 216,000 tonnes mined in all of history (end of 2024) and 3,661 tonnes mined in 2024. Silver mine output of 820 million ounces in 2024 from the Silver Institute. All-debt estimate holds household and business debt at its 2024 share of GDP and excludes debt of banks and other financial firms. The running total is an estimate that carries Treasury's latest official figure forward at the past year's pace; Treasury publishes each business day with a one-day lag.</div>
@@ -407,26 +416,23 @@ async function loadPaper(){
 }
 function paintPaper(){
   if(!OI)return;
-  const G=OI.gold, S=OI.silver;
-  if(G){ const oz=G.oi*100, t=oz/OZ_T;
-    $('#paperAsOf').textContent=`COMEX futures open interest, CFTC Commitments of Traders, week of ${dstr(G.date)}.`;
-    $('#paperGold').innerHTML=[['Gold contracts open',G.oi.toLocaleString('en-US')+(G.prev?` · ${G.oi>=G.prev?'+':''}${(G.oi-G.prev).toLocaleString('en-US')} on the week`:'')],
-      ['Ounces on paper',(oz/1e6).toFixed(1)+' million'],['In tonnes',Math.round(t).toLocaleString('en-US')+' t'],
-      ['Months of world mine output',(t/GOLD_MINE_T*12).toFixed(1)],['Share of all gold ever mined',(t/ALL_GOLD_T*100).toFixed(2)+'%'],
-      GOLD?['Notional value',short(oz*GOLD,1)]:null].filter(Boolean).map(([l,v])=>`<div class="r"><span>${l}</span><b>${v}</b></div>`).join('') }
-  if(S){ const oz=S.oi*5000;
-    $('#paperSilver').innerHTML=[['Silver contracts open',S.oi.toLocaleString('en-US')+(S.prev?` · ${S.oi>=S.prev?'+':''}${(S.oi-S.prev).toLocaleString('en-US')} on the week`:'')],
-      ['Ounces on paper',(oz/1e6).toFixed(0)+' million'],['In tonnes',Math.round(oz/OZ_T).toLocaleString('en-US')+' t'],
-      ['Months of world mine output',(oz/SILVER_MINE_OZ*12).toFixed(1)],SILVER?['Notional value',short(oz*SILVER,1)]:null].filter(Boolean).map(([l,v])=>`<div class="r"><span>${l}</span><b>${v}</b></div>`).join('') }
+  const G=OI.gold, S=OI.silver, months=m=>m<1.5?`${Math.round(m*30)} days`:`${m.toFixed(1)} months`;
+  if(G){ const oz=G.oi*100, m=oz/OZ_T/GOLD_MINE_T*12;
+    $('#paperAsOf').textContent=`Gold and silver owed on paper in COMEX futures (CFTC, week of ${dstr(G.date)}), set against how much real metal the world mines.`;
+    $('#ppGold').textContent=`${(oz/1e6).toFixed(0)} million oz`;
+    $('#ppGoldD').innerHTML=`owed on paper. Every gold mine on Earth needs <b>${months(m)}</b> to dig that much.` }
+  if(S){ const oz=S.oi*5000, m=oz/SILVER_MINE_OZ*12;
+    $('#ppSilver').textContent=`${(oz/1e6).toFixed(0)} million oz`;
+    $('#ppSilverD').innerHTML=`owed on paper. Every silver mine on Earth needs <b>${months(m)}</b> to dig that much.` }
   paintReg();
 }
 const store={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
 function paintReg(){
   const g=parseFloat(($('#regGold').value||'').replace(/[^0-9.]/g,'')), s=parseFloat(($('#regSilver').value||'').replace(/[^0-9.]/g,''));
-  const out=[]; const R=store.get('dc_reg',{});
-  if(OI&&OI.gold&&g>0) out.push(['Gold: paper ounces per registered ounce',(OI.gold.oi*100/g).toFixed(1)+' to 1'+(R.at?` · registered figure entered ${dshort(new Date(R.at))}`:'')]);
-  if(OI&&OI.silver&&s>0) out.push(['Silver: paper ounces per registered ounce',(OI.silver.oi*5000/s).toFixed(1)+' to 1']);
-  $('#regOut').innerHTML=out.map(([l,v])=>`<div class="r tot"><span>${l}</span><b>${v}</b></div>`).join('');
+  const out=[];
+  if(OI&&OI.gold&&g>0) out.push(`Gold: <b>${(OI.gold.oi*100/g).toFixed(1)}</b> paper ounces for every ounce in the vault`);
+  if(OI&&OI.silver&&s>0) out.push(`Silver: <b>${(OI.silver.oi*5000/s).toFixed(1)}</b> paper ounces for every ounce in the vault`);
+  $('#regOut').innerHTML=out.map(x=>`<div class="regline">${x}</div>`).join('');
 }
 ['regGold','regSilver'].forEach(id=>{ const el=$('#'+id), R=store.get('dc_reg',{}); if(R[id])el.value=R[id];
   el.addEventListener('input',()=>{ const raw=el.value.replace(/[^0-9]/g,''); el.value=raw?(+raw).toLocaleString('en-US'):''; const R2=store.get('dc_reg',{}); R2[id]=el.value; R2.at=Date.now(); store.set('dc_reg',R2); paintReg() }) });
