@@ -216,14 +216,14 @@ td.x b{color:var(--h1)}
   </div>
   <div class="card" style="margin-top:14px">
     <h2>Paper versus physical</h2>
-    <div class="note" style="margin:-6px 0 14px" id="paperAsOf">Gold and silver owed on paper in COMEX futures, set against how much real metal the world mines.</div>
+    <div class="note" style="margin:-6px 0 14px" id="paperAsOf">Ounces promised in COMEX futures contracts.</div>
     <div class="pp">
       <div class="ppm"><div class="eyebrow">Gold</div><div class="ppv" id="ppGold">—</div><div class="ppd" id="ppGoldD"></div></div>
       <div class="ppm"><div class="eyebrow">Silver</div><div class="ppv" id="ppSilver">—</div><div class="ppd" id="ppSilverD"></div></div>
     </div>
-    <details class="reg">
-      <summary>Paper ounces for every ounce in the COMEX vault</summary>
-      <div class="note">This is the classic ratio, but CME doesn't let its vault figures be pulled automatically. Copy the "registered" total from its daily <a href="https://www.cmegroup.com/delivery_reports/Gold_Stocks.xls" target="_blank" rel="noopener">gold</a> or <a href="https://www.cmegroup.com/delivery_reports/Silver_stocks.xls" target="_blank" rel="noopener">silver</a> stock report and paste it here.</div>
+    <details class="reg" open>
+      <summary>Paper ounces for every ounce actually in the COMEX vault</summary>
+      <div class="note">CME doesn't allow its vault figures to be pulled automatically. Copy the "registered" total from its daily <a href="https://www.cmegroup.com/delivery_reports/Gold_Stocks.xls" target="_blank" rel="noopener">gold</a> or <a href="https://www.cmegroup.com/delivery_reports/Silver_stocks.xls" target="_blank" rel="noopener">silver</a> stock report and paste it here.</div>
       <div class="regrow">
         <label>Gold registered oz<input id="regGold" inputmode="numeric" placeholder="paste from the gold report"></label>
         <label>Silver registered oz<input id="regSilver" inputmode="numeric" placeholder="paste from the silver report"></label>
@@ -416,14 +416,10 @@ async function loadPaper(){
 }
 function paintPaper(){
   if(!OI)return;
-  const G=OI.gold, S=OI.silver, months=m=>m<1.5?`${Math.round(m*30)} days`:`${m.toFixed(1)} months`;
-  if(G){ const oz=G.oi*100, m=oz/OZ_T/GOLD_MINE_T*12;
-    $('#paperAsOf').textContent=`Gold and silver owed on paper in COMEX futures (CFTC, week of ${dstr(G.date)}), set against how much real metal the world mines.`;
-    $('#ppGold').textContent=`${(oz/1e6).toFixed(0)} million oz`;
-    $('#ppGoldD').innerHTML=`owed on paper. Every gold mine on Earth needs <b>${months(m)}</b> to dig that much.` }
-  if(S){ const oz=S.oi*5000, m=oz/SILVER_MINE_OZ*12;
-    $('#ppSilver').textContent=`${(oz/1e6).toFixed(0)} million oz`;
-    $('#ppSilverD').innerHTML=`owed on paper. Every silver mine on Earth needs <b>${months(m)}</b> to dig that much.` }
+  const G=OI.gold, S=OI.silver;
+  if(G){ $('#paperAsOf').textContent=`Ounces promised in COMEX futures contracts (CFTC, week of ${dstr(G.date)}). Most of these settle in cash and the metal never changes hands.`;
+    $('#ppGold').textContent=`${(G.oi*100/1e6).toFixed(0)} million oz`; $('#ppGoldD').textContent='of gold promised on paper' }
+  if(S){ $('#ppSilver').textContent=`${(S.oi*5000/1e6).toFixed(0)} million oz`; $('#ppSilverD').textContent='of silver promised on paper' }
   paintReg();
 }
 const store={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
