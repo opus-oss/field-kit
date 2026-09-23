@@ -251,11 +251,24 @@ const $=s=>document.querySelector(s), $$=s=>document.querySelectorAll(s);
 const store={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]))}
 async function relay(u,ms){
+  // Free CORS relays come and go. corsproxy.io went key-only and started answering 401, which
+  // left the board spinning, so the order below is what actually answers, fastest first.
   const custom=store.get('fk_proxy','');
   const P=[];
-  if(custom)P.push(x=>custom.replace(/\/+$/,'')+'/?url='+encodeURIComponent(x));   // your Cloudflare Worker first
-  P.push(x=>'https://corsproxy.io/?url='+encodeURIComponent(x), x=>'https://api.allorigins.win/raw?url='+encodeURIComponent(x), x=>'https://api.codetabs.com/v1/proxy/?quest='+encodeURIComponent(x));
-  let e;for(const p of P){try{const c=new AbortController();const t=setTimeout(()=>c.abort(),ms||10000);const r=await fetch(p(u),{signal:c.signal});clearTimeout(t);if(r.ok)return r;e=new Error('HTTP '+r.status)}catch(x){e=x}}throw e||new Error('relay down');
+  if(custom)P.push({u:x=>custom.replace(/\/+$/,'')+'/?url='+encodeURIComponent(x)});   // your Cloudflare Worker first
+  P.push({u:x=>'https://r.jina.ai/'+x, h:{'x-respond-with':'text'}},
+         {u:x=>'https://api.allorigins.win/raw?url='+encodeURIComponent(x)},
+         {u:x=>'https://api.codetabs.com/v1/proxy/?quest='+encodeURIComponent(x)});
+  let e;
+  for(const p of P){
+    try{
+      const c=new AbortController();const t=setTimeout(()=>c.abort(),ms||10000);
+      const r=await fetch(p.u(u),{signal:c.signal,headers:p.h||undefined});clearTimeout(t);
+      if(r.ok)return r;
+      e=new Error('HTTP '+r.status);
+    }catch(x){e=x}
+  }
+  throw e||new Error('relay down');
 }
 
 /* ---- session ---- */
@@ -306,7 +319,7 @@ async function fetchQuotes(onChunk){
       }
     }catch(e){}
   }
-  if(!ok) throw new Error('all quote batches failed');
+  if(!ok) throw new Error('every relay refused the quote request');
   return q;
 }
 const fmtP=p=>p==null?'—':p>=1000?p.toLocaleString(undefined,{maximumFractionDigits:0}):p.toFixed(2);
@@ -352,7 +365,8 @@ let busy=false;
 async function loadMarkets(){
   if(busy)return;busy=true;$('#upd').textContent='Loading quotes…';
   try{Q=await fetchQuotes(partial=>{Q=partial;renderMarkets();});renderMarkets();$('#upd').textContent='Quotes updated '+new Date().toLocaleTimeString([],{hour:'numeric',minute:'2-digit'});}
-  catch(e){$('#upd').textContent='';$('#indices').innerHTML=`<span class="err">Quotes failed (${esc(e.message)}) — relays busy, hit Refresh.</span>`;}
+  catch(e){$('#upd').textContent='';
+    $('#indices').innerHTML=`<span class="err">Quotes unavailable: ${esc(e.message)}.</span> <span class="muted">The public relays this board borrows are down or throttled. Hit Refresh, or set your own Cloudflare Worker with ⚡ for quotes that always work.</span>`;}
   busy=false;
 }
 $('#refresh').onclick=()=>loadMarkets();
