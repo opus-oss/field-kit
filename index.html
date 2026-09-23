@@ -123,10 +123,11 @@ a{color:var(--acc)}
 .ncl a{font:12px var(--mono); white-space:nowrap; margin-left:4px}
 .hcell .dw{font-size:11.5px; color:var(--mut); font-variant-numeric:tabular-nums}
 .hcell .dw.cool{color:var(--h2)} .hcell .dw.warm{color:var(--ink); font-weight:600} .hcell .dw.hot{color:var(--bad); font-weight:600}
-.day{display:flex; gap:12px; padding:10px 0; border-top:1px solid var(--line); align-items:flex-start}
+.day{display:flex; flex-wrap:wrap; gap:6px 12px; padding:10px 0; border-top:1px solid var(--line); align-items:flex-start}
 .day:first-of-type{border-top:none}
 .day .dn{width:86px; flex-shrink:0; font-weight:600; font-size:14px}
-.day .dd{flex:1; font-size:13.5px; color:var(--ink)}
+.day .dd{flex:1 1 150px; font-size:13.5px; color:var(--ink)}
+@media(max-width:520px){ .day .score{margin-left:86px} }
 .day .dt{font-weight:700; font-size:15px}
 .day .dt small{color:var(--mut); font-weight:600}
 .score{font-size:11px; padding:2px 8px; border-radius:10px; color:#fff; font-weight:700; white-space:nowrap}
@@ -264,6 +265,7 @@ nav button.on{color:var(--acc)}
   </div>
   <div class="card">
     <h2>7-day &middot; outdoor work score</h2>
+    <div class="muted" style="margin:-6px 0 10px;font-size:12.5px">How good each day is for working outside, scored out of 100. A day starts at 100 and loses points for cold under 45°, heat over 85°, rain chance, wind over 12 mph, storms and ice. Nights are not scored.</div>
     <div id="daily"><span class="muted">Loading…</span></div>
   </div>
   <div class="card">
@@ -429,7 +431,8 @@ function score(hiF,pop,windMph,text){
 }
 function scoreBadge(s){
   const c=s>=80?'s-great':s>=60?'s-good':s>=40?'s-fair':'s-poor';
-  return `<span class="score ${c}">${s>=80?'Great':s>=60?'Good':s>=40?'Fair':'Poor'} ${s}</span>`;
+  const word=s>=80?'Great':s>=60?'Good':s>=40?'Fair':'Poor';
+  return `<span class="score ${c}" title="Time outside: ${s} of 100. Starts at 100 and loses points for cold under 45F, heat over 85F, rain chance, wind over 12mph, storms and ice.">${word} · ${s}/100 outside</span>`;
 }
 let wxBusy=false;
 async function loadWeather(){

@@ -71,20 +71,23 @@ def main():
             continue
         rows.append({"tk": tk, "ty": "buy" if re.search(r"purchase", ty, re.I) else "sell",
                      "who": x.get("representative") or "", "mid": int(mid),
-                     "dd": x.get("disclosure_date"), "s": s})
+                     "dd": x.get("disclosure_date"), "td": x.get("transaction_date"), "s": s})
     rows.sort(key=lambda r: -r["s"])
     cut = time.time() - WINDOW_D * 86400
     recent = [r for r in rows if r["s"] >= cut][:CAP]
     if len(recent) < 120:                    # a quiet stretch still deserves a populated panel
         recent = rows[:400]
     out = {"generated": int(time.time()),
-           "latest": recent[0]["dd"] if recent else None,
+           # dd = disclosure (filing) date, td = date the trade actually happened
+           "latest_filing": recent[0]["dd"] if recent else None,
+           "latest_trade": max((r["td"] for r in recent if r.get("td")), default=None),
+           "latest": recent[0]["dd"] if recent else None,   # kept so an old cached page still renders
            "window_days": WINDOW_D, "floor": FLOOR,
-           "items": [{k: r[k] for k in ("tk", "ty", "who", "mid", "dd")} for r in recent]}
+           "items": [{k: r[k] for k in ("tk", "ty", "who", "mid", "dd", "td")} for r in recent]}
     with open(OUT, "w") as f:
         json.dump(out, f, separators=(",", ":"))
     buys = sum(1 for r in recent if r["ty"] == "buy")
-    print(f"congress.json: {len(recent)} filings, {buys} buys, latest {out['latest']}, "
+    print(f"congress.json: {len(recent)} filings, {buys} buys, latest filing {out['latest_filing']}, "
           f"{os.path.getsize(OUT)//1024} KB")
 
 

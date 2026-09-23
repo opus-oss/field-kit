@@ -99,8 +99,13 @@ h2 .sub{font-size:10px; font-weight:500; letter-spacing:.02em; color:var(--faint
 .cap:first-child{border-top:none}
 .cap .r1{display:flex; align-items:center; gap:8px}
 .cap .tk{font-family:var(--mono); font-weight:700; font-size:14px}
+.yf{color:var(--muted); text-decoration:none; font-size:12px; margin-left:4px}
+.yf:hover{color:var(--ink)}
+.yf.big{margin-left:auto; margin-right:8px; font-size:12px; white-space:nowrap}
 .cap .tag{font-size:10px; font-weight:700; padding:1px 7px; border-radius:8px; color:#fff; letter-spacing:.03em}
 .cap .tag.buy{background:var(--good)} .cap .tag.sell{background:var(--bad)}
+.cap .yf{font-size:12px; text-decoration:none; color:var(--faint); line-height:1}
+.cap .yf:hover{color:var(--acc)}
 .cap .amt{margin-left:auto; font-size:12px; color:var(--mut); font-variant-numeric:tabular-nums}
 .cap .who{font-size:13px; margin-top:2px}
 .cap .meta{font-size:11px; color:var(--faint); margin-top:1px}
@@ -124,7 +129,7 @@ body.drawer-open #drawer{transform:translateX(0)}
 .dhead{display:flex; align-items:flex-start; gap:10px}
 .dttl{font-family:var(--mono); font-size:18px; font-weight:600}
 .dsub{font-size:12px; color:var(--mut); margin-top:2px}
-#dClose{margin-left:auto; border:1px solid var(--line); background:var(--chip); color:var(--ink); border-radius:8px; width:32px; height:32px; font-size:15px; flex-shrink:0}
+#dClose{ border:1px solid var(--line); background:var(--chip); color:var(--ink); border-radius:8px; width:32px; height:32px; font-size:15px; flex-shrink:0}
 .dchart{margin:14px 0 10px; background:var(--card); border:1px solid var(--line); border-radius:12px; overflow:hidden; min-height:172px}
 .dranges{display:flex; gap:6px}
 .dranges button{flex:1; border:1px solid var(--line); background:var(--chip); color:var(--mut); border-radius:8px; padding:7px 0; font-size:13px; font-weight:600}
@@ -225,6 +230,7 @@ footer{padding:14px 6px 0; font-size:11px; color:var(--faint)}
 <aside id="drawer" aria-hidden="true">
   <div class="dhead">
     <div><div class="dttl" id="dTitle">—</div><div class="dsub" id="dSub"></div></div>
+    <a id="dYahoo" class="yf big" href="#" target="_blank" rel="noopener" title="Open on Yahoo Finance">Yahoo ↗</a>
     <button id="dClose" aria-label="Close chart">✕</button>
   </div>
   <div class="dchart" id="dChart"></div>
@@ -367,7 +373,7 @@ async function initCongress(){
   try{
     const r=await fetch('./congress.json',{cache:'no-store'});
     if(r.ok){ const j=await r.json();
-      if(j&&j.items&&j.items.length){ capMeta=j; capItems=j.items.map(x=>({tk:x.tk,ty:x.ty,who:x.who,mid:x.mid,dd:x.dd,_s:parseD(x.dd)})); renderCap(); return } }
+      if(j&&j.items&&j.items.length){ capMeta=j; capItems=j.items.map(x=>({tk:x.tk,ty:x.ty,who:x.who,mid:x.mid,dd:x.dd,td:x.td,_t:parseD(x.td||x.dd),_s:parseD(x.dd)})); renderCap(); return } }
   }catch(e){}
   const cached=store.get('mb_congress3',null);
   if(cached && Date.now()-cached.ts<12*3600e3){capItems=cached.items;renderCap();return;}
@@ -393,7 +399,8 @@ async function loadCongress(force){
         && /purchase|sale|sell/i.test(x.type||'')
         && x.amount_mid!=null && x.amount_mid>15000)             // drop the $1–15k noise tier
       .map(x=>({tk:x.ticker,ty:/purchase/i.test(x.type)?'buy':'sell',
-        who:x.representative||'',mid:x.amount_mid||0,dd:x.disclosure_date,_s:parseD(x.disclosure_date)}))
+        who:x.representative||'',mid:x.amount_mid||0,dd:x.disclosure_date,td:x.transaction_date,
+        _t:parseD(x.transaction_date||x.disclosure_date),_s:parseD(x.disclosure_date)}))
       .sort((a,b)=>b._s-a._s).slice(0,800);   // most recent ~800 filings, whatever the dataset's latest date is
     capItems=items;store.set('mb_congress3',{ts:Date.now(),items});renderCap();
   }catch(e){
@@ -408,11 +415,12 @@ function renderCap(){
   const side=capFilter==='sell'?'sell':'buy';
   const byTk={};
   capItems.filter(x=>x.ty===side).forEach(x=>{
-    const t=byTk[x.tk]||(byTk[x.tk]={who:new Set(),total:0,n:0,last:0});
-    t.who.add(x.who); t.total+=x.mid; t.n++; if(x._s>t.last)t.last=x._s;
+    const t=byTk[x.tk]||(byTk[x.tk]={who:new Set(),total:0,n:0,filed:0,traded:0});
+    t.who.add(x.who); t.total+=x.mid; t.n++;
+    if(x._s>t.filed)t.filed=x._s; if((x._t||0)>t.traded)t.traded=x._t||0;
   });
   // deduped per ticker, sorted by dollar size — the biggest concentrated bets, buys first
-  const agg=Object.keys(byTk).map(tk=>{const t=byTk[tk];return {tk,members:t.who.size,who:[...t.who][0],trades:t.n,total:t.total,last:t.last};})
+  const agg=Object.keys(byTk).map(tk=>{const t=byTk[tk];return {tk,members:t.who.size,who:[...t.who][0],trades:t.n,total:t.total,filed:t.filed,traded:t.traded};})
     .sort((a,b)=>b.total-a.total).slice(0,25);
   const noun=side==='buy'?'buys':'sells';
   if(!agg.length){$('#cap').innerHTML=`<span class="muted">No ${noun} over $15k in the filings on hand.</span>`;}
@@ -421,10 +429,12 @@ function renderCap(){
     const v=side==='buy'?'buy':'sell';
     return `<div class="cap">
       <div class="r1"><span class="tk" data-sym="${esc(t.tk)}" data-label="${esc(t.tk)}">${esc(t.tk)}</span>
+        <a class="yf" href="https://finance.yahoo.com/quote/${encodeURIComponent(t.tk)}" target="_blank" rel="noopener"
+           title="Open ${esc(t.tk)} on Yahoo Finance" aria-label="Open ${esc(t.tk)} on Yahoo Finance">↗</a>
         <span class="amt">~$${fmtMoney(t.total)}</span></div>
-      <div class="meta">${tag}${t.trades} ${v}${t.trades>1?'s':''} · latest ${fmtDate(t.last)}</div>
+      <div class="meta">${tag}${t.trades} ${v}${t.trades>1?'s':''} · traded ${fmtDate(t.traded)} · filed ${fmtDate(t.filed)}</div>
     </div>`;}).join('');
-  if(capMeta){ $('#capnote').textContent=`House disclosures over $${(capMeta.floor/1000)|0}k, last ${capMeta.window_days} days · latest filing ${capMeta.latest}`; }
+  if(capMeta){ $('#capnote').textContent=`House disclosures over $${(capMeta.floor/1000)|0}k, filed in the last ${capMeta.window_days} days. "Traded" is when the trade happened, "filed" is when it was disclosed. Newest filing ${capMeta.latest_filing||capMeta.latest}.`; }
   else { const cached=store.get('mb_congress3',null);
     $('#capnote').textContent=cached?('House disclosures · $ size, deduped · cached '+new Date(cached.ts).toLocaleDateString()):'' }
 }
@@ -439,6 +449,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeChart()});
 $$('#dRanges button').forEach(b=>b.onclick=()=>{$$('#dRanges button').forEach(x=>x.classList.toggle('on',x===b));curRange={r:b.dataset.r,i:b.dataset.i};loadChart();});
 async function loadChart(){
   $('#dTitle').textContent=curLabel; $('#dSub').textContent=curSym;
+  $('#dYahoo').href='https://finance.yahoo.com/quote/'+encodeURIComponent(curSym);
   $('#dChart').innerHTML='<div class="muted" style="padding:64px 0;text-align:center">Loading chart…</div>';
   $('#dStats').innerHTML='';
   try{
