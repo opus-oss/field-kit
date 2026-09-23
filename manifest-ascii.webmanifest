@@ -1,0 +1,14 @@
+{
+  "name": "ASCII Forge",
+  "short_name": "ASCII",
+  "description": "Turn images into ASCII art, entirely on your device.",
+  "start_url": "./ascii.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#1b1e1f",
+  "theme_color": "#1b1e1f",
+  "icons": [
+    { "src": "ascii-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "ascii-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
