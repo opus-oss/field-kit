@@ -362,11 +362,17 @@ setInterval(()=>{if(!document.hidden)loadMarkets()},60000);
 const CONGRESS_URL='https://raw.githubusercontent.com/TattooedHead/house-stock-watcher-data/main/data/all_transactions.json';
 let capItems=[], capFilter='buy';
 function parseD(s){const m=String(s||'').match(/(\d{1,2})\/(\d{1,2})\/(\d{4})/);return m?new Date(+m[3],+m[1]-1,+m[2]).getTime():0}
-function initCongress(){
+let capMeta=null;
+async function initCongress(){
+  try{
+    const r=await fetch('./congress.json',{cache:'no-store'});
+    if(r.ok){ const j=await r.json();
+      if(j&&j.items&&j.items.length){ capMeta=j; capItems=j.items.map(x=>({tk:x.tk,ty:x.ty,who:x.who,mid:x.mid,dd:x.dd,_s:parseD(x.dd)})); renderCap(); return } }
+  }catch(e){}
   const cached=store.get('mb_congress3',null);
   if(cached && Date.now()-cached.ts<12*3600e3){capItems=cached.items;renderCap();return;}
   $('#cap').innerHTML=`<button class="capload" id="capLoad">Load recent House filings</button>
-    <div class="muted" style="margin-top:8px;font-size:12px">Kept off the initial load so the board opens fast. Downloads the public disclosure file (~11 MB) once, then caches it for 12 hours.</div>`;
+    <div class="muted" style="margin-top:8px;font-size:12px">The prepared file is unavailable, so this downloads the full public disclosure file (~11 MB) and caches it for 12 hours.</div>`;
   $('#capLoad').onclick=()=>{$('#cap').innerHTML='<span class="muted">Loading filings…</span>';loadCongress(true);};
 }
 async function loadCongress(force){
@@ -395,7 +401,8 @@ async function loadCongress(force){
   }
 }
 function fmtMoney(n){return n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e3?Math.round(n/1e3)+'K':String(Math.round(n))}
-function fmtDate(ts){if(!ts)return '—';const d=new Date(ts);return (d.getMonth()+1)+'/'+d.getDate()}
+function fmtDate(ts){if(!ts)return '—';const d=new Date(ts),y=d.getFullYear();
+  return (d.getMonth()+1)+'/'+d.getDate()+(y===new Date().getFullYear()?'':'/'+String(y).slice(2))}
 function shortName(s){return String(s||'').replace(/^(Hon\.|Mr\.|Ms\.|Mrs\.|Dr\.)\s+/i,'').replace(/\s+(Jr\.|Sr\.|II|III)$/,'')}
 function renderCap(){
   const side=capFilter==='sell'?'sell':'buy';
@@ -408,7 +415,7 @@ function renderCap(){
   const agg=Object.keys(byTk).map(tk=>{const t=byTk[tk];return {tk,members:t.who.size,who:[...t.who][0],trades:t.n,total:t.total,last:t.last};})
     .sort((a,b)=>b.total-a.total).slice(0,25);
   const noun=side==='buy'?'buys':'sells';
-  if(!agg.length){$('#cap').innerHTML=`<span class="muted">No ${noun} over $15k in the last 120 days.</span>`;}
+  if(!agg.length){$('#cap').innerHTML=`<span class="muted">No ${noun} over $15k in the filings on hand.</span>`;}
   else $('#cap').innerHTML=agg.map(t=>{
     const tag=t.members>1?`<span class="tag ${side}">${t.members} members</span> `:`${esc(shortName(t.who))} · `;
     const v=side==='buy'?'buy':'sell';
@@ -417,8 +424,9 @@ function renderCap(){
         <span class="amt">~$${fmtMoney(t.total)}</span></div>
       <div class="meta">${tag}${t.trades} ${v}${t.trades>1?'s':''} · latest ${fmtDate(t.last)}</div>
     </div>`;}).join('');
-  const cached=store.get('mb_congress3',null);
-  $('#capnote').textContent=cached?('House disclosures · $ size, deduped · cached '+new Date(cached.ts).toLocaleDateString()):'';
+  if(capMeta){ $('#capnote').textContent=`House disclosures over $${(capMeta.floor/1000)|0}k, last ${capMeta.window_days} days · latest filing ${capMeta.latest}`; }
+  else { const cached=store.get('mb_congress3',null);
+    $('#capnote').textContent=cached?('House disclosures · $ size, deduped · cached '+new Date(cached.ts).toLocaleDateString()):'' }
 }
 $$('.capbar button').forEach(b=>b.onclick=()=>{capFilter=b.dataset.f;$$('.capbar button').forEach(x=>x.classList.toggle('on',x===b));renderCap()});
 
