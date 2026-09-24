@@ -105,18 +105,10 @@ body.ops-collapsed .opsgrip{display:none}
   background-image:radial-gradient(var(--faint) 1px,transparent 1px); background-size:3px 5px; background-position:center; transition:border-color .12s,background-color .12s}
 .recgrip:hover::before,body.recdrag .recgrip::before{background:var(--acc)}
 .recgrip:hover::after,body.recdrag .recgrip::after{border-color:var(--acc)}
-body.rec-collapsed .recgrip{display:none}
 @media(max-width:780px){ .opsgrip,.recgrip{display:none} }
 .collapse{border:1px solid var(--line2); background:var(--raised); color:var(--mut); border-radius:7px; padding:1px 7px; font:600 12px var(--mono); line-height:1.4}
 .collapse:hover{color:var(--acc); border-color:var(--acc)}
 body.ops-collapsed .grid{grid-template-columns:44px minmax(280px,1fr) minmax(300px,1.3fr)}
-body.rec-collapsed .grid{grid-template-columns:var(--ops-w,270px) 44px minmax(0,1fr)}
-body.rec-collapsed.ops-collapsed .grid{grid-template-columns:44px 44px minmax(0,1fr)}
-body.rec-collapsed .card.rec{padding:10px 6px}
-body.rec-collapsed .card.rec h2 .n,body.rec-collapsed .card.rec h2 span:first-child,
-body.rec-collapsed .rbar,body.rec-collapsed #recipe,body.rec-collapsed #autonote{display:none}
-body.rec-collapsed .card.rec h2{margin:0}
-@media(max-width:780px){ body.rec-collapsed .grid{grid-template-columns:1fr} }
 body.ops-collapsed .card.ops{padding:10px 6px}
 body.ops-collapsed .card.ops h2 .n,body.ops-collapsed .card.ops .lbl,
 body.ops-collapsed #opsearch,body.ops-collapsed .oplist{display:none}
@@ -159,6 +151,7 @@ body.ops-collapsed .collapse{margin:0 auto}
 /* io */
 .io{display:flex; flex-direction:column; gap:12px}
 .pane textarea{width:100%; min-height:150px; padding:10px; border-radius:10px; border:1px solid var(--line2); background:var(--raised); font-family:var(--mono); font-size:12.5px; line-height:1.45; resize:vertical; white-space:pre; overflow-wrap:normal; overflow-x:auto}
+.pane textarea.wrapped{white-space:pre-wrap; overflow-wrap:anywhere; overflow-x:hidden}
 .pane .out{width:100%; min-height:190px; height:42vh; max-height:none; resize:vertical; overflow:auto; padding:10px; border-radius:10px; border:1px solid var(--line2); background:var(--raised); font-family:var(--mono); font-size:12.5px; line-height:1.45; white-space:pre; color:var(--ink)}
 .pane .out.wrapped{white-space:pre-wrap; overflow-wrap:anywhere}
 .rep-head{margin:18px 0 8px; font:600 .72rem var(--mono); letter-spacing:.14em; text-transform:uppercase; color:var(--acc); border-top:1px solid var(--line2); padding-top:12px}
@@ -212,7 +205,7 @@ body.ops-collapsed .collapse{margin:0 auto}
 <div class="wrap">
   <div class="head">
     <h1>Chef</h1>
-    <div class="tag">Decode, decompress, deobfuscate and triage. Nothing leaves the browser, and it works offline. <span class="ver">build v72</span></div>
+    <div class="tag">Decode, decompress, deobfuscate and triage. Nothing leaves the browser, and it works offline. <span class="ver">build v73</span></div>
     <button id="save" class="savebtn" title="Save this whole tool as one HTML file you can run offline, from a USB stick, or on an air-gapped box">Download this page</button>
   </div>
 
@@ -224,7 +217,7 @@ body.ops-collapsed .collapse{margin:0 auto}
     </div>
 
     <div class="card rec"><div class="recgrip" id="recGrip" title="Drag to resize"></div>
-      <h2>Recipe <span class="n" id="bakeTime"></span><button class="collapse" id="recToggle" title="Hide the recipe column so the output gets full width">»</button></h2>
+      <h2>Recipe <span class="n" id="bakeTime"></span></h2>
       <div class="rbar">
         <select id="presets"><option value="">Load a recipe…</option></select>
         <button id="clear">Clear</button>
@@ -245,6 +238,7 @@ body.ops-collapsed .collapse{margin:0 auto}
           <button id="pickFile">File…</button>
           <input type="file" id="file" hidden>
           <button id="clearIn">Clear</button>
+          <button id="inWrap">Wrap</button>
           <span class="sp" id="inNote">or drop a file anywhere</span>
           <button class="widebtn" id="ioWide" title="Give input and output the full width">⤢ Wide</button>
         </div>
@@ -731,7 +725,6 @@ const setRecW=w=>{ const v=Math.max(200,Math.min(800,w)); document.documentEleme
 })();
 try{
   const rw=+localStorage.getItem('fk_chef_recw'); if(rw)document.documentElement.style.setProperty('--rec-w',rw+'px');
-  if(localStorage.getItem('fk_chef_rec')==='1'){ document.body.classList.add('rec-collapsed'); $('#recToggle').textContent='«' }
 }catch(e){}
 
 /* ---------- recipe panel ---------- */
@@ -833,6 +826,9 @@ $('#input').addEventListener('input',()=>{ clearTimeout(typeT); typeT=setTimeout
 $('#inText').onclick=()=>{ inMode='text'; $('#inText').classList.add('on'); $('#inHex').classList.remove('on'); readInput() };
 $('#inHex').onclick=()=>{ inMode='hex'; $('#inHex').classList.add('on'); $('#inText').classList.remove('on'); readInput() };
 $('#clearIn').onclick=()=>{ $('#input').value=''; fileName=''; $('#inNote').textContent='or drop a file anywhere'; readInput() };
+$('#inWrap').onclick=()=>{ const on=$('#input').classList.toggle('wrapped'); $('#inWrap').classList.toggle('on',on);
+  try{ localStorage.setItem('fk_chef_inwrap',on?'1':'0') }catch(e){} };
+try{ if(localStorage.getItem('fk_chef_inwrap')==='1'){ $('#input').classList.add('wrapped'); $('#inWrap').classList.add('on') } }catch(e){}
 $('#pickFile').onclick=()=>$('#file').click();
 $('#file').onchange=e=>{ if(e.target.files[0])loadFile(e.target.files[0]) };
 async function loadFile(f){
@@ -1731,13 +1727,6 @@ function setWide(on){ document.body.classList.toggle('io-wide',on);
 $('#ioWide').onclick=()=>setWide(!document.body.classList.contains('io-wide'));
 $('#ioWide2').onclick=()=>setWide(!document.body.classList.contains('io-wide'));
 try{ if(localStorage.getItem('fk_chef_wide')==='1')setWide(true) }catch(e){}
-$('#recToggle').onclick=()=>{
-  const on=document.body.classList.toggle('rec-collapsed');
-  $('#recToggle').textContent=on?'«':'»';
-  $('#recToggle').title=on?'Show the recipe column':'Hide the recipe column';
-  try{ localStorage.setItem('fk_chef_rec',on?'1':'0') }catch(e){}
-};
-try{ if(localStorage.getItem('fk_chef_rec')==='1'){ document.body.classList.add('rec-collapsed'); $('#recToggle').textContent='«' } }catch(e){}
 $('#copyOut').onclick=async()=>{ try{ await navigator.clipboard.writeText(outView==='hex'?hexdump(outBytes):S(outBytes)); toast('Copied') }catch(e){ toast('Clipboard blocked, use Download') } };
 $('#dlOut').onclick=()=>{ const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([outBytes])); a.download=(fileName?fileName.replace(/\.[^.]+$/,''):'chef')+'-out.bin'; a.click();
