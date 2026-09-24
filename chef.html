@@ -72,6 +72,13 @@ h1{font:700 2rem var(--mono); letter-spacing:-.02em; color:var(--h1)}
 
 .grid{display:grid; gap:14px; margin-top:16px; grid-template-columns:var(--ops-w,270px) minmax(280px,1fr) minmax(300px,1.15fr); align-items:start}
 @media(max-width:1180px){ .grid{grid-template-columns:var(--ops-w,250px) 1fr} .col-io{grid-column:1 / -1} }
+body.io-wide .grid{grid-template-columns:var(--ops-w,270px) 1fr}
+body.io-wide .col-io{grid-column:1 / -1; flex-direction:row; align-items:start}
+body.io-wide .col-io .pane{flex:1 1 0; min-width:0}
+body.io-wide .pane .out,body.io-wide .pane textarea{height:64vh}
+@media(max-width:900px){ body.io-wide .col-io{flex-direction:column} body.io-wide .pane .out,body.io-wide .pane textarea{height:42vh} }
+.widebtn{margin-left:auto}
+.widebtn.on{background:var(--chip); color:var(--h1); border-color:var(--line2)}
 @media(max-width:780px){
   .grid{grid-template-columns:1fr}
   .col-io{order:1}           /* on a phone you paste first, so input leads */
@@ -223,6 +230,7 @@ body.ops-collapsed .collapse{margin:0 auto}
           <input type="file" id="file" hidden>
           <button id="clearIn">Clear</button>
           <span class="sp" id="inNote">or drop a file anywhere</span>
+          <button class="widebtn" id="ioWide" title="Give input and output the full width">⤢ Wide</button>
         </div>
         <textarea id="input" spellcheck="false" autocomplete="off" placeholder="Paste the blob here. Try a PowerShell -enc string, a hex dump, a JWT, base64+gzip…"></textarea>
         <div class="magic" id="magicBox"></div>
@@ -238,6 +246,7 @@ body.ops-collapsed .collapse{margin:0 auto}
           <button id="copyOut">Copy</button>
           <button id="dlOut">Download</button>
           <button id="toIn">Output → input</button>
+          <button class="widebtn" id="ioWide2" title="Give input and output the full width">⤢ Wide</button>
         </div>
         <div class="out" id="output"></div>
         <div class="magic" id="findBox"></div>
@@ -1449,6 +1458,12 @@ $('#vPretty').onclick=()=>{
   else if(outBytes.length&&printable(outBytes,2000)>0.9){ OUT_HTML=null; outBytes=B(PRETTY?beautify(S(outBytes)):S(outBytes)); paintOut() }
 };
 try{ if(localStorage.getItem('fk_chef_pretty')==='1'){ PRETTY=true; $('#vPretty').classList.add('on') } }catch(e){}
+function setWide(on){ document.body.classList.toggle('io-wide',on);
+  [$('#ioWide'),$('#ioWide2')].forEach(b=>b&&b.classList.toggle('on',on));
+  try{ localStorage.setItem('fk_chef_wide',on?'1':'0') }catch(e){} }
+$('#ioWide').onclick=()=>setWide(!document.body.classList.contains('io-wide'));
+$('#ioWide2').onclick=()=>setWide(!document.body.classList.contains('io-wide'));
+try{ if(localStorage.getItem('fk_chef_wide')==='1')setWide(true) }catch(e){}
 $('#copyOut').onclick=async()=>{ try{ await navigator.clipboard.writeText(outView==='hex'?hexdump(outBytes):S(outBytes)); toast('Copied') }catch(e){ toast('Clipboard blocked, use Download') } };
 $('#dlOut').onclick=()=>{ const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([outBytes])); a.download=(fileName?fileName.replace(/\.[^.]+$/,''):'chef')+'-out.bin'; a.click();
