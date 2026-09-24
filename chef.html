@@ -66,6 +66,7 @@ a{color:var(--acc)}
 .head{display:flex; align-items:baseline; gap:14px; flex-wrap:wrap; border-bottom:1px solid var(--line2); padding-bottom:.45rem}
 h1{font:700 2rem var(--mono); letter-spacing:-.02em; color:var(--h1)}
 .head .tag{font-size:13px; color:var(--mut); flex:1 1 320px}
+.head .ver{font-family:var(--mono); font-size:11px; color:var(--faint); padding:1px 6px; border:1px solid var(--line2); border-radius:5px; margin-left:6px}
 .savebtn{padding:5px 11px; border-radius:8px; border:1px solid var(--line2); background:var(--raised); color:var(--ink); font:600 12px var(--mono); white-space:nowrap}
 .savebtn:hover{border-color:var(--acc); color:var(--h1)}
 .eyebrow{font:600 .72rem var(--mono); letter-spacing:.14em; text-transform:uppercase; color:var(--acc)}
@@ -196,7 +197,7 @@ body.ops-collapsed .collapse{margin:0 auto}
 <div class="wrap">
   <div class="head">
     <h1>Chef</h1>
-    <div class="tag">Decode, decompress, deobfuscate and triage. Nothing leaves the browser, and it works offline.</div>
+    <div class="tag">Decode, decompress, deobfuscate and triage. Nothing leaves the browser, and it works offline. <span class="ver">build v69</span></div>
     <button id="save" class="savebtn" title="Save this whole tool as one HTML file you can run offline, from a USB stick, or on an air-gapped box">Download this page</button>
   </div>
 
