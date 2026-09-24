@@ -81,6 +81,17 @@ body.io-wide .col-io .pane:first-child{flex:0 0 var(--io-split,50%)}
 body.io-wide .col-io .pane:last-child{flex:1 1 0}
 body.io-wide .pane .out,body.io-wide .pane textarea{flex:1; height:auto; min-height:78vh}
 .io-split{display:none}
+.io-vsplit{height:16px; display:flex; align-items:center; justify-content:center; cursor:row-resize; position:relative; margin:-6px 0}
+.io-vsplit::before{content:''; position:absolute; left:12px; right:12px; top:7px; height:2px; border-radius:2px; background:var(--line2); transition:background .12s}
+.io-vsplit::after{content:''; width:40px; height:6px; border-radius:4px; background:var(--raised); border:1px solid var(--line2); position:relative;
+  background-image:radial-gradient(var(--faint) 1px,transparent 1px); background-size:5px 3px; background-position:center; transition:border-color .12s,background-color .12s}
+.io-vsplit:hover::before,body.iovsplitdrag .io-vsplit::before{background:var(--acc)}
+.io-vsplit:hover::after,body.iovsplitdrag .io-vsplit::after{border-color:var(--acc)}
+body.iovsplitdrag{cursor:row-resize; user-select:none}
+body.io-wide .io-vsplit{display:none}
+.io textarea{height:var(--in-h,auto)}
+.pane .out{height:var(--out-h,42vh)}
+body.io-wide .pane .out,body.io-wide .pane textarea{height:auto}
 body.io-wide .io-split{display:flex; flex:0 0 16px; align-items:center; justify-content:center; cursor:col-resize; position:relative}
 body.io-wide .io-split::before{content:''; position:absolute; top:12px; bottom:12px; left:7px; width:2px; border-radius:2px; background:var(--line2); transition:background .12s}
 body.io-wide .io-split::after{content:''; width:6px; height:40px; border-radius:4px; background:var(--raised); border:1px solid var(--line2); position:relative;
@@ -226,7 +237,7 @@ body.ops-collapsed .collapse{margin:0 auto}
 <div class="wrap">
   <div class="head">
     <h1>Chef</h1>
-    <div class="tag">Decode, decompress, deobfuscate and triage. Nothing leaves the browser, and it works offline. <span class="ver">build v77</span></div>
+    <div class="tag">Decode, decompress, deobfuscate and triage. Nothing leaves the browser, and it works offline. <span class="ver">build v78</span></div>
     <button id="save" class="savebtn" title="Save this whole tool as one HTML file you can run offline, from a USB stick, or on an air-gapped box">Download this page</button>
   </div>
 
@@ -269,6 +280,7 @@ body.ops-collapsed .collapse{margin:0 auto}
       </div>
 
       <div class="io-split" id="ioSplit" title="Drag to resize; double-click to center"></div>
+      <div class="io-vsplit" id="ioVSplit" title="Drag to resize input vs output; double-click to reset"></div>
 
       <div class="card pane">
         <h2>Output <span class="n" id="outLen"></span></h2>
@@ -1608,7 +1620,11 @@ async function deepScan(root){
       const tail=t.slice(at);
       if(tail){ outStr+=tail; tokens.push({kind:'plain',text:tail}) }
     }
-    if(jsTidy){ outStr=jsFormat(outStr); tokens=[{kind:'plain',text:outStr,lang:'js'}] }
+    if(jsTidy){
+      outStr=jsFormat(outStr);
+      const how=jsUnpack?('unpacked JavaScript ('+jsUnpack.substitutions+' calls resolved'+(jsUnpack.shuffled?', shuffle key matched':'')+', escapes and dead aliases cleaned)'):'JavaScript escapes decoded';
+      tokens=[{kind:'decoded',text:outStr,lang:'js',how,idx:finds.length-1}];
+    }
     if(depth===0){
       root.tokens=(outStr!==raw)?tokens:null;
       if(outStr===raw&&!kids)lines.push(`${pad}   nothing encoded found inside it`);
@@ -1788,6 +1804,31 @@ try{ if(localStorage.getItem('fk_chef_wide')==='1')setWide(true) }catch(e){}
     try{ localStorage.setItem('fk_chef_iow','50.0') }catch(e){} });
 })();
 try{ const w=+localStorage.getItem('fk_chef_iow'); if(w)document.documentElement.style.setProperty('--io-split',w+'%'); }catch(e){}
+(function ioVSplit(){
+  const g=$('#ioVSplit'); if(!g)return;
+  let from=0, startIn=0, startOut=0;
+  const move=e=>{ const y=(e.touches?e.touches[0].clientY:e.clientY);
+    const inH=Math.max(120,startIn+(y-from));
+    const outH=Math.max(120,startOut-(y-from));
+    document.documentElement.style.setProperty('--in-h',inH+'px');
+    document.documentElement.style.setProperty('--out-h',outH+'px');
+    try{ localStorage.setItem('fk_chef_ioh',inH+':'+outH) }catch(e){}
+  };
+  const up=()=>{ document.body.classList.remove('iovsplitdrag');
+    removeEventListener('pointermove',move); removeEventListener('pointerup',up) };
+  g.addEventListener('pointerdown',e=>{
+    e.preventDefault();
+    from=e.clientY;
+    startIn=$('#input').getBoundingClientRect().height;
+    startOut=$('#output').getBoundingClientRect().height;
+    document.body.classList.add('iovsplitdrag');
+    addEventListener('pointermove',move); addEventListener('pointerup',up);
+  });
+  g.addEventListener('dblclick',()=>{ document.documentElement.style.removeProperty('--in-h');
+    document.documentElement.style.removeProperty('--out-h');
+    try{ localStorage.removeItem('fk_chef_ioh') }catch(e){} });
+})();
+try{ const s=localStorage.getItem('fk_chef_ioh'); if(s){ const [ih,oh]=s.split(':'); if(ih)document.documentElement.style.setProperty('--in-h',ih+'px'); if(oh)document.documentElement.style.setProperty('--out-h',oh+'px'); } }catch(e){}
 $('#copyOut').onclick=async()=>{ try{ await navigator.clipboard.writeText(outView==='hex'?hexdump(outBytes):S(outBytes)); toast('Copied') }catch(e){ toast('Clipboard blocked, use Download') } };
 $('#dlOut').onclick=()=>{ const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([outBytes])); a.download=(fileName?fileName.replace(/\.[^.]+$/,''):'chef')+'-out.bin'; a.click();
