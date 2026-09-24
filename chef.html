@@ -197,7 +197,7 @@ body.ops-collapsed .collapse{margin:0 auto}
 <div class="wrap">
   <div class="head">
     <h1>Chef</h1>
-    <div class="tag">Decode, decompress, deobfuscate and triage. Nothing leaves the browser, and it works offline. <span class="ver">build v69</span></div>
+    <div class="tag">Decode, decompress, deobfuscate and triage. Nothing leaves the browser, and it works offline. <span class="ver">build v70</span></div>
     <button id="save" class="savebtn" title="Save this whole tool as one HTML file you can run offline, from a USB stick, or on an air-gapped box">Download this page</button>
   </div>
 
@@ -1209,18 +1209,28 @@ function jsStringArrayUnpack(src){
   // Recognise the string-array pattern used by common JS obfuscators: a getter function
   // returning a literal array, a decoder that indexes it with a constant offset, and an
   // optional shuffle IIFE that rotates the array until an arithmetic sum matches a key.
+  // We also record the exact spans of every obfuscation-infrastructure block, so the caller
+  // can strip them and leave only the resolved source behind.
   try{
-    const arrM=src.match(/function\s+(\w+)\s*\(\s*\)\s*\{\s*const\s+(\w+)\s*=\s*\[([\s\S]{100,}?)\]\s*;\s*\1\s*=\s*function\s*\(\s*\)\s*\{\s*return\s+\2\s*;?\s*\}\s*;\s*return\s+\1\s*\(\s*\)\s*;?\s*\}/);
+    const arrRe=/function\s+(\w+)\s*\(\s*\)\s*\{\s*const\s+(\w+)\s*=\s*\[([\s\S]{100,}?)\]\s*;\s*\1\s*=\s*function\s*\(\s*\)\s*\{\s*return\s+\2\s*;?\s*\}\s*;\s*return\s+\1\s*\(\s*\)\s*;?\s*\}/;
+    const arrM=arrRe.exec(src);
     if(!arrM)return null;
     const arrFn=arrM[1], array=parseJsStringArray(arrM[3]);
     if(!array||array.length<10)return null;
-    // Decoder: function DEC(z,I){const q=ARR();return DEC=function(u,V){u=u-OFFSET;...
+    const strip=[[arrM.index, arrM.index+arrM[0].length]];
     const decRe=new RegExp('function\\s+(\\w+)\\s*\\(\\s*\\w+\\s*,\\s*\\w+\\s*\\)\\s*\\{\\s*const\\s+\\w+\\s*=\\s*'+arrFn+'\\s*\\(\\s*\\)\\s*;[\\s\\S]{0,300}?u\\s*=\\s*u\\s*-\\s*(0x[0-9a-fA-F]+|\\d+)');
-    const decM=src.match(decRe); if(!decM)return null;
+    const decM=decRe.exec(src); if(!decM)return null;
     const decoder=decM[1], offset=parseInt(decM[2]);
+    // Walk from the decoder's opening brace to its balanced close so we can strip the whole function.
+    const openIdx=src.indexOf('{',decM.index);
+    let depth=0, decEnd=openIdx;
+    for(let i=openIdx;i<src.length;i++){ const c=src[i];
+      if(c==='{')depth++; else if(c==='}'){ depth--; if(depth===0){ decEnd=i+1; break } }
+    }
+    strip.push([decM.index, decEnd]);
     // Optional shuffle IIFE: capture the arithmetic body and the target key.
     const iifeRe=new RegExp('\\(function\\s*\\(\\s*\\w+\\s*,\\s*\\w+\\s*\\)\\s*\\{\\s*const\\s+(\\w+)\\s*=\\s*'+decoder+'\\s*,\\s*\\w+\\s*=\\s*\\w+\\s*\\(\\s*\\)\\s*;\\s*while[\\s\\S]{0,50}?\\{\\s*try\\s*\\{\\s*const\\s+\\w+\\s*=\\s*([\\s\\S]+?);\\s*if\\s*\\(\\s*\\w+\\s*===\\s*\\w+\\s*\\)[\\s\\S]{0,300}?\\}\\s*\\(\\s*'+arrFn+'\\s*,\\s*(0x[0-9a-fA-F]+|\\d+)\\s*\\)\\s*\\)\\s*;');
-    const iifeM=src.match(iifeRe);
+    const iifeM=iifeRe.exec(src);
     let shuffled=false;
     if(iifeM){
       const wAlias=iifeM[1];
@@ -1238,19 +1248,40 @@ function jsStringArrayUnpack(src){
           array.push(array.shift());
         }
         if(!shuffled)return null;
+        strip.push([iifeM.index, iifeM.index+iifeM[0].length]);
       }
     }
-    // Discover every alias of the decoder in the source. Aliases-of-aliases too.
+    // Discover every alias of the decoder in the source. Aliases-of-aliases too, and record
+    // the span of the alias-declaration statement so it can be stripped from the display.
     const aliases=new Set([decoder]);
+    const aliasStmts=[];
     let grew=true;
     while(grew){
       grew=false;
       for(const name of [...aliases]){
-        // Aliases only: `const a0s = a0u;` or `const w = a0u, q = z()`. Anything followed by `(` is a call, not an alias.
-        const re=new RegExp('\\b(?:const|let|var)\\s+(\\w+)\\s*=\\s*'+name.replace(/[$]/g,'\\$')+'(?=\\s*[,;\\n])','g');
-        let m; while((m=re.exec(src))!==null){ if(!aliases.has(m[1])){ aliases.add(m[1]); grew=true } }
+        const nameEsc=name.replace(/[$]/g,'\\$');
+        const re=new RegExp('\\b(const|let|var)\\s+(\\w+)\\s*=\\s*'+nameEsc+'(?=\\s*[,;\\n])','g');
+        let m; while((m=re.exec(src))!==null){
+          if(!aliases.has(m[2])){ aliases.add(m[2]); grew=true }
+          // Only queue a whole-statement strip for the simple top-level `const X = decoder;` form.
+          const before=src.lastIndexOf('\n',m.index)+1;
+          const semi=src.indexOf(';',m.index+m[0].length);
+          if(semi>0&&/^\s*(?:const|let|var)\s+\w+\s*=\s*\w+\s*;$/.test(src.slice(before,semi+1))){
+            aliasStmts.push([before,semi+1]);
+          }
+        }
       }
     }
+    strip.push(...aliasStmts);
+    // Dedupe overlapping/duplicate strip ranges. The alias detector visits the same statement
+    // on every growth pass and would otherwise splice a valid character range each time.
+    strip.sort((a,b)=>a[0]-b[0]||a[1]-b[1]);
+    const merged=[];
+    for(const r of strip){
+      if(merged.length&&r[0]<=merged[merged.length-1][1]) merged[merged.length-1][1]=Math.max(merged[merged.length-1][1],r[1]);
+      else merged.push([r[0],r[1]]);
+    }
+    strip.length=0; strip.push(...merged);
     const namePat=[...aliases].map(n=>n.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('|');
     const callRe=new RegExp('\\b(?:'+namePat+')\\s*\\(\\s*(0x[0-9a-fA-F]+|\\d+)\\s*\\)','g');
     let subs=0;
@@ -1261,7 +1292,23 @@ function jsStringArrayUnpack(src){
       return JSON.stringify(s);
     });
     if(subs<5)return null;
-    return {text:out, array:array.slice(), offset, aliases:[...aliases], shuffled, substitutions:subs};
+    // Build the cleaned view: substitute calls, then remove the infrastructure spans by
+    // rewriting them as blank lines. Uses SRC coordinates, then re-applies substitutions.
+    // Simpler: mark each infrastructure region with a placeholder in a copy of src, replace
+    // calls, then split and drop the placeholder lines.
+    const MARK='\u0000STRIP\u0000';
+    let marked=src;
+    // sort spans by end desc so earlier splices don't disturb later coordinates
+    const sorted=[...strip].sort((a,b)=>b[0]-a[0]);
+    for(const [a,b] of sorted) marked=marked.slice(0,a)+MARK+marked.slice(b);
+    let cleaned=marked.replace(callRe,(m,idx)=>{
+      const s=array[parseInt(idx)-offset];
+      return s===undefined?m:JSON.stringify(s);
+    });
+    // collapse blank / marker-only regions into single blank line for readability
+    cleaned=cleaned.split('\n').filter(l=>l.replaceAll(MARK,'').trim().length>0||l.trim()==='').join('\n');
+    cleaned=cleaned.replaceAll(MARK,'').replace(/\n{3,}/g,'\n\n').trim();
+    return {text:out, cleaned, array:array.slice(), offset, aliases:[...aliases], shuffled, substitutions:subs};
   }catch(e){ return null }
 }
 async function decodeCandidate(c,ctx){
@@ -1377,9 +1424,12 @@ async function deepScan(root){
     if(depth<3&&t.length>500&&/function\s+\w+\s*\(\s*\)\s*\{\s*const\s+\w+\s*=\s*\[/.test(t)){
       jsUnpack=jsStringArrayUnpack(t);
       if(jsUnpack){
-        lines.push(`${pad}   unpacked JavaScript string-array (${jsUnpack.array.length} strings, ${jsUnpack.substitutions.toLocaleString()} calls resolved, decoder aliases: ${jsUnpack.aliases.slice(0,6).join(', ')}${jsUnpack.aliases.length>6?', …':''}${jsUnpack.shuffled?', shuffle key matched':''})`);
-        finds.push({label:'unpacked JavaScript', kind:'JavaScript source', bytes:B(jsUnpack.text), recipe:[], how:'string-array unpack'+(jsUnpack.shuffled?' (with shuffle)':'')});
-        t=jsUnpack.text;
+        lines.push(`${pad}   unpacked JavaScript string-array (${jsUnpack.array.length} strings, ${jsUnpack.substitutions.toLocaleString()} calls resolved, decoder aliases: ${jsUnpack.aliases.slice(0,6).join(', ')}${jsUnpack.aliases.length>6?', …':''}${jsUnpack.shuffled?', shuffle key matched':''}, obfuscation infrastructure stripped)`);
+        finds.push({label:'unpacked JavaScript, machinery removed', kind:'JavaScript source', bytes:B(jsUnpack.cleaned), recipe:[], how:'string-array unpack + strip'+(jsUnpack.shuffled?' (with shuffle)':'')});
+        finds.push({label:'unpacked JavaScript, machinery kept', kind:'JavaScript source', bytes:B(jsUnpack.text), recipe:[], how:'string-array unpack (raw substitution)'});
+        // Use the cleaned view for downstream analysis: behaviour, IOCs, and decoded region scan
+        // all operate on the readable code, not on the infrastructure.
+        t=jsUnpack.cleaned;
       }
     }
     const beh=[...new Set(BEHAVIOR.filter(([rx])=>rx.test(t)).map(([,n])=>n))];
