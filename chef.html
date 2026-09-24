@@ -79,7 +79,7 @@ body.io-wide .col-io{grid-column:1; flex-direction:row; align-items:stretch; gap
 body.io-wide .col-io .pane{min-width:0; display:flex; flex-direction:column}
 body.io-wide .col-io .pane:first-child{flex:0 0 var(--io-split,50%)}
 body.io-wide .col-io .pane:last-child{flex:1 1 0}
-body.io-wide .pane .out,body.io-wide .pane textarea{flex:1; height:auto; min-height:78vh}
+body.io-wide .pane .out,body.io-wide .pane textarea{flex:1; height:auto; min-height:78vh; white-space:pre-wrap; overflow-wrap:anywhere; overflow-x:hidden}
 .io-split{display:none}
 .io-vsplit{height:16px; display:flex; align-items:center; justify-content:center; cursor:row-resize; position:relative; margin:-6px 0}
 .io-vsplit::before{content:''; position:absolute; left:12px; right:12px; top:7px; height:2px; border-radius:2px; background:var(--line2); transition:background .12s}
@@ -179,8 +179,11 @@ body.ops-collapsed .collapse{margin:0 auto}
 .rep-head{margin:18px 0 8px; font:600 .72rem var(--mono); letter-spacing:.14em; text-transform:uppercase; color:var(--acc); border-top:1px solid var(--line2); padding-top:12px}
 .rep-block{border-left:3px solid var(--acc); padding:8px 0 8px 12px; background:color-mix(in srgb,var(--acc) 6%,transparent); border-radius:0 8px 8px 0}
 .rep-block .sub{color:var(--ink); border-radius:3px; padding:0 1px}
-.rep-legend{display:flex; flex-wrap:wrap; gap:6px 8px; margin:6px 0 10px; font:600 11px var(--mono)}
-.rep-legend .sub{padding:2px 8px}
+.rep-legend{display:flex; flex-direction:column; gap:5px; margin:6px 0 12px; font:600 11px var(--mono)}
+.rep-legend .lgrow{display:flex; align-items:flex-start; gap:8px; line-height:1.4}
+.rep-legend .lgrow .sw{flex-shrink:0; display:inline-block; width:16px; height:16px; border-radius:4px}
+.rep-legend .lgrow .steps{color:var(--ink); white-space:normal; word-break:break-word}
+.rep-legend .lgrow .steps b{color:var(--h1); font-weight:600}
 .rep-block .sub-c0,.rep-legend .sub-c0{background:color-mix(in srgb,var(--acc) 24%,transparent); box-shadow:0 0 0 1px color-mix(in srgb,var(--acc) 45%,transparent)}
 .rep-block .sub-c1,.rep-legend .sub-c1{background:color-mix(in srgb,var(--h2) 24%,transparent); box-shadow:0 0 0 1px color-mix(in srgb,var(--h2) 45%,transparent)}
 .rep-block .sub-c2,.rep-legend .sub-c2{background:color-mix(in srgb,var(--h3) 24%,transparent); box-shadow:0 0 0 1px color-mix(in srgb,var(--h3) 45%,transparent)}
@@ -237,7 +240,7 @@ body.ops-collapsed .collapse{margin:0 auto}
 <div class="wrap">
   <div class="head">
     <h1>Chef</h1>
-    <div class="tag">Decode, decompress, deobfuscate and triage. Nothing leaves the browser, and it works offline. <span class="ver">build v78</span></div>
+    <div class="tag">Decode, decompress, deobfuscate and triage. Nothing leaves the browser, and it works offline. <span class="ver">build v79</span></div>
     <button id="save" class="savebtn" title="Save this whole tool as one HTML file you can run offline, from a USB stick, or on an air-gapped box">Download this page</button>
   </div>
 
@@ -1622,7 +1625,20 @@ async function deepScan(root){
     }
     if(jsTidy){
       outStr=jsFormat(outStr);
-      const how=jsUnpack?('unpacked JavaScript ('+jsUnpack.substitutions+' calls resolved'+(jsUnpack.shuffled?', shuffle key matched':'')+', escapes and dead aliases cleaned)'):'JavaScript escapes decoded';
+      // Emit the recipe as a transform chain, one step per arrow, so the reader can trace what
+      // ran. Same shape as the base64/xor/inflate chains other regions get.
+      const steps=[];
+      if(jsUnpack){
+        steps.push('Extract string array (' + jsUnpack.array.length + ' strings, offset 0x' + jsUnpack.offset.toString(16) + ')');
+        if(jsUnpack.shuffled) steps.push('Simulate shuffle IIFE (key matched)');
+        steps.push('Substitute ' + jsUnpack.substitutions + ' A(0xNNN) call sites via aliases ' + jsUnpack.aliases.join(', '));
+        steps.push('Strip decoder / array getter / shuffle IIFE / top-level alias');
+      }
+      steps.push('Decode \\xNN and \\uNNNN escapes in string literals');
+      steps.push('Rewrite obj[\'name\'] → obj.name');
+      if(jsUnpack) steps.push('Drop leftover inner alias declarations');
+      steps.push('Format JavaScript (brace + semicolon indentation)');
+      const how=steps.join(' → ');
       tokens=[{kind:'decoded',text:outStr,lang:'js',how,idx:finds.length-1}];
     }
     if(depth===0){
@@ -1713,8 +1729,13 @@ function renderReport(){
         inner+=`<span class="sub sub-c${c}" title="Decoded via: ${esc2(t.how||'')}">${esc2(piece)}</span>`;
       } else inner+=esc2(piece);
     }
+    // Legend shows each recipe as its own row: color swatch, then the transform chain with
+    // arrows highlighted so it reads as a pipeline.
     const legend=hows.length?`<div class="rep-legend">`
-      +hows.map((h,i)=>`<span class="sub sub-c${i%8}">${esc2(h)}</span>`).join(' ')
+      +hows.map((h,i)=>{
+        const chain=esc2(h).replace(/ (?:→|-&gt;) /g,'<b> → </b>');
+        return `<div class="lgrow"><span class="sw sub-c${i%8}"></span><span class="steps">${chain}</span></div>`;
+      }).join('')
       +`</div>`:'';
     html+=`<div class="rep-head">reassembled, every layer decoded and put back${PRETTY?', beautified':''}${hows.length?` — ${hows.length} recipe${hows.length>1?'s':''} used, colored below`:''}</div>`
       +legend
@@ -1775,6 +1796,8 @@ $('#vPretty').onclick=()=>{
 try{ if(localStorage.getItem('fk_chef_pretty')==='1'){ PRETTY=true; $('#vPretty').classList.add('on') } }catch(e){}
 function setWide(on){ document.body.classList.toggle('io-wide',on);
   [$('#ioWide'),$('#ioWide2')].forEach(b=>b&&b.classList.toggle('on',on));
+  // Wide mode always shows wrapped text so long lines fold into the pane instead of scrolling.
+  [$('#vWrap'),$('#inWrap')].forEach(b=>b&&b.classList.toggle('on',on));
   try{ localStorage.setItem('fk_chef_wide',on?'1':'0') }catch(e){} }
 $('#ioWide').onclick=()=>setWide(!document.body.classList.contains('io-wide'));
 $('#ioWide2').onclick=()=>setWide(!document.body.classList.contains('io-wide'));
