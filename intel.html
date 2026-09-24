@@ -50,6 +50,24 @@ a{color:inherit; text-decoration:none}
 .suitebar .switch a{font-family:var(--mono); font-size:12.5px; padding:5px 10px; border-radius:8px; color:var(--mut); white-space:nowrap}
 .suitebar .switch a:hover{color:var(--ink)}
 .suitebar .switch a.on{background:var(--chip); color:var(--h1); box-shadow:inset 0 -2px 0 var(--acc)}
+.suitebar .grp{position:relative}
+.suitebar .gbtn{font-family:var(--mono); font-size:12.5px; padding:5px 10px; border-radius:8px; color:var(--mut); background:transparent; border:0; white-space:nowrap; display:flex; align-items:center; gap:5px}
+.suitebar .gbtn:hover{color:var(--ink)}
+.suitebar .gbtn .car{font-size:9px; opacity:.7}
+.suitebar .grp.on .gbtn{background:var(--chip); color:var(--h1); box-shadow:inset 0 -2px 0 var(--acc)}
+.suitebar .switch{align-items:center}
+.suitebar .menu{position:absolute; top:calc(100% + 6px); left:0; min-width:150px; background:var(--card); border:1px solid var(--line2); border-radius:10px; padding:5px; display:none; flex-direction:column; gap:2px; box-shadow:0 10px 24px -12px rgba(0,0,0,.5); z-index:70}
+.suitebar .grp.open .menu{display:flex}
+.suitebar .menu a{padding:6px 10px; border-radius:7px}
+.suitebar .menu a:hover{background:var(--chip); color:var(--ink)}
+.suitebar .menu a.cur{color:var(--h1); background:var(--chip)}
+@media(max-width:440px){
+  .suitebar{gap:6px; padding:7px 8px}
+  .suitebar .brand{font-size:0}
+  .suitebar .brand::before{content:'◆'; font-size:14px}
+  .suitebar .switch a,.suitebar .gbtn{padding:5px 7px; font-size:12px}
+  .suitebar .gbtn .car{display:none}
+}
 .suitebar .themebtn{margin-left:auto; position:sticky; right:0; flex-shrink:0; font-size:15px; line-height:1; padding:5px 9px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--mut); cursor:pointer; box-shadow:-10px 0 8px -2px var(--card)}
 .suitebar .themebtn:hover{color:var(--acc); border-color:var(--line2)}
 
@@ -205,16 +223,25 @@ mark{background:color-mix(in srgb,var(--acc) 24%,transparent); color:inherit; bo
   <div class="switch">
     <a href="./index.html">Weather</a>
     <a href="./radar.html">Radar</a>
-    <a href="./markets.html">Markets</a>
-    <a href="./debt.html">Debt</a>
-    <a href="./intel.html" class="on">Grapevine</a>
-    <a href="./chef.html">Chef</a>
-    <a href="./ascii.html">ASCII</a>
-    <a href="./tax.html">Tax</a>
-    <a href="./mortgage.html">Mortgage</a>
-    <a href="./scrub.html">Scrub</a>
-    <a href="./optout.html">Opt Out</a>
-    <a href="./places.html">Places</a>
+    <div class="grp on"><button class="gbtn" type="button">Tech<span class="car">▼</span></button>
+      <div class="menu">
+        <a href="./intel.html" class="cur">Grapevine</a>
+        <a href="./chef.html">Chef</a>
+        <a href="./ascii.html">ASCII</a>
+      </div></div>
+    <div class="grp"><button class="gbtn" type="button">Finance<span class="car">▼</span></button>
+      <div class="menu">
+        <a href="./markets.html">Markets</a>
+        <a href="./debt.html">Debt</a>
+        <a href="./tax.html">Tax</a>
+        <a href="./mortgage.html">Mortgage</a>
+      </div></div>
+    <div class="grp"><button class="gbtn" type="button">Privacy<span class="car">▼</span></button>
+      <div class="menu">
+        <a href="./scrub.html">Scrub</a>
+        <a href="./optout.html">Opt Out</a>
+        <a href="./places.html">Places</a>
+      </div></div>
   </div>
   <button class="themebtn" id="themeBtn" title="Light / dark" aria-label="Toggle light or dark mode">◐</button>
 </div>
@@ -399,5 +426,13 @@ fetch('intel.json',{cache:'no-cache'}).then(r=>{if(!r.ok)throw new Error('HTTP '
 if('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js').catch(()=>{});
 </script>
 <script>(function(){var b=document.getElementById('themeBtn');if(!b)return;b.onclick=function(){var n=document.documentElement.getAttribute('data-theme')==='light'?'dark':'light';if(n==='light')document.documentElement.setAttribute('data-theme','light');else document.documentElement.removeAttribute('data-theme');try{localStorage.setItem('fk_theme',n)}catch(e){}var m=document.getElementById('tc');if(m)m.content=n==='light'?'#e0cfb0':'#1b1e1f';if(window.onFkTheme)window.onFkTheme(n)}})()</script>
+<script>(function(){var bar=document.querySelector('.suitebar');if(!bar)return;
+var grps=[].slice.call(bar.querySelectorAll('.grp'));
+function shut(x){grps.forEach(function(g){if(g!==x)g.classList.remove('open')})}
+grps.forEach(function(g){var b=g.querySelector('.gbtn');
+  b.addEventListener('click',function(e){e.stopPropagation();var o=g.classList.contains('open');shut(null);if(!o)g.classList.add('open')})});
+document.addEventListener('click',function(){shut(null)});
+document.addEventListener('keydown',function(e){if(e.key==='Escape')shut(null)});
+})()</script>
 </body>
 </html>

@@ -39,9 +39,26 @@ a{color:var(--acc)}
 .suitebar{position:sticky; top:0; z-index:60; display:flex; align-items:center; gap:10px; background:var(--card); border-bottom:1px solid var(--line); padding:7px 12px; overflow-x:auto; scrollbar-width:none}
 .suitebar::-webkit-scrollbar{display:none}
 .suitebar .brand{font-family:var(--mono); font-weight:700; font-size:13px; letter-spacing:.05em; color:var(--acc); text-decoration:none; white-space:nowrap; flex-shrink:0}
-.suitebar .switch{display:flex; gap:3px}
+.suitebar .switch{display:flex; gap:3px; align-items:center}
 .suitebar .switch a{font-family:var(--mono); font-size:12.5px; padding:5px 10px; border-radius:8px; color:var(--mut); text-decoration:none; white-space:nowrap}
 .suitebar .switch a.on{background:var(--chip); color:var(--h1); box-shadow:inset 0 -2px 0 var(--acc)}
+.suitebar .grp{position:relative}
+.suitebar .gbtn{font-family:var(--mono); font-size:12.5px; padding:5px 10px; border-radius:8px; color:var(--mut); background:transparent; border:0; white-space:nowrap; display:flex; align-items:center; gap:5px}
+.suitebar .gbtn:hover{color:var(--ink)}
+.suitebar .gbtn .car{font-size:9px; opacity:.7}
+.suitebar .grp.on .gbtn{background:var(--chip); color:var(--h1); box-shadow:inset 0 -2px 0 var(--acc)}
+.suitebar .menu{position:absolute; top:calc(100% + 6px); left:0; min-width:150px; background:var(--card); border:1px solid var(--line2); border-radius:10px; padding:5px; display:none; flex-direction:column; gap:2px; box-shadow:0 10px 24px -12px rgba(0,0,0,.5); z-index:70}
+.suitebar .grp.open .menu{display:flex}
+.suitebar .menu a{padding:6px 10px; border-radius:7px}
+.suitebar .menu a:hover{background:var(--chip); color:var(--ink)}
+.suitebar .menu a.cur{color:var(--h1); background:var(--chip)}
+@media(max-width:440px){
+  .suitebar{gap:6px; padding:7px 8px}
+  .suitebar .brand{font-size:0}
+  .suitebar .brand::before{content:'◆'; font-size:14px}
+  .suitebar .switch a,.suitebar .gbtn{padding:5px 7px; font-size:12px}
+  .suitebar .gbtn .car{display:none}
+}
 .suitebar .themebtn{margin-left:auto; position:sticky; right:0; flex-shrink:0; font-size:15px; line-height:1; padding:5px 9px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--mut); cursor:pointer; box-shadow:-10px 0 8px -2px var(--card)}
 .suitebar .themebtn:hover{color:var(--acc); border-color:var(--line2)}
 
@@ -53,8 +70,8 @@ h1{font:700 2rem var(--mono); letter-spacing:-.02em; color:var(--h1)}
 .savebtn:hover{border-color:var(--acc); color:var(--h1)}
 .eyebrow{font:600 .72rem var(--mono); letter-spacing:.14em; text-transform:uppercase; color:var(--acc)}
 
-.grid{display:grid; gap:14px; margin-top:16px; grid-template-columns:270px minmax(300px,1fr) minmax(320px,1.15fr); align-items:start}
-@media(max-width:1180px){ .grid{grid-template-columns:250px 1fr} .col-io{grid-column:1 / -1} }
+.grid{display:grid; gap:14px; margin-top:16px; grid-template-columns:var(--ops-w,270px) minmax(280px,1fr) minmax(300px,1.15fr); align-items:start}
+@media(max-width:1180px){ .grid{grid-template-columns:var(--ops-w,250px) 1fr} .col-io{grid-column:1 / -1} }
 @media(max-width:780px){
   .grid{grid-template-columns:1fr}
   .col-io{order:1}           /* on a phone you paste first, so input leads */
@@ -64,9 +81,16 @@ h1{font:700 2rem var(--mono); letter-spacing:-.02em; color:var(--h1)}
 .card{background:var(--card); border:1px solid var(--line); border-radius:13px; padding:13px 14px}
 .card h2{font:600 .95rem var(--mono); color:var(--h2); margin-bottom:10px; display:flex; align-items:center; gap:8px}
 .card h2 .n{color:var(--faint); font-weight:400; font-size:12px; margin-left:auto}
+.card.ops{position:relative}
+.opsgrip{position:absolute; top:0; right:-8px; width:12px; height:100%; cursor:col-resize; z-index:5}
+.opsgrip::after{content:''; position:absolute; left:5px; top:14px; bottom:14px; width:2px; border-radius:2px; background:transparent}
+.opsgrip:hover::after,body.opsdrag .opsgrip::after{background:var(--acc)}
+body.opsdrag{cursor:col-resize; user-select:none}
+body.ops-collapsed .opsgrip{display:none}
+@media(max-width:780px){ .opsgrip{display:none} }
 .collapse{border:1px solid var(--line2); background:var(--raised); color:var(--mut); border-radius:7px; padding:1px 7px; font:600 12px var(--mono); line-height:1.4}
 .collapse:hover{color:var(--acc); border-color:var(--acc)}
-body.ops-collapsed .grid{grid-template-columns:44px minmax(300px,1fr) minmax(320px,1.3fr)}
+body.ops-collapsed .grid{grid-template-columns:44px minmax(280px,1fr) minmax(300px,1.3fr)}
 body.ops-collapsed .card.ops{padding:10px 6px}
 body.ops-collapsed .card.ops h2 .n,body.ops-collapsed .card.ops .lbl,
 body.ops-collapsed #opsearch,body.ops-collapsed .oplist{display:none}
@@ -136,16 +160,25 @@ body.ops-collapsed .collapse{margin:0 auto}
   <div class="switch">
     <a href="./index.html">Weather</a>
     <a href="./radar.html">Radar</a>
-    <a href="./markets.html">Markets</a>
-    <a href="./debt.html">Debt</a>
-    <a href="./intel.html">Grapevine</a>
-    <a href="./chef.html" class="on">Chef</a>
-    <a href="./ascii.html">ASCII</a>
-    <a href="./tax.html">Tax</a>
-    <a href="./mortgage.html">Mortgage</a>
-    <a href="./scrub.html">Scrub</a>
-    <a href="./optout.html">Opt Out</a>
-    <a href="./places.html">Places</a>
+    <div class="grp on"><button class="gbtn" type="button">Tech<span class="car">▼</span></button>
+      <div class="menu">
+        <a href="./intel.html">Grapevine</a>
+        <a href="./chef.html" class="cur">Chef</a>
+        <a href="./ascii.html">ASCII</a>
+      </div></div>
+    <div class="grp"><button class="gbtn" type="button">Finance<span class="car">▼</span></button>
+      <div class="menu">
+        <a href="./markets.html">Markets</a>
+        <a href="./debt.html">Debt</a>
+        <a href="./tax.html">Tax</a>
+        <a href="./mortgage.html">Mortgage</a>
+      </div></div>
+    <div class="grp"><button class="gbtn" type="button">Privacy<span class="car">▼</span></button>
+      <div class="menu">
+        <a href="./scrub.html">Scrub</a>
+        <a href="./optout.html">Opt Out</a>
+        <a href="./places.html">Places</a>
+      </div></div>
   </div>
   <button class="themebtn" id="themeBtn" title="Light / dark" aria-label="Toggle light or dark mode">◐</button>
 </div>
@@ -158,7 +191,7 @@ body.ops-collapsed .collapse{margin:0 auto}
   </div>
 
   <div class="grid">
-    <div class="card ops">
+    <div class="card ops"><div class="opsgrip" id="opsGrip" title="Drag to resize"></div>
       <h2><span class="lbl">Operations</span> <span class="n" id="opCount"></span><button class="collapse" id="opToggle" title="Collapse this column">«</button></h2>
       <input id="opsearch" placeholder="Search, e.g. base64, xor, gzip" autocomplete="off" spellcheck="false">
       <div class="oplist" id="oplist"></div>
@@ -626,13 +659,32 @@ function drawOps(filter){
   $$('#oplist .op').forEach(b=>b.onclick=()=>addOp(b.dataset.op));
 }
 $('#opsearch').oninput=e=>drawOps(e.target.value);
+const setOpsW=w=>{ const v=Math.max(170,Math.min(560,w)); document.documentElement.style.setProperty('--ops-w',v+'px');
+  try{ localStorage.setItem('fk_chef_opsw',String(v)) }catch(e){} };
 $('#opToggle').onclick=()=>{
   const on=document.body.classList.toggle('ops-collapsed');
   $('#opToggle').textContent=on?'»':'«';
   $('#opToggle').title=on?'Show the operations list':'Collapse this column';
   try{ localStorage.setItem('fk_chef_ops',on?'1':'0') }catch(e){}
 };
-try{ if(localStorage.getItem('fk_chef_ops')==='1'){ document.body.classList.add('ops-collapsed'); $('#opToggle').textContent='»' } }catch(e){}
+(function grip(){
+  const g=$('#opsGrip'); if(!g)return;
+  let from=0, start=0;
+  const move=e=>{ const x=(e.touches?e.touches[0].clientX:e.clientX); setOpsW(start+(x-from)) };
+  const up=()=>{ document.body.classList.remove('opsdrag');
+    removeEventListener('pointermove',move); removeEventListener('pointerup',up) };
+  g.addEventListener('pointerdown',e=>{
+    e.preventDefault();
+    from=e.clientX; start=$('.card.ops').getBoundingClientRect().width;
+    document.body.classList.add('opsdrag');
+    addEventListener('pointermove',move); addEventListener('pointerup',up);
+  });
+  g.addEventListener('dblclick',()=>setOpsW(270));
+})();
+try{
+  const w=+localStorage.getItem('fk_chef_opsw'); if(w)document.documentElement.style.setProperty('--ops-w',w+'px');
+  if(localStorage.getItem('fk_chef_ops')==='1'){ document.body.classList.add('ops-collapsed'); $('#opToggle').textContent='»' }
+}catch(e){}
 
 /* ---------- recipe panel ---------- */
 function drawRecipe(){
@@ -1392,5 +1444,13 @@ drawOps(''); drawRecipe(); readInput();
 if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});
 </script>
 <script>(function(){var b=document.getElementById('themeBtn');if(!b)return;b.onclick=function(){var n=document.documentElement.getAttribute('data-theme')==='light'?'dark':'light';if(n==='light')document.documentElement.setAttribute('data-theme','light');else document.documentElement.removeAttribute('data-theme');try{localStorage.setItem('fk_theme',n)}catch(e){}var m=document.getElementById('tc');if(m)m.content=n==='light'?'#e0cfb0':'#1b1e1f';if(window.onFkTheme)window.onFkTheme(n)}})()</script>
+<script>(function(){var bar=document.querySelector('.suitebar');if(!bar)return;
+var grps=[].slice.call(bar.querySelectorAll('.grp'));
+function shut(x){grps.forEach(function(g){if(g!==x)g.classList.remove('open')})}
+grps.forEach(function(g){var b=g.querySelector('.gbtn');
+  b.addEventListener('click',function(e){e.stopPropagation();var o=g.classList.contains('open');shut(null);if(!o)g.classList.add('open')})});
+document.addEventListener('click',function(){shut(null)});
+document.addEventListener('keydown',function(e){if(e.key==='Escape')shut(null)});
+})()</script>
 </body>
 </html>
