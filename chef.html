@@ -64,6 +64,15 @@ h1{font:700 2rem var(--mono); letter-spacing:-.02em; color:var(--h1)}
 .card{background:var(--card); border:1px solid var(--line); border-radius:13px; padding:13px 14px}
 .card h2{font:600 .95rem var(--mono); color:var(--h2); margin-bottom:10px; display:flex; align-items:center; gap:8px}
 .card h2 .n{color:var(--faint); font-weight:400; font-size:12px; margin-left:auto}
+.collapse{border:1px solid var(--line2); background:var(--raised); color:var(--mut); border-radius:7px; padding:1px 7px; font:600 12px var(--mono); line-height:1.4}
+.collapse:hover{color:var(--acc); border-color:var(--acc)}
+body.ops-collapsed .grid{grid-template-columns:44px minmax(300px,1fr) minmax(320px,1.3fr)}
+body.ops-collapsed .card.ops{padding:10px 6px}
+body.ops-collapsed .card.ops h2 .n,body.ops-collapsed .card.ops .lbl,
+body.ops-collapsed #opsearch,body.ops-collapsed .oplist{display:none}
+body.ops-collapsed .card.ops h2{margin:0}
+body.ops-collapsed .collapse{margin:0 auto}
+@media(max-width:780px){ body.ops-collapsed .grid{grid-template-columns:1fr} }
 
 /* operations */
 #opsearch{width:100%; padding:7px 10px; border-radius:9px; border:1px solid var(--line2); background:var(--raised); font-family:var(--mono); font-size:13px}
@@ -100,7 +109,7 @@ h1{font:700 2rem var(--mono); letter-spacing:-.02em; color:var(--h1)}
 /* io */
 .io{display:flex; flex-direction:column; gap:12px}
 .pane textarea{width:100%; min-height:150px; padding:10px; border-radius:10px; border:1px solid var(--line2); background:var(--raised); font-family:var(--mono); font-size:12.5px; line-height:1.45; resize:vertical; white-space:pre; overflow-wrap:normal; overflow-x:auto}
-.pane .out{width:100%; min-height:190px; max-height:56vh; overflow:auto; padding:10px; border-radius:10px; border:1px solid var(--line2); background:var(--raised); font-family:var(--mono); font-size:12.5px; line-height:1.45; white-space:pre; color:var(--ink)}
+.pane .out{width:100%; min-height:190px; height:42vh; max-height:none; resize:vertical; overflow:auto; padding:10px; border-radius:10px; border:1px solid var(--line2); background:var(--raised); font-family:var(--mono); font-size:12.5px; line-height:1.45; white-space:pre; color:var(--ink)}
 .pane .out.wrapped{white-space:pre-wrap; overflow-wrap:anywhere}
 .tools{display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-bottom:8px}
 .tools button{padding:4px 9px; border-radius:8px; border:1px solid var(--line2); background:var(--raised); font:600 11.5px var(--mono); color:var(--mut)}
@@ -147,7 +156,7 @@ h1{font:700 2rem var(--mono); letter-spacing:-.02em; color:var(--h1)}
 
   <div class="grid">
     <div class="card ops">
-      <h2>Operations <span class="n" id="opCount"></span></h2>
+      <h2><span class="lbl">Operations</span> <span class="n" id="opCount"></span><button class="collapse" id="opToggle" title="Collapse this column">«</button></h2>
       <input id="opsearch" placeholder="Search, e.g. base64, xor, gzip" autocomplete="off" spellcheck="false">
       <div class="oplist" id="oplist"></div>
     </div>
@@ -158,11 +167,11 @@ h1{font:700 2rem var(--mono); letter-spacing:-.02em; color:var(--h1)}
         <select id="presets"><option value="">Load a recipe…</option></select>
         <button id="clear">Clear</button>
         <button id="share">Copy link</button>
-        <button id="deep" title="Walk the input like an analyst: find encoded regions, decode each on evidence, identify what comes out, recurse">Deep scan</button>
-        <button class="pri" id="bake">Bake</button>
+        <button class="pri" id="deep" title="Walk the input like an analyst: find encoded regions, decode each on evidence, identify what comes out, recurse">Deep scan</button>
+        <button id="bake">Bake</button>
       </div>
       <div id="recipe"></div>
-      <div class="note" id="autonote">Steps run top to bottom. Drag to reorder, ◉ to skip a step without deleting it.</div>
+      <div class="note" id="autonote">With no steps, anything you paste gets deep scanned on its own. Add steps and it bakes those instead, top to bottom; drag to reorder, ◉ to skip one.</div>
     </div>
 
     <div class="io col-io">
@@ -605,6 +614,13 @@ function drawOps(filter){
   $$('#oplist .op').forEach(b=>b.onclick=()=>addOp(b.dataset.op));
 }
 $('#opsearch').oninput=e=>drawOps(e.target.value);
+$('#opToggle').onclick=()=>{
+  const on=document.body.classList.toggle('ops-collapsed');
+  $('#opToggle').textContent=on?'»':'«';
+  $('#opToggle').title=on?'Show the operations list':'Collapse this column';
+  try{ localStorage.setItem('fk_chef_ops',on?'1':'0') }catch(e){}
+};
+try{ if(localStorage.getItem('fk_chef_ops')==='1'){ document.body.classList.add('ops-collapsed'); $('#opToggle').textContent='»' } }catch(e){}
 
 /* ---------- recipe panel ---------- */
 function drawRecipe(){
@@ -659,6 +675,9 @@ function drawRecipe(){
 /* ---------- baking ---------- */
 async function run(){
   if(baking){ again=true; return }
+  // With no steps there is nothing to bake, and echoing the input back looks broken.
+  // Work the input out instead, which is what you wanted from a paste anyway.
+  if(!recipe.some(s=>!s.off)){ $('#bakeTime').textContent=''; return autoScan() }
   baking=true;
   const t0=performance.now();
   let d=inputBytes;
@@ -751,6 +770,9 @@ function magic(){ clearTimeout(magicT); magicT=setTimeout(magicRun,90) }
 async function magicRun(){
   const box=$('#magicBox');
   if(!inputBytes.length){ box.innerHTML=''; return }
+  // Magic answers "what is this one blob". A pasted log or tree is not that, and deep scan covers it.
+  const head=S(inputBytes.subarray(0,4000));
+  if(head.trim().split(/\n/).length>2||inputBytes.length>4000){ box.innerHTML=''; return }
   const t=S(inputBytes.subarray(0,20000));
   const hints=looksLike(t);
   const found=[];
@@ -1154,24 +1176,39 @@ async function deepScan(root){
 
 $('#save').onclick=async()=>{
   // The page is one file with no dependencies, so saving its own source is the whole tool.
-  let html;
-  try{ const r=await fetch(location.pathname||'./chef.html',{cache:'no-store'}); if(!r.ok)throw 0; html=await r.text() }
-  catch(e){ html='<!doctype html>\n'+document.documentElement.outerHTML }
   const a=document.createElement('a');
-  a.href=URL.createObjectURL(new Blob([html],{type:'text/html'})); a.download='chef.html'; a.click();
-  setTimeout(()=>URL.revokeObjectURL(a.href),5000);
-  toast('Saved. Open it anywhere, it needs nothing else.');
+  a.download='chef.html';
+  a.rel='noopener';
+  if(location.protocol.startsWith('http')){
+    a.href=location.pathname||'./chef.html';       // same origin, so the browser keeps the name and extension
+    document.body.appendChild(a); a.click(); a.remove();
+  }else{
+    const html='<!doctype html>\n'+document.documentElement.outerHTML;
+    a.href=URL.createObjectURL(new Blob([html],{type:'text/html;charset=utf-8'}));
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href),5000);
+  }
+  toast('Saved as chef.html. Open it anywhere, it needs nothing else.');
 };
 
 let FINDS=[];
-$('#deep').onclick=async()=>{
-  if(!inputBytes.length)return toast('Give it something to look at');
-  $('#deep').textContent='Scanning…'; $('#deep').disabled=true;
+async function autoScan(){
+  const o=$('#output');
+  if(!inputBytes.length){ outBytes=new Uint8Array(0); paintOut(); $('#findBox').innerHTML=''; return }
+  if(inputBytes.length>400000){
+    o.textContent='Loaded '+inputBytes.length.toLocaleString()+' bytes. Hit Deep scan to work through it, or add steps to the recipe.';
+    return;
+  }
+  await runDeep(true);
+}
+async function runDeep(auto){
+  if(!inputBytes.length)return;
+  const t0=performance.now();
   try{
-    const t0=performance.now();
     const {report,finds}=await deepScan(inputBytes);
     FINDS=finds;
-    outBytes=B(report+`\nscan took ${Math.round(performance.now()-t0)} ms\n`);
+    outBytes=B((auto?'Deep scan ran automatically because the recipe is empty. Add steps and it bakes those instead.\n\n':'')
+      +report+`\nscan took ${Math.round(performance.now()-t0)} ms\n`);
     outView='text'; $('#vText').classList.add('on'); $('#vHex').classList.remove('on');
     paintOut();
     $('#findBox').innerHTML=finds.length
@@ -1186,6 +1223,11 @@ $('#deep').onclick=async()=>{
       toast('Loaded that artifact into the output, its recipe into the recipe pane');
     });
   }catch(e){ toast('Scan failed: '+e.message) }
+}
+$('#deep').onclick=async()=>{
+  if(!inputBytes.length)return toast('Give it something to look at');
+  $('#deep').textContent='Scanning…'; $('#deep').disabled=true;
+  await runDeep(false);
   $('#deep').textContent='Deep scan'; $('#deep').disabled=false;
 };
 
