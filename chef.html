@@ -1,0 +1,804 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="darkreader-lock">
+<meta name="color-scheme" content="dark light">
+<meta name="theme-color" content="#1b1e1f" id="tc">
+<script>(function(){var t='dark';try{t=localStorage.getItem('fk_theme')||'dark'}catch(e){}if(t==='light'){document.documentElement.setAttribute('data-theme','light');document.getElementById('tc').content='#e0cfb0'}})()</script>
+<title>Chef</title>
+<link rel="manifest" href="manifest-chef.webmanifest">
+<link rel="icon" href="chef-192.png">
+<link rel="apple-touch-icon" href="chef-180.png">
+<meta name="apple-mobile-web-app-title" content="Chef">
+<style>
+/* Opus Prima Materia. Everything runs in the browser; nothing is sent anywhere. */
+:root{
+  color-scheme:light;
+  --bg:#e0cfb0; --card:#e8d9bf; --chip:#d4c29e; --raised:#eee1cb;
+  --ink:#2b2114; --mut:#5f5236; --faint:#8a7c5e; --line:color-mix(in srgb,#1e160e 12%,transparent); --line2:color-mix(in srgb,#1e160e 24%,transparent);
+  --acc:#b0631f; --good:#14776a; --bad:#b23e37; --blue:#2f6fb0;
+  --h1:color-mix(in srgb,var(--acc),#000 26%); --h2:#3d6e63; --h3:#44618c; --h4:#71537f; --h5:#5c7150; --on-acc:#fffaf0;
+  --mono:"SF Mono","JetBrains Mono","Menlo",ui-monospace,"Consolas",monospace;
+}
+:root:not([data-theme="light"]){
+  --h1:color-mix(in srgb,var(--acc),#fff 16%); --h2:#7cb5a4; --h3:#8fa8c9; --h4:#ab8fc0; --h5:#97ab8a; --on-acc:#1b1e1f;
+  --bg:#1b1e1f; --card:#222627; --chip:#292e2f; --raised:#2e3334;
+  --ink:#e7e4d9; --mut:#b1afa1; --faint:#828175; --line:#353b3c; --line2:#434a4b;
+  --acc:#d98a3d; --good:#4bbfa6; --bad:#d0655c; --blue:#5b9cff;
+  color-scheme:dark;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg); color:var(--ink); font:16px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+button,input,select,textarea{font:inherit; color:inherit}
+button{cursor:pointer}
+a{color:var(--acc)}
+.suitebar{position:sticky; top:0; z-index:60; display:flex; align-items:center; gap:10px; background:var(--card); border-bottom:1px solid var(--line); padding:7px 12px; overflow-x:auto; scrollbar-width:none}
+.suitebar::-webkit-scrollbar{display:none}
+.suitebar .brand{font-family:var(--mono); font-weight:700; font-size:13px; letter-spacing:.05em; color:var(--acc); text-decoration:none; white-space:nowrap; flex-shrink:0}
+.suitebar .switch{display:flex; gap:3px}
+.suitebar .switch a{font-family:var(--mono); font-size:12.5px; padding:5px 10px; border-radius:8px; color:var(--mut); text-decoration:none; white-space:nowrap}
+.suitebar .switch a.on{background:var(--chip); color:var(--h1); box-shadow:inset 0 -2px 0 var(--acc)}
+.suitebar .themebtn{margin-left:auto; position:sticky; right:0; flex-shrink:0; font-size:15px; line-height:1; padding:5px 9px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--mut); cursor:pointer; box-shadow:-10px 0 8px -2px var(--card)}
+.suitebar .themebtn:hover{color:var(--acc); border-color:var(--line2)}
+
+.wrap{max-width:1600px; margin:0 auto; padding:18px 16px 40px}
+.head{display:flex; align-items:baseline; gap:14px; flex-wrap:wrap; border-bottom:1px solid var(--line2); padding-bottom:.45rem}
+h1{font:700 2rem var(--mono); letter-spacing:-.02em; color:var(--h1)}
+.head .tag{font-size:13px; color:var(--mut)}
+.eyebrow{font:600 .72rem var(--mono); letter-spacing:.14em; text-transform:uppercase; color:var(--acc)}
+
+.grid{display:grid; gap:14px; margin-top:16px; grid-template-columns:270px minmax(300px,1fr) minmax(320px,1.15fr); align-items:start}
+@media(max-width:1180px){ .grid{grid-template-columns:250px 1fr} .col-io{grid-column:1 / -1} }
+@media(max-width:780px){
+  .grid{grid-template-columns:1fr}
+  .col-io{order:1}           /* on a phone you paste first, so input leads */
+  .card.rec{order:2} .card.ops{order:3}
+  .oplist{max-height:44vh}
+}
+.card{background:var(--card); border:1px solid var(--line); border-radius:13px; padding:13px 14px}
+.card h2{font:600 .95rem var(--mono); color:var(--h2); margin-bottom:10px; display:flex; align-items:center; gap:8px}
+.card h2 .n{color:var(--faint); font-weight:400; font-size:12px; margin-left:auto}
+
+/* operations */
+#opsearch{width:100%; padding:7px 10px; border-radius:9px; border:1px solid var(--line2); background:var(--raised); font-family:var(--mono); font-size:13px}
+.oplist{margin-top:10px; max-height:60vh; overflow:auto; scrollbar-width:thin}
+.opcat{font:600 .68rem var(--mono); letter-spacing:.12em; text-transform:uppercase; color:var(--faint); margin:10px 0 4px}
+.opcat:first-child{margin-top:0}
+.op{display:block; width:100%; text-align:left; padding:5px 8px; border-radius:7px; border:1px solid transparent; background:transparent; font-size:13px; color:var(--ink)}
+.op:hover{background:var(--chip); border-color:var(--line2); color:var(--h1)}
+
+/* recipe */
+.rbar{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px}
+.rbar button,.rbar select{padding:5px 10px; border-radius:8px; border:1px solid var(--line2); background:var(--raised); font:600 12px var(--mono)}
+.rbar button:hover{border-color:var(--acc); color:var(--h1)}
+.rbar button.pri{background:var(--acc); border-color:var(--acc); color:var(--on-acc)}
+.rbar select{font-weight:600; max-width:220px}
+#recipe{min-height:90px; display:flex; flex-direction:column; gap:8px}
+.step{border:1px solid var(--line2); border-radius:10px; background:var(--raised); padding:8px 10px}
+.step.off{opacity:.45}
+.step.err{border-color:var(--bad)}
+.step .sh{display:flex; align-items:center; gap:8px}
+.step .grip{cursor:grab; color:var(--faint); font-size:13px}
+.step .nm{font:600 13px var(--mono); color:var(--h1); flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.step .ic{border:0; background:transparent; color:var(--faint); font-size:13px; padding:2px 4px; line-height:1}
+.step .ic:hover{color:var(--acc)}
+.step .args{display:grid; gap:7px; margin-top:8px; grid-template-columns:repeat(auto-fit,minmax(130px,1fr))}
+.step .arg label{display:block; font:600 .64rem var(--mono); letter-spacing:.1em; text-transform:uppercase; color:var(--faint); margin-bottom:3px}
+.step .arg input[type=text],.step .arg input[type=number],.step .arg select{width:100%; padding:5px 7px; border-radius:7px; border:1px solid var(--line2); background:var(--card); font-family:var(--mono); font-size:12.5px}
+.step .arg.bool{display:flex; align-items:center; gap:7px; padding-top:14px}
+.step .arg.bool input{accent-color:var(--acc); width:15px; height:15px}
+.step .arg.bool label{margin:0; text-transform:none; letter-spacing:0; font-size:12px; font-weight:500; color:var(--ink)}
+.step .msg{margin-top:6px; font-size:12px; color:var(--bad); font-family:var(--mono)}
+.empty{color:var(--faint); font-size:13px; font-family:var(--mono); padding:16px 4px; text-align:center; line-height:1.6}
+
+/* io */
+.io{display:flex; flex-direction:column; gap:12px}
+.pane textarea{width:100%; min-height:150px; padding:10px; border-radius:10px; border:1px solid var(--line2); background:var(--raised); font-family:var(--mono); font-size:12.5px; line-height:1.45; resize:vertical; white-space:pre; overflow-wrap:normal; overflow-x:auto}
+.pane .out{width:100%; min-height:190px; max-height:56vh; overflow:auto; padding:10px; border-radius:10px; border:1px solid var(--line2); background:var(--raised); font-family:var(--mono); font-size:12.5px; line-height:1.45; white-space:pre; color:var(--ink)}
+.pane .out.wrapped{white-space:pre-wrap; overflow-wrap:anywhere}
+.tools{display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-bottom:8px}
+.tools button{padding:4px 9px; border-radius:8px; border:1px solid var(--line2); background:var(--raised); font:600 11.5px var(--mono); color:var(--mut)}
+.tools button:hover{color:var(--h1); border-color:var(--acc)}
+.tools button.on{background:var(--chip); color:var(--h1); border-color:var(--line2)}
+.tools .sp{margin-left:auto; font:600 11.5px var(--mono); color:var(--faint)}
+#drop.hot{outline:2px dashed var(--acc); outline-offset:3px}
+.magic{margin-top:10px; border-top:1px solid var(--line); padding-top:10px}
+.magic .mi{display:flex; gap:10px; align-items:flex-start; padding:7px 8px; border-radius:9px; border:1px solid var(--line2); background:var(--raised); margin-top:7px; cursor:pointer}
+.magic .mi:hover{border-color:var(--acc)}
+.magic .mi .mn{font:600 12.5px var(--mono); color:var(--h1); white-space:nowrap}
+.magic .mi .mp{font-family:var(--mono); font-size:11.5px; color:var(--mut); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; min-width:0}
+.note{font-size:12px; color:var(--mut); margin-top:9px}
+.toast{position:fixed; left:50%; bottom:24px; transform:translateX(-50%) translateY(10px); background:var(--raised); border:1px solid var(--line2); padding:8px 14px; border-radius:10px; font:600 12.5px var(--mono); opacity:0; pointer-events:none; transition:opacity .15s,transform .15s; z-index:90}
+.toast.on{opacity:1; transform:translateX(-50%) translateY(0)}
+</style>
+</head>
+<body>
+<div class="suitebar">
+  <a class="brand" href="./index.html">◆&nbsp;FIELD KIT</a>
+  <div class="switch">
+    <a href="./index.html">Weather</a>
+    <a href="./radar.html">Radar</a>
+    <a href="./markets.html">Markets</a>
+    <a href="./debt.html">Debt</a>
+    <a href="./intel.html">Grapevine</a>
+    <a href="./chef.html" class="on">Chef</a>
+    <a href="./ascii.html">ASCII</a>
+    <a href="./tax.html">Tax</a>
+    <a href="./mortgage.html">Mortgage</a>
+    <a href="./scrub.html">Scrub</a>
+    <a href="./optout.html">Opt Out</a>
+    <a href="./places.html">Places</a>
+  </div>
+  <button class="themebtn" id="themeBtn" title="Light / dark" aria-label="Toggle light or dark mode">◐</button>
+</div>
+
+<div class="wrap">
+  <div class="head">
+    <h1>Chef</h1>
+    <div class="tag">Decode, decompress, deobfuscate and triage. Nothing leaves the browser, and it works offline.</div>
+  </div>
+
+  <div class="grid">
+    <div class="card ops">
+      <h2>Operations <span class="n" id="opCount"></span></h2>
+      <input id="opsearch" placeholder="Search, e.g. base64, xor, gzip" autocomplete="off" spellcheck="false">
+      <div class="oplist" id="oplist"></div>
+    </div>
+
+    <div class="card rec">
+      <h2>Recipe <span class="n" id="bakeTime"></span></h2>
+      <div class="rbar">
+        <select id="presets"><option value="">Load a recipe…</option></select>
+        <button id="clear">Clear</button>
+        <button id="share">Copy link</button>
+        <button class="pri" id="bake">Bake</button>
+      </div>
+      <div id="recipe"></div>
+      <div class="note" id="autonote">Steps run top to bottom. Drag to reorder, ◉ to skip a step without deleting it.</div>
+    </div>
+
+    <div class="io col-io">
+      <div class="card pane">
+        <h2>Input <span class="n" id="inLen"></span></h2>
+        <div class="tools">
+          <button id="inText" class="on">Text</button>
+          <button id="inHex">Hex</button>
+          <button id="pickFile">File…</button>
+          <input type="file" id="file" hidden>
+          <button id="clearIn">Clear</button>
+          <span class="sp" id="inNote">or drop a file anywhere</span>
+        </div>
+        <textarea id="input" spellcheck="false" autocomplete="off" placeholder="Paste the blob here. Try a PowerShell -enc string, a hex dump, a JWT, base64+gzip…"></textarea>
+        <div class="magic" id="magicBox"></div>
+      </div>
+
+      <div class="card pane">
+        <h2>Output <span class="n" id="outLen"></span></h2>
+        <div class="tools">
+          <button id="vText" class="on">Text</button>
+          <button id="vHex">Hex dump</button>
+          <button id="vWrap">Wrap</button>
+          <button id="copyOut">Copy</button>
+          <button id="dlOut">Download</button>
+          <button id="toIn">Output → input</button>
+        </div>
+        <div class="out" id="output"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const ENC=new TextEncoder(), DEC=new TextDecoder('utf-8',{fatal:false});
+const B=s=>ENC.encode(s), S=b=>DEC.decode(b);
+const cat=(...a)=>{const n=a.reduce((s,x)=>s+x.length,0), o=new Uint8Array(n); let i=0; for(const x of a){o.set(x,i); i+=x.length} return o};
+function toast(m){const t=$('#toast'); t.textContent=m; t.classList.add('on'); clearTimeout(toast.t); toast.t=setTimeout(()=>t.classList.remove('on'),1700)}
+
+/* ---------- small primitives ---------- */
+const HEXPRE=/0x|\\x|%|U\+|\\u/gi;
+function hexBytes(str){
+  const h=String(str).replace(HEXPRE,'').replace(/[^0-9a-f]/gi,'');
+  const n=h.length>>1, o=new Uint8Array(n);
+  for(let i=0;i<n;i++)o[i]=parseInt(h.substr(i*2,2),16);
+  return o;
+}
+const hex=(b,sep='')=>[...b].map(x=>x.toString(16).padStart(2,'0')).join(sep);
+function b64bytes(str,url,strict){
+  let s=String(str).replace(/\s+/g,'');
+  if(url)s=s.replace(/-/g,'+').replace(/_/g,'/');
+  if(!strict)s=s.replace(/[^A-Za-z0-9+/=]/g,'');
+  s=s.replace(/=+$/,''); const pad=s.length%4; if(pad===2)s+='=='; else if(pad===3)s+='=';
+  const bin=atob(s), o=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++)o[i]=bin.charCodeAt(i);
+  return o;
+}
+function b64str(b,url){
+  let s=''; for(let i=0;i<b.length;i+=0x8000)s+=String.fromCharCode.apply(null,b.subarray(i,i+0x8000));
+  let out=btoa(s);
+  return url?out.replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''):out;
+}
+async function inflate(b,fmt){
+  if(typeof DecompressionStream==='undefined')throw new Error('this browser has no DecompressionStream');
+  const names={'gzip':'gzip','deflate':'zlib','deflate-raw':'raw deflate'};
+  try{
+    const st=new Blob([b]).stream().pipeThrough(new DecompressionStream(fmt));
+    return new Uint8Array(await new Response(st).arrayBuffer());
+  }catch(e){
+    const head=hex(b.subarray(0,4),' ');
+    throw new Error(`not a ${names[fmt]} stream (starts with ${head||'nothing'})`);
+  }
+}
+async function deflate(b,fmt){
+  if(typeof CompressionStream==='undefined')throw new Error('this browser has no CompressionStream');
+  const st=new Blob([b]).stream().pipeThrough(new CompressionStream(fmt));
+  return new Uint8Array(await new Response(st).arrayBuffer());
+}
+function printable(b,limit){
+  let ok=0, n=Math.min(b.length,limit||4096);
+  for(let i=0;i<n;i++){const c=b[i]; if((c>=32&&c<127)||c===9||c===10||c===13)ok++}
+  return n?ok/n:0;
+}
+function entropy(b){
+  const f=new Array(256).fill(0); for(const x of b)f[x]++;
+  let e=0; for(const c of f){ if(!c)continue; const p=c/b.length; e-=p*Math.log2(p) }
+  return e;
+}
+function utf16le(b){ // drop the high bytes of ASCII-range UTF-16LE
+  let out=''; for(let i=0;i+1<b.length;i+=2)out+=String.fromCharCode(b[i]|(b[i+1]<<8));
+  return out;
+}
+function xorBytes(b,key){ const o=new Uint8Array(b.length); for(let i=0;i<b.length;i++)o[i]=b[i]^key[i%key.length]; return o }
+function rc4(b,key){
+  const s=new Uint8Array(256); for(let i=0;i<256;i++)s[i]=i;
+  for(let i=0,j=0;i<256;i++){ j=(j+s[i]+key[i%key.length])&255; const t=s[i]; s[i]=s[j]; s[j]=t }
+  const o=new Uint8Array(b.length);
+  for(let k=0,i=0,j=0;k<b.length;k++){ i=(i+1)&255; j=(j+s[i])&255; const t=s[i]; s[i]=s[j]; s[j]=t; o[k]=b[k]^s[(s[i]+s[j])&255] }
+  return o;
+}
+function keyBytes(v,fmt){ return fmt==='Hex'?hexBytes(v):fmt==='Base64'?b64bytes(v):B(v) }
+/* MD5, because SubtleCrypto refuses to carry it */
+function md5(bytes){
+  const K=[]; for(let i=0;i<64;i++)K[i]=(Math.abs(Math.sin(i+1))*4294967296)|0;
+  const Sh=[7,12,17,22,7,12,17,22,7,12,17,22,7,12,17,22,5,9,14,20,5,9,14,20,5,9,14,20,5,9,14,20,
+            4,11,16,23,4,11,16,23,4,11,16,23,4,11,16,23,6,10,15,21,6,10,15,21,6,10,15,21,6,10,15,21];
+  const len=bytes.length, bits=len*8;
+  const padded=new Uint8Array((((len+8)>>6)+1)*64);
+  padded.set(bytes); padded[len]=0x80;
+  const dv=new DataView(padded.buffer);
+  dv.setUint32(padded.length-8,bits>>>0,true); dv.setUint32(padded.length-4,Math.floor(bits/4294967296),true);
+  let a0=0x67452301,b0=0xefcdab89,c0=0x98badcfe,d0=0x10325476;
+  const rol=(x,c)=>(x<<c)|(x>>>(32-c));
+  for(let off=0;off<padded.length;off+=64){
+    const M=[]; for(let i=0;i<16;i++)M[i]=dv.getUint32(off+i*4,true);
+    let A=a0,Bb=b0,C=c0,D=d0;
+    for(let i=0;i<64;i++){
+      let F,g;
+      if(i<16){F=(Bb&C)|(~Bb&D); g=i}
+      else if(i<32){F=(D&Bb)|(~D&C); g=(5*i+1)%16}
+      else if(i<48){F=Bb^C^D; g=(3*i+5)%16}
+      else {F=C^(Bb|~D); g=(7*i)%16}
+      F=(F+A+K[i]+M[g])|0; A=D; D=C; C=Bb; Bb=(Bb+rol(F,Sh[i]))|0;
+    }
+    a0=(a0+A)|0; b0=(b0+Bb)|0; c0=(c0+C)|0; d0=(d0+D)|0;
+  }
+  const out=new Uint8Array(16), o=new DataView(out.buffer);
+  o.setUint32(0,a0>>>0,true); o.setUint32(4,b0>>>0,true); o.setUint32(8,c0>>>0,true); o.setUint32(12,d0>>>0,true);
+  return hex(out);
+}
+function crc32(b){
+  let t=crc32.t; if(!t){ t=crc32.t=new Uint32Array(256);
+    for(let i=0;i<256;i++){ let c=i; for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1; t[i]=c>>>0 } }
+  let c=0xFFFFFFFF; for(const x of b)c=t[(c^x)&255]^(c>>>8);
+  return ((c^0xFFFFFFFF)>>>0).toString(16).padStart(8,'0');
+}
+async function sha(b,alg){
+  const d=await crypto.subtle.digest(alg,b.buffer.slice(b.byteOffset,b.byteOffset+b.byteLength));
+  return hex(new Uint8Array(d));
+}
+function hexdump(b,limit){
+  const n=Math.min(b.length,limit||65536); let out='';
+  for(let i=0;i<n;i+=16){
+    const row=b.subarray(i,Math.min(i+16,n));
+    const h=[...row].map(x=>x.toString(16).padStart(2,'0')).join(' ').padEnd(47,' ');
+    const a=[...row].map(x=>(x>=32&&x<127)?String.fromCharCode(x):'.').join('');
+    out+=i.toString(16).padStart(8,'0')+'  '+h+'  |'+a+'|\n';
+  }
+  if(b.length>n)out+=`… ${b.length-n} more bytes\n`;
+  return out;
+}
+const IOC={
+  ip:/\b(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)\b/g,
+  url:/\b(?:https?|ftp):\/\/[^\s"'<>\\\]}]+/gi,
+  domain:/\b(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+(?:com|net|org|io|ru|cn|info|biz|top|xyz|shop|online|site|club|icu|cc|su|to|me|co|uk|de|fr|nl|br|in|jp|pl|it|es|ca|au|ch|se|no|fi|dk|cz|tv|pw|link|live|life|world|today|space|website|store|tech|app|dev|pro|vip|fun|cloud|host|press|work|zip|mov)\b/gi,
+  email:/\b[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}\b/gi,
+  md5:/\b[a-f0-9]{32}\b/gi, sha1:/\b[a-f0-9]{40}\b/gi, sha256:/\b[a-f0-9]{64}\b/gi,
+  btc:/\b(?:bc1[a-z0-9]{25,62}|[13][a-km-zA-HJ-NP-Z1-9]{25,34})\b/g,
+  reg:/\bHK(?:EY_)?(?:LM|CU|CR|U|CC|LOCAL_MACHINE|CURRENT_USER|CLASSES_ROOT|USERS|CURRENT_CONFIG)\\[^\s"'<>|]+/gi
+};
+
+/* ---------- operations ---------- */
+const OPS={};
+function op(name,catg,args,fn,note){ OPS[name]={name,cat:catg,args:args||[],fn,note} }
+
+/* encoding */
+op('From Base64','Encoding',[
+  {k:'alpha',l:'Alphabet',t:'select',o:['Standard','URL safe'],d:'Standard'},
+  {k:'strict',l:'Strict (fail on junk)',t:'bool',d:false}
+],(b,a)=>b64bytes(S(b),a.alpha==='URL safe',a.strict));
+op('To Base64','Encoding',[{k:'alpha',l:'Alphabet',t:'select',o:['Standard','URL safe'],d:'Standard'}],
+  (b,a)=>B(b64str(b,a.alpha==='URL safe')));
+op('From Base32','Encoding',[],(b)=>{
+  const A='ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+  const s=S(b).toUpperCase().replace(/[^A-Z2-7]/g,'');
+  let bits=0,val=0; const out=[];
+  for(const ch of s){ val=(val<<5)|A.indexOf(ch); bits+=5; if(bits>=8){ out.push((val>>>(bits-8))&255); bits-=8 } }
+  return new Uint8Array(out);
+});
+op('From Hex','Encoding',[],(b)=>hexBytes(S(b)),'Eats any separator: spaces, commas, colons, 0x, \\x, %.');
+op('To Hex','Encoding',[{k:'sep',l:'Separator',t:'select',o:['Space','None','Comma','Colon','\\x','0x'],d:'Space'}],
+  (b,a)=>{ const m={'Space':' ','None':'','Comma':',','Colon':':'};
+    if(a.sep==='\\x')return B([...b].map(x=>'\\x'+x.toString(16).padStart(2,'0')).join(''));
+    if(a.sep==='0x')return B([...b].map(x=>'0x'+x.toString(16).padStart(2,'0')).join(', '));
+    return B(hex(b,m[a.sep])) });
+op('From Charcode','Encoding',[{k:'base',l:'Base',t:'select',o:['10','16','8','2'],d:'10'}],(b,a)=>{
+  const parts=S(b).split(/[^0-9a-fA-Fx]+/).filter(Boolean).map(x=>parseInt(x.replace(/^0x/i,''),+a.base)).filter(n=>!isNaN(n));
+  const o=new Uint8Array(parts.length); parts.forEach((n,i)=>o[i]=n&255); return o;
+},'Turns 104,101,108,108,111 or Chr(65) lists back into text.');
+op('To Charcode','Encoding',[{k:'sep',l:'Separator',t:'text',d:','}],(b,a)=>B([...b].join(a.sep||',')));
+op('URL decode','Encoding',[],(b)=>{ try{ return B(decodeURIComponent(S(b).replace(/\+/g,' '))) }catch(e){ return B(S(b).replace(/%([0-9a-f]{2})/gi,(m,h)=>String.fromCharCode(parseInt(h,16)))) } });
+op('URL encode','Encoding',[{k:'all',l:'Encode everything',t:'bool',d:false}],
+  (b,a)=>B(a.all?[...S(b)].map(c=>'%'+c.charCodeAt(0).toString(16).padStart(2,'0')).join(''):encodeURIComponent(S(b))));
+op('HTML entity decode','Encoding',[],(b)=>{ const d=document.createElement('textarea'); d.innerHTML=S(b); return B(d.value) });
+op('Unescape \\u and \\x','Encoding',[],(b)=>B(S(b)
+  .replace(/\\u\{([0-9a-f]+)\}/gi,(m,h)=>String.fromCodePoint(parseInt(h,16)))
+  .replace(/\\u([0-9a-f]{4})/gi,(m,h)=>String.fromCharCode(parseInt(h,16)))
+  .replace(/\\x([0-9a-f]{2})/gi,(m,h)=>String.fromCharCode(parseInt(h,16)))
+  .replace(/\\([0-7]{1,3})/g,(m,o)=>String.fromCharCode(parseInt(o,8)))),'Covers JavaScript, PowerShell and VBScript escapes.');
+op('Decode UTF-16LE','Encoding',[],(b)=>B(utf16le(b)),'What PowerShell -EncodedCommand leaves behind.');
+op('Remove null bytes','Encoding',[],(b)=>b.filter?new Uint8Array([...b].filter(x=>x!==0)):b);
+op('From Quoted Printable','Encoding',[],(b)=>B(S(b).replace(/=\r?\n/g,'').replace(/=([0-9A-F]{2})/g,(m,h)=>String.fromCharCode(parseInt(h,16)))));
+op('Decode JWT','Encoding',[],(b)=>{
+  const p=S(b).trim().split('.');
+  if(p.length<2)throw new Error('not three dot-separated parts');
+  const j=i=>{ try{ return JSON.stringify(JSON.parse(S(b64bytes(p[i],true))),null,2) }catch(e){ return S(b64bytes(p[i],true)) } };
+  return B(`header:\n${j(0)}\n\npayload:\n${j(1)}\n\nsignature (base64url):\n${p[2]||'(none)'}\n`);
+});
+
+/* compression */
+op('Gunzip','Compression',[],(b)=>inflate(b,'gzip'));
+op('Inflate (zlib)','Compression',[],(b)=>inflate(b,'deflate'));
+op('Inflate raw','Compression',[],(b)=>inflate(b,'deflate-raw'));
+op('Auto decompress','Compression',[],async(b)=>{
+  if(b[0]===0x1f&&b[1]===0x8b)return inflate(b,'gzip');
+  if(b[0]===0x78)return inflate(b,'deflate');
+  try{ return await inflate(b,'deflate-raw') }catch(e){ throw new Error(`nothing decompressible here (starts with ${hex(b.subarray(0,4),' ')||'nothing'})`) }
+},'Sniffs the magic bytes and picks gzip, zlib or raw deflate.');
+op('Gzip','Compression',[],(b)=>deflate(b,'gzip'));
+
+/* crypto and obfuscation */
+op('XOR','Crypto',[
+  {k:'key',l:'Key',t:'text',d:''},
+  {k:'fmt',l:'Key format',t:'select',o:['UTF-8','Hex','Base64'],d:'Hex'}
+],(b,a)=>{ const k=keyBytes(a.key,a.fmt); if(!k.length)throw new Error('give me a key'); return xorBytes(b,k) });
+op('XOR brute force','Crypto',[
+  {k:'keep',l:'Only printable results',t:'bool',d:true},
+  {k:'crib',l:'Must contain',t:'text',d:''}
+],(b,a)=>{
+  // Printable alone lets a lot of junk through, so rank by how much the result looks
+  // like language, paths and URLs. The real key almost always lands on top.
+  const score=d=>{ let s=0, n=Math.min(d.length,600);
+    for(let i=0;i<n;i++){ const c=d[i];
+      if((c>=97&&c<=122)||(c>=65&&c<=90))s+=3;
+      else if(c===32)s+=3;
+      else if(c>=48&&c<=57)s+=1;
+      else if(c===46||c===47||c===58||c===45||c===92||c===95)s+=1;
+      else if(c===9||c===10||c===13)s+=0;
+      else if(c<32||c>126)s-=6; else s-=1 }
+    return s/Math.max(1,n) };
+  const rows=[];
+  for(let k=1;k<256;k++){
+    const d=xorBytes(b,new Uint8Array([k]));
+    if(a.crib&&!S(d).toLowerCase().includes(a.crib.toLowerCase()))continue;
+    if(a.keep&&printable(d,512)<0.95)continue;
+    rows.push({k,s:score(d),t:S(d.subarray(0,120)).replace(/[\r\n]+/g,' ')});
+  }
+  rows.sort((x,y)=>y.s-x.s);
+  if(!rows.length)return B('nothing readable from a single-byte key\n');
+  const head=`best guess: key 0x${rows[0].k.toString(16).padStart(2,'0')}\n\n`;
+  return B(head+rows.slice(0,40).map(r=>'0x'+r.k.toString(16).padStart(2,'0')+'  '+r.s.toFixed(1).padStart(5)+'  '+r.t).join('\n')+'\n');
+},'Every single-byte key, ranked by how much the result reads like text.');
+op('RC4','Crypto',[{k:'key',l:'Key',t:'text',d:''},{k:'fmt',l:'Key format',t:'select',o:['UTF-8','Hex','Base64'],d:'UTF-8'}],
+  (b,a)=>{ const k=keyBytes(a.key,a.fmt); if(!k.length)throw new Error('give me a key'); return rc4(b,k) });
+op('ROT13','Crypto',[{k:'n',l:'Amount',t:'num',d:13}],(b,a)=>{
+  const n=((+a.n%26)+26)%26;
+  return B(S(b).replace(/[a-z]/gi,c=>{ const base=c<='Z'?65:97; return String.fromCharCode((c.charCodeAt(0)-base+n)%26+base) }));
+});
+op('ROT47','Crypto',[{k:'n',l:'Amount',t:'num',d:47}],(b,a)=>{
+  const n=((+a.n%94)+94)%94;
+  return B([...S(b)].map(c=>{ const x=c.charCodeAt(0); return (x>=33&&x<=126)?String.fromCharCode(33+((x-33+n)%94)):c }).join(''));
+});
+op('MD5','Hashing',[],(b)=>B(md5(b)+'\n'));
+op('SHA-1','Hashing',[],async(b)=>B(await sha(b,'SHA-1')+'\n'));
+op('SHA-256','Hashing',[],async(b)=>B(await sha(b,'SHA-256')+'\n'));
+op('SHA-512','Hashing',[],async(b)=>B(await sha(b,'SHA-512')+'\n'));
+op('CRC-32','Hashing',[],(b)=>B(crc32(b)+'\n'));
+op('All hashes','Hashing',[],async(b)=>B(
+  `md5     ${md5(b)}\nsha1    ${await sha(b,'SHA-1')}\nsha256  ${await sha(b,'SHA-256')}\ncrc32   ${crc32(b)}\nbytes   ${b.length}\n`));
+
+/* text surgery */
+op('Find / replace','Text',[
+  {k:'find',l:'Find',t:'text',d:''},{k:'rep',l:'Replace with',t:'text',d:''},
+  {k:'re',l:'Regex',t:'bool',d:false},{k:'ci',l:'Ignore case',t:'bool',d:false}
+],(b,a)=>{
+  if(!a.find)return b;
+  const rx=a.re?new RegExp(a.find,'g'+(a.ci?'i':'')):new RegExp(a.find.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'g'+(a.ci?'i':''));
+  return B(S(b).replace(rx,a.rep));
+});
+op('Regex extract','Text',[
+  {k:'pat',l:'Pattern',t:'text',d:''},{k:'ci',l:'Ignore case',t:'bool',d:true},
+  {k:'grp',l:'Capture group (0 = whole)',t:'num',d:0},{k:'uniq',l:'Unique only',t:'bool',d:false}
+],(b,a)=>{
+  if(!a.pat)return b;
+  const rx=new RegExp(a.pat,'g'+(a.ci?'i':'')); let m, out=[];
+  while((m=rx.exec(S(b)))!==null){ out.push(m[+a.grp||0]??m[0]); if(m.index===rx.lastIndex)rx.lastIndex++ }
+  if(a.uniq)out=[...new Set(out)];
+  return B(out.join('\n')+(out.length?'\n':''));
+});
+op('Strings','Text',[{k:'min',l:'Minimum length',t:'num',d:5},{k:'wide',l:'Include UTF-16LE',t:'bool',d:true}],(b,a)=>{
+  const min=Math.max(2,+a.min||4), out=[];
+  let cur='';
+  for(let i=0;i<b.length;i++){ const c=b[i];
+    if(c>=32&&c<127)cur+=String.fromCharCode(c);
+    else { if(cur.length>=min)out.push(cur); cur='' } }
+  if(cur.length>=min)out.push(cur);
+  if(a.wide){ let w=''; for(let i=0;i+1<b.length;i+=1){ const c=b[i],n=b[i+1];
+      if(c>=32&&c<127&&n===0){ w+=String.fromCharCode(c); i++ } else { if(w.length>=min)out.push(w+'  (wide)'); w='' } }
+    if(w.length>=min)out.push(w+'  (wide)') }
+  return B(out.join('\n')+(out.length?'\n':''));
+});
+op('Remove whitespace','Text',[],(b)=>B(S(b).replace(/\s+/g,'')));
+op('Reverse','Text',[{k:'what',l:'Reverse',t:'select',o:['Characters','Lines','Bytes'],d:'Characters'}],(b,a)=>
+  a.what==='Lines'?B(S(b).split('\n').reverse().join('\n')):
+  a.what==='Bytes'?new Uint8Array([...b].reverse()):B([...S(b)].reverse().join('')));
+op('Change case','Text',[{k:'how',l:'Case',t:'select',o:['lower','UPPER'],d:'lower'}],(b,a)=>B(a.how==='lower'?S(b).toLowerCase():S(b).toUpperCase()));
+op('Split / join','Text',[{k:'by',l:'Split on',t:'text',d:','},{k:'with',l:'Join with',t:'select',o:['Newline','Space','None','Comma'],d:'Newline'}],
+  (b,a)=>{ const m={'Newline':'\n','Space':' ','None':'','Comma':','};
+    return B(S(b).split(a.by||',').map(x=>x.trim()).filter(Boolean).join(m[a.with])) });
+op('Take bytes','Text',[{k:'off',l:'Offset',t:'num',d:0},{k:'len',l:'Length (0 = rest)',t:'num',d:0}],
+  (b,a)=>{ const o=Math.max(0,+a.off||0), l=+a.len||0; return b.subarray(o, l?o+l:undefined) });
+op('Beautify JSON','Text',[],(b)=>{ const t=S(b).trim(); return B(JSON.stringify(JSON.parse(t),null,2)+'\n') });
+op('Defang IOCs','Intel',[],(b)=>B(S(b)
+  .replace(/https?:\/\//gi,m=>m.replace(/t/gi,'x').replace(/:\/\//,'[://]'))
+  .replace(/\./g,'[.]').replace(/@/g,'[@]')));
+op('Refang IOCs','Intel',[],(b)=>B(S(b)
+  .replace(/\[\.\]|\(\.\)|\{\.\}|\s+dot\s+/gi,'.').replace(/\[@\]|\(@\)/g,'@')
+  .replace(/\[:\/\/\]/g,'://').replace(/hxxp/gi,'http').replace(/fxp/gi,'ftp')));
+op('Extract IOCs','Intel',[
+  {k:'kind',l:'Type',t:'select',o:['Everything','URLs','Domains','IPs','Hashes','Emails','Registry','Bitcoin'],d:'Everything'},
+  {k:'refang',l:'Refang first',t:'bool',d:true}
+],(b,a)=>{
+  let t=S(b);
+  if(a.refang)t=t.replace(/\[\.\]|\(\.\)/g,'.').replace(/hxxp/gi,'http').replace(/\[:\/\/\]/g,'://').replace(/\[@\]/g,'@');
+  const grab=(rx)=>[...new Set((t.match(rx)||[]))];
+  const sec=(n,v)=>v.length?`${n} (${v.length})\n`+v.map(x=>'  '+x).join('\n')+'\n\n':'';
+  if(a.kind==='URLs')return B(grab(IOC.url).join('\n')+'\n');
+  if(a.kind==='Domains')return B(grab(IOC.domain).join('\n')+'\n');
+  if(a.kind==='IPs')return B(grab(IOC.ip).join('\n')+'\n');
+  if(a.kind==='Emails')return B(grab(IOC.email).join('\n')+'\n');
+  if(a.kind==='Registry')return B(grab(IOC.reg).join('\n')+'\n');
+  if(a.kind==='Bitcoin')return B(grab(IOC.btc).join('\n')+'\n');
+  if(a.kind==='Hashes')return B([...grab(IOC.sha256),...grab(IOC.sha1),...grab(IOC.md5)].join('\n')+'\n');
+  return B(sec('urls',grab(IOC.url))+sec('domains',grab(IOC.domain))+sec('ips',grab(IOC.ip))+
+    sec('emails',grab(IOC.email))+sec('sha256',grab(IOC.sha256))+sec('sha1',grab(IOC.sha1))+
+    sec('md5',grab(IOC.md5))+sec('registry',grab(IOC.reg))+sec('bitcoin',grab(IOC.btc))||'nothing found\n');
+});
+op('PowerShell cleanup','Intel',[],(b)=>B(S(b)
+  .replace(/`/g,'')
+  .replace(/\u0000/g,'')
+  .replace(/'\s*\+\s*'/g,'').replace(/"\s*\+\s*"/g,'')
+  .replace(/\s*;\s*/g,';\n').replace(/\|\s*/g,' | ')),'Strips backticks and string concatenation, then breaks the one-liner into lines.');
+op('Timestamp decode','Intel',[],(b)=>{
+  const out=[];
+  for(const m of S(b).match(/\b\d{9,20}\b/g)||[]){
+    const n=Number(m);
+    const rows=[];
+    if(n<4e9)rows.push(['unix seconds',new Date(n*1000)]);
+    if(n>1e11&&n<4e12)rows.push(['unix milliseconds',new Date(n)]);
+    if(n>1e16&&n<2e17)rows.push(['Windows FILETIME',new Date(n/10000-11644473600000)]);
+    if(n>1e16&&n<2e16)rows.push(['Chrome/WebKit',new Date(n/1000-11644473600000)]);
+    for(const [k,d] of rows)if(!isNaN(+d)&&d.getFullYear()>1990&&d.getFullYear()<2100)out.push(`${m}  ${k}  ${d.toISOString()}`);
+  }
+  return B(out.length?out.join('\n')+'\n':'no plausible timestamps\n');
+});
+op('Entropy report','Analysis',[],(b)=>{
+  const e=entropy(b), p=printable(b,b.length);
+  const magic=hex(b.subarray(0,4),' ');
+  let guess='';
+  if(b[0]===0x4d&&b[1]===0x5a)guess='MZ, a Windows executable';
+  else if(b[0]===0x1f&&b[1]===0x8b)guess='gzip stream';
+  else if(b[0]===0x50&&b[1]===0x4b)guess='zip / Office / jar';
+  else if(b[0]===0x25&&b[1]===0x50)guess='PDF';
+  else if(b[0]===0x7f&&b[1]===0x45)guess='ELF binary';
+  else if(e>7.5)guess='encrypted or compressed, near maximum entropy';
+  else if(p>0.95)guess='plain text';
+  return B(`bytes       ${b.length}\nentropy     ${e.toFixed(3)} of 8\nprintable   ${(p*100).toFixed(1)}%\nfirst bytes ${magic}\nreads as    ${guess||'unclear'}\n`);
+});
+op('Hex dump','Analysis',[],(b)=>B(hexdump(b)));
+
+/* ---------- recipes ---------- */
+const PRESETS=[
+ ['PowerShell -EncodedCommand',[['From Base64',{}],['Decode UTF-16LE',{}],['PowerShell cleanup',{}]]],
+ ['Base64 → gunzip',[['From Base64',{}],['Gunzip',{}]]],
+ ['Base64 → raw deflate',[['From Base64',{}],['Inflate raw',{}]]],
+ ['Base64 → whatever compression',[['From Base64',{}],['Auto decompress',{}]]],
+ ['Base64 → gunzip → strings',[['From Base64',{}],['Auto decompress',{}],['Strings',{min:6}]]],
+ ['Base64 (URL safe) → text',[['From Base64',{alpha:'URL safe'}]]],
+ ['Nested Base64, two rounds',[['From Base64',{}],['From Base64',{}]]],
+ ['Reversed Base64',[['Reverse',{what:'Characters'}],['From Base64',{}]]],
+ ['Base64 → XOR brute force',[['From Base64',{}],['XOR brute force',{keep:true}]]],
+ ['Base64 → XOR with key → strings',[['From Base64',{}],['XOR',{key:'',fmt:'Hex'}],['Strings',{min:5}]]],
+ ['Base64 → RC4 → strings',[['From Base64',{}],['RC4',{key:'',fmt:'UTF-8'}],['Strings',{min:5}]]],
+ ['Hex, any separator → text',[['From Hex',{}]]],
+ ['Hex → gunzip',[['From Hex',{}],['Auto decompress',{}]]],
+ ['Charcodes → text',[['From Charcode',{base:'10'}]]],
+ ['JavaScript escapes → text',[['Unescape \\u and \\x',{}]]],
+ ['Double URL decode',[['URL decode',{}],['URL decode',{}]]],
+ ['URL decode → base64 → text',[['URL decode',{}],['From Base64',{}]]],
+ ['JWT, read the claims',[['Decode JWT',{}]]],
+ ['Base32 → text',[['From Base32',{}]]],
+ ['ROT13',[['ROT13',{n:13}]]],
+ ['ROT47',[['ROT47',{n:47}]]],
+ ['Triage an unknown blob',[['Entropy report',{}]]],
+ ['Strings, wide and narrow',[['Strings',{min:6,wide:true}]]],
+ ['Pull every IOC out',[['Extract IOCs',{kind:'Everything',refang:true}]]],
+ ['Refang a report',[['Refang IOCs',{}]]],
+ ['Defang for publishing',[['Defang IOCs',{}]]],
+ ['Hash everything',[['All hashes',{}]]],
+ ['Hex dump',[['Hex dump',{}]]],
+ ['Timestamps in this text',[['Timestamp decode',{}]]],
+ ['Beautify JSON',[['Beautify JSON',{}]]]
+];
+
+/* ---------- state ---------- */
+let recipe=[], inputBytes=new Uint8Array(0), outBytes=new Uint8Array(0), fileName='';
+let inMode='text', outView='text', wrapOut=false, baking=false, again=false;
+
+function defaults(name){ const a={}; for(const x of OPS[name].args)a[x.k]=x.d; return a }
+function addOp(name,args){ recipe.push({op:name,args:Object.assign(defaults(name),args||{}),off:false}); drawRecipe(); run() }
+
+/* ---------- operations panel ---------- */
+function drawOps(filter){
+  const f=(filter||'').toLowerCase(), byCat={};
+  let n=0;
+  for(const k in OPS){
+    const o=OPS[k];
+    if(f && !(k.toLowerCase().includes(f)||o.cat.toLowerCase().includes(f)||(o.note||'').toLowerCase().includes(f)))continue;
+    (byCat[o.cat]||(byCat[o.cat]=[])).push(k); n++;
+  }
+  $('#opCount').textContent=n+' ops';
+  $('#oplist').innerHTML=Object.keys(byCat).map(c=>
+    `<div class="opcat">${c}</div>`+byCat[c].map(k=>`<button class="op" data-op="${k.replace(/"/g,'&quot;')}" title="${(OPS[k].note||'').replace(/"/g,'&quot;')}">${k}</button>`).join('')
+  ).join('')||'<div class="empty">Nothing matches that.</div>';
+  $$('#oplist .op').forEach(b=>b.onclick=()=>addOp(b.dataset.op));
+}
+$('#opsearch').oninput=e=>drawOps(e.target.value);
+
+/* ---------- recipe panel ---------- */
+function drawRecipe(){
+  const r=$('#recipe');
+  if(!recipe.length){ r.innerHTML=`<div class="empty">No steps yet.<br>Pick a saved recipe above, or click operations on the left.</div>`; save(); return }
+  r.innerHTML=recipe.map((st,i)=>{
+    const o=OPS[st.op];
+    const args=o.args.map(a=>{
+      const v=st.args[a.k];
+      if(a.t==='bool')return `<div class="arg bool"><input type="checkbox" id="a${i}_${a.k}" ${v?'checked':''}><label for="a${i}_${a.k}">${a.l}</label></div>`;
+      if(a.t==='select')return `<div class="arg"><label>${a.l}</label><select data-i="${i}" data-k="${a.k}">${a.o.map(x=>`<option${x===v?' selected':''}>${x}</option>`).join('')}</select></div>`;
+      return `<div class="arg"><label>${a.l}</label><input type="${a.t==='num'?'number':'text'}" data-i="${i}" data-k="${a.k}" value="${String(v??'').replace(/"/g,'&quot;')}"></div>`;
+    }).join('');
+    return `<div class="step${st.off?' off':''}" draggable="true" data-i="${i}">
+      <div class="sh"><span class="grip">⠿</span><span class="nm">${i+1}. ${st.op}</span>
+        <button class="ic" data-act="up" data-i="${i}" title="Move up">▲</button>
+        <button class="ic" data-act="down" data-i="${i}" title="Move down">▼</button>
+        <button class="ic" data-act="off" data-i="${i}" title="Skip this step">${st.off?'○':'◉'}</button>
+        <button class="ic" data-act="del" data-i="${i}" title="Remove">✕</button></div>
+      ${args?`<div class="args">${args}</div>`:''}
+      <div class="msg" id="msg${i}"></div>
+    </div>`;
+  }).join('');
+  $$('#recipe .ic').forEach(b=>b.onclick=()=>{
+    const i=+b.dataset.i;
+    if(b.dataset.act==='del')recipe.splice(i,1);
+    else if(b.dataset.act==='off')recipe[i].off=!recipe[i].off;
+    else if(b.dataset.act==='up'&&i>0)recipe.splice(i-1,0,recipe.splice(i,1)[0]);
+    else if(b.dataset.act==='down'&&i<recipe.length-1)recipe.splice(i+1,0,recipe.splice(i,1)[0]);
+    drawRecipe(); run();
+  });
+  $$('#recipe [data-k]').forEach(el=>{
+    const i=+el.dataset.i, k=el.dataset.k;
+    const ev=el.tagName==='SELECT'?'change':'input';
+    el.addEventListener(ev,()=>{ recipe[i].args[k]=el.type==='number'?+el.value:el.value; save(); run() });
+  });
+  $$('#recipe .arg.bool input').forEach(el=>{
+    const [i,k]=el.id.slice(1).split('_');
+    el.onchange=()=>{ recipe[+i].args[k]=el.checked; save(); run() };
+  });
+  let dragFrom=null;
+  $$('#recipe .step').forEach(el=>{
+    el.addEventListener('dragstart',()=>{dragFrom=+el.dataset.i; el.style.opacity=.5});
+    el.addEventListener('dragend',()=>{el.style.opacity=''});
+    el.addEventListener('dragover',e=>e.preventDefault());
+    el.addEventListener('drop',e=>{ e.preventDefault(); const to=+el.dataset.i;
+      if(dragFrom==null||dragFrom===to)return; recipe.splice(to,0,recipe.splice(dragFrom,1)[0]); drawRecipe(); run() });
+  });
+  save();
+}
+
+/* ---------- baking ---------- */
+async function run(){
+  if(baking){ again=true; return }
+  baking=true;
+  const t0=performance.now();
+  let d=inputBytes;
+  $$('#recipe .step').forEach(s=>s.classList.remove('err'));
+  $$('#recipe .msg').forEach(m=>m.textContent='');
+  for(let i=0;i<recipe.length;i++){
+    const st=recipe[i]; if(st.off)continue;
+    try{
+      const r=await OPS[st.op].fn(d,st.args);
+      d=(r instanceof Uint8Array)?r:B(String(r));
+    }catch(e){
+      const el=$(`#recipe .step[data-i="${i}"]`), m=$('#msg'+i);
+      if(el)el.classList.add('err'); if(m)m.textContent=(e&&e.message)||'step failed';
+      break;
+    }
+  }
+  outBytes=d;
+  paintOut();
+  $('#bakeTime').textContent=recipe.length?`${Math.round(performance.now()-t0)} ms`:'';
+  baking=false;
+  if(again){ again=false; run() }
+}
+function paintOut(){
+  const o=$('#output');
+  o.classList.toggle('wrapped',wrapOut);
+  o.textContent=outView==='hex'?hexdump(outBytes,32768):S(outBytes.subarray(0,400000))+(outBytes.length>400000?'\n… truncated for display, download for all of it':'');
+  $('#outLen').textContent=outBytes.length?outBytes.length.toLocaleString()+' bytes':'';
+}
+
+/* ---------- input ---------- */
+function readInput(){
+  const t=$('#input').value;
+  inputBytes=inMode==='hex'?hexBytes(t):B(t);
+  $('#inLen').textContent=inputBytes.length?inputBytes.length.toLocaleString()+' bytes':'';
+  magic();
+  run();
+}
+let typeT=null;
+$('#input').addEventListener('input',()=>{ clearTimeout(typeT); typeT=setTimeout(readInput,140) });
+$('#inText').onclick=()=>{ inMode='text'; $('#inText').classList.add('on'); $('#inHex').classList.remove('on'); readInput() };
+$('#inHex').onclick=()=>{ inMode='hex'; $('#inHex').classList.add('on'); $('#inText').classList.remove('on'); readInput() };
+$('#clearIn').onclick=()=>{ $('#input').value=''; fileName=''; $('#inNote').textContent='or drop a file anywhere'; readInput() };
+$('#pickFile').onclick=()=>$('#file').click();
+$('#file').onchange=e=>{ if(e.target.files[0])loadFile(e.target.files[0]) };
+async function loadFile(f){
+  if(f.size>25e6)return toast('That file is over 25 MB');
+  const buf=new Uint8Array(await f.arrayBuffer());
+  fileName=f.name; inputBytes=buf;
+  $('#input').value=printable(buf,2048)>0.9?S(buf.subarray(0,200000)):hexdump(buf,4096);
+  $('#inNote').textContent=`${f.name} · ${buf.length.toLocaleString()} bytes loaded as raw bytes`;
+  $('#inLen').textContent=buf.length.toLocaleString()+' bytes';
+  magic(); run();
+}
+['dragenter','dragover'].forEach(e=>addEventListener(e,ev=>{ev.preventDefault(); $('#drop')&&0; document.body.classList.add('dragging')}));
+addEventListener('drop',ev=>{ ev.preventDefault(); document.body.classList.remove('dragging');
+  const f=ev.dataTransfer&&ev.dataTransfer.files&&ev.dataTransfer.files[0]; if(f)loadFile(f) });
+
+/* ---------- magic: what is this thing? ---------- */
+const CAND=[
+ ['PowerShell -EncodedCommand',[['From Base64',{}],['Decode UTF-16LE',{}]]],
+ ['Base64 → text',[['From Base64',{}]]],
+ ['Base64 → gunzip',[['From Base64',{}],['Auto decompress',{}]]],
+ ['Base64 (URL safe) → text',[['From Base64',{alpha:'URL safe'}]]],
+ ['Reversed Base64',[['Reverse',{what:'Characters'}],['From Base64',{}]]],
+ ['Hex → text',[['From Hex',{}]]],
+ ['Hex → gunzip',[['From Hex',{}],['Auto decompress',{}]]],
+ ['Charcodes → text',[['From Charcode',{base:'10'}]]],
+ ['URL decode',[['URL decode',{}]]],
+ ['JavaScript escapes',[['Unescape \\u and \\x',{}]]],
+ ['Gunzip',[['Auto decompress',{}]]],
+ ['JWT',[['Decode JWT',{}]]],
+ ['Base32 → text',[['From Base32',{}]]],
+ ['ROT13',[['ROT13',{n:13}]]]
+];
+function looksLike(t){
+  const s=t.trim();
+  const out=new Set();
+  if(/^ey[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\./.test(s))out.add('JWT');
+  if(/^[A-Za-z0-9+/=\s]{16,}$/.test(s))out.add('Base64');
+  if(/^[A-Za-z0-9_\-=\s]{16,}$/.test(s))out.add('Base64url');
+  if(/^[A-Z2-7=\s]{16,}$/.test(s))out.add('Base32');
+  if(/^(?:0x|\\x|%)?[0-9a-f\s,:;x\\]{16,}$/i.test(s))out.add('Hex');
+  if(/^[\d\s,;]+$/.test(s))out.add('Charcode');
+  if(/%[0-9a-f]{2}/i.test(s))out.add('URL');
+  if(/\\u[0-9a-f]{4}|\\x[0-9a-f]{2}/i.test(s))out.add('Escapes');
+  return out;
+}
+let magicT=null;
+function magic(){ clearTimeout(magicT); magicT=setTimeout(magicRun,90) }
+async function magicRun(){
+  const box=$('#magicBox');
+  if(!inputBytes.length){ box.innerHTML=''; return }
+  const t=S(inputBytes.subarray(0,20000));
+  const hints=looksLike(t);
+  const found=[];
+  for(const [name,steps] of CAND){
+    try{
+      let d=inputBytes;
+      for(const [op,args] of steps)d=await OPS[op].fn(d,Object.assign(defaults(op),args));
+      if(!d.length||d.length<2)continue;
+      const p=printable(d,2048);
+      if(p<0.92)continue;
+      const txt=S(d.subarray(0,4000));
+      if(txt.trim().length<3)continue;
+      if(txt.replace(/\s/g,'')===t.replace(/\s/g,''))continue;   // no-op results are not discoveries
+      let score=p*100;
+      if(/https?:\/\/|powershell|invoke|cmd\.exe|function|select |http|user-agent|\.dll|\.exe/i.test(txt))score+=60;
+      if(hints.has(name.split(' ')[0]))score+=20;
+      if(name.startsWith('PowerShell'))score+=10;
+      found.push({name,steps,score,preview:txt.slice(0,160).replace(/\s+/g,' ')});
+    }catch(e){}
+  }
+  found.sort((a,b)=>b.score-a.score);
+  const top=found.slice(0,4);
+  box.innerHTML=top.length?`<div class="eyebrow">This looks decodable</div>`+top.map((f,i)=>
+    `<div class="mi" data-m="${i}"><span class="mn">${f.name}</span><span class="mp">${f.preview.replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]))}</span></div>`).join(''):'';
+  $$('#magicBox .mi').forEach(el=>el.onclick=()=>{
+    const f=top[+el.dataset.m];
+    recipe=f.steps.map(([op,args])=>({op,args:Object.assign(defaults(op),args),off:false}));
+    drawRecipe(); run(); toast('Loaded: '+f.name);
+  });
+}
+
+/* ---------- output tools ---------- */
+$('#vText').onclick=()=>{ outView='text'; $('#vText').classList.add('on'); $('#vHex').classList.remove('on'); paintOut() };
+$('#vHex').onclick=()=>{ outView='hex'; $('#vHex').classList.add('on'); $('#vText').classList.remove('on'); paintOut() };
+$('#vWrap').onclick=()=>{ wrapOut=!wrapOut; $('#vWrap').classList.toggle('on',wrapOut); paintOut() };
+$('#copyOut').onclick=async()=>{ try{ await navigator.clipboard.writeText(outView==='hex'?hexdump(outBytes):S(outBytes)); toast('Copied') }catch(e){ toast('Clipboard blocked, use Download') } };
+$('#dlOut').onclick=()=>{ const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([outBytes])); a.download=(fileName?fileName.replace(/\.[^.]+$/,''):'chef')+'-out.bin'; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),4000) };
+$('#toIn').onclick=()=>{ const t=S(outBytes); inMode='text'; $('#inText').classList.add('on'); $('#inHex').classList.remove('on');
+  $('#input').value=t; recipe=[]; drawRecipe(); readInput(); toast('Output moved to input') };
+
+/* ---------- recipe bar ---------- */
+$('#presets').innerHTML='<option value="">Load a recipe…</option>'+PRESETS.map((p,i)=>`<option value="${i}">${p[0]}</option>`).join('');
+$('#presets').onchange=e=>{
+  const p=PRESETS[+e.target.value]; if(!p)return;
+  recipe=p[1].map(([op,args])=>({op,args:Object.assign(defaults(op),args),off:false}));
+  e.target.value=''; drawRecipe(); run();
+};
+$('#clear').onclick=()=>{ recipe=[]; drawRecipe(); run() };
+$('#bake').onclick=()=>run();
+$('#share').onclick=async()=>{
+  const u=location.origin+location.pathname+'#r='+encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(recipe)))));
+  try{ await navigator.clipboard.writeText(u); toast('Link copied') }catch(e){ location.hash='r='+encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(recipe))))); toast('Link is in the address bar') }
+};
+function save(){ try{ localStorage.setItem('fk_chef',JSON.stringify(recipe)) }catch(e){} }
+(function restore(){
+  const m=location.hash.match(/r=([^&]+)/);
+  if(m){ try{ recipe=JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(m[1]))))) }catch(e){} }
+  if(!recipe.length){ try{ recipe=JSON.parse(localStorage.getItem('fk_chef')||'[]') }catch(e){} }
+  recipe=recipe.filter(s=>s&&OPS[s.op]).map(s=>({op:s.op,args:Object.assign(defaults(s.op),s.args||{}),off:!!s.off}));
+})();
+drawOps(''); drawRecipe(); readInput();
+if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});
+</script>
+<script>(function(){var b=document.getElementById('themeBtn');if(!b)return;b.onclick=function(){var n=document.documentElement.getAttribute('data-theme')==='light'?'dark':'light';if(n==='light')document.documentElement.setAttribute('data-theme','light');else document.documentElement.removeAttribute('data-theme');try{localStorage.setItem('fk_theme',n)}catch(e){}var m=document.getElementById('tc');if(m)m.content=n==='light'?'#e0cfb0':'#1b1e1f';if(window.onFkTheme)window.onFkTheme(n)}})()</script>
+</body>
+</html>

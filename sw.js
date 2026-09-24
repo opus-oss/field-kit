@@ -1,12 +1,12 @@
 /* Field Kit suite — offline service worker.
    HTML is network-first (always loads the latest when online, falls back to cache offline),
    static assets are cache-first. Bump CACHE on any change so clients refresh. */
-const CACHE = 'fieldkit-v52';
+const CACHE = 'fieldkit-v53';
 const ASSETS = [
   './',
-  './index.html', './scrub.html', './markets.html', './tax.html', './places.html', './mortgage.html', './optout.html', './intel.html', './radar.html', './debt.html', './ascii.html',
+  './index.html', './scrub.html', './markets.html', './tax.html', './places.html', './mortgage.html', './optout.html', './intel.html', './radar.html', './debt.html', './ascii.html', './chef.html',
   './leaflet.js', './leaflet.css', './nowcast.js',
-  './manifest-field.webmanifest', './manifest-scrub.webmanifest', './manifest-markets.webmanifest', './manifest-tax.webmanifest', './manifest-places.webmanifest', './manifest-mortgage.webmanifest', './manifest-optout.webmanifest', './manifest-intel.webmanifest', './manifest-radar.webmanifest', './manifest-debt.webmanifest', './manifest-ascii.webmanifest',
+  './manifest-field.webmanifest', './manifest-scrub.webmanifest', './manifest-markets.webmanifest', './manifest-tax.webmanifest', './manifest-places.webmanifest', './manifest-mortgage.webmanifest', './manifest-optout.webmanifest', './manifest-intel.webmanifest', './manifest-radar.webmanifest', './manifest-debt.webmanifest', './manifest-ascii.webmanifest', './manifest-chef.webmanifest',
   './field-192.png', './field-512.png', './field-180.png',
   './scrub-192.png', './scrub-512.png', './scrub-180.png',
   './tax-192.png', './tax-512.png', './tax-180.png',
@@ -17,7 +17,8 @@ const ASSETS = [
   './intel-192.png', './intel-512.png', './intel-180.png',
   './radar-192.png', './radar-512.png', './radar-180.png',
   './debt-192.png', './debt-512.png', './debt-180.png',
-  './ascii-192.png', './ascii-512.png', './ascii-180.png'
+  './ascii-192.png', './ascii-512.png', './ascii-180.png',
+  './chef-192.png', './chef-512.png', './chef-180.png'
 ];
 
 self.addEventListener('install', e => {
