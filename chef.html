@@ -73,11 +73,12 @@ h1{font:700 2rem var(--mono); letter-spacing:-.02em; color:var(--h1)}
 
 .grid{display:grid; gap:14px; margin-top:16px; grid-template-columns:var(--ops-w,270px) var(--rec-w,minmax(280px,1fr)) minmax(300px,1.15fr); align-items:start}
 @media(max-width:1180px){ .grid{grid-template-columns:var(--ops-w,250px) 1fr} .col-io{grid-column:1 / -1} }
-body.io-wide .grid{grid-template-columns:var(--ops-w,270px) 1fr}
-body.io-wide .col-io{grid-column:1 / -1; flex-direction:row; align-items:start}
-body.io-wide .col-io .pane{flex:1 1 0; min-width:0}
-body.io-wide .pane .out,body.io-wide .pane textarea{height:64vh}
-@media(max-width:900px){ body.io-wide .col-io{flex-direction:column} body.io-wide .pane .out,body.io-wide .pane textarea{height:42vh} }
+body.io-wide .grid{grid-template-columns:1fr; gap:12px}
+body.io-wide .card.ops,body.io-wide .card.rec{display:none}
+body.io-wide .col-io{grid-column:1; flex-direction:row; align-items:stretch; gap:12px}
+body.io-wide .col-io .pane{flex:1 1 0; min-width:0; display:flex; flex-direction:column}
+body.io-wide .pane .out,body.io-wide .pane textarea{flex:1; height:auto; min-height:78vh}
+@media(max-width:900px){ body.io-wide .col-io{flex-direction:column} body.io-wide .pane .out,body.io-wide .pane textarea{min-height:42vh} }
 .widebtn{margin-left:auto}
 .widebtn.on{background:var(--chip); color:var(--h1); border-color:var(--line2)}
 @media(max-width:780px){
@@ -156,7 +157,17 @@ body.ops-collapsed .collapse{margin:0 auto}
 .pane .out.wrapped{white-space:pre-wrap; overflow-wrap:anywhere}
 .rep-head{margin:18px 0 8px; font:600 .72rem var(--mono); letter-spacing:.14em; text-transform:uppercase; color:var(--acc); border-top:1px solid var(--line2); padding-top:12px}
 .rep-block{border-left:3px solid var(--acc); padding:8px 0 8px 12px; background:color-mix(in srgb,var(--acc) 6%,transparent); border-radius:0 8px 8px 0}
-.rep-block .sub{background:color-mix(in srgb,var(--acc) 22%,transparent); color:var(--ink); border-radius:3px; box-shadow:0 0 0 1px color-mix(in srgb,var(--acc) 35%,transparent)}
+.rep-block .sub{color:var(--ink); border-radius:3px; padding:0 1px}
+.rep-legend{display:flex; flex-wrap:wrap; gap:6px 8px; margin:6px 0 10px; font:600 11px var(--mono)}
+.rep-legend .sub{padding:2px 8px}
+.rep-block .sub-c0,.rep-legend .sub-c0{background:color-mix(in srgb,var(--acc) 24%,transparent); box-shadow:0 0 0 1px color-mix(in srgb,var(--acc) 45%,transparent)}
+.rep-block .sub-c1,.rep-legend .sub-c1{background:color-mix(in srgb,var(--h2) 24%,transparent); box-shadow:0 0 0 1px color-mix(in srgb,var(--h2) 45%,transparent)}
+.rep-block .sub-c2,.rep-legend .sub-c2{background:color-mix(in srgb,var(--h3) 24%,transparent); box-shadow:0 0 0 1px color-mix(in srgb,var(--h3) 45%,transparent)}
+.rep-block .sub-c3,.rep-legend .sub-c3{background:color-mix(in srgb,var(--h4) 24%,transparent); box-shadow:0 0 0 1px color-mix(in srgb,var(--h4) 45%,transparent)}
+.rep-block .sub-c4,.rep-legend .sub-c4{background:color-mix(in srgb,var(--h5) 24%,transparent); box-shadow:0 0 0 1px color-mix(in srgb,var(--h5) 45%,transparent)}
+.rep-block .sub-c5,.rep-legend .sub-c5{background:color-mix(in srgb,var(--good) 24%,transparent); box-shadow:0 0 0 1px color-mix(in srgb,var(--good) 45%,transparent)}
+.rep-block .sub-c6,.rep-legend .sub-c6{background:color-mix(in srgb,var(--blue) 24%,transparent); box-shadow:0 0 0 1px color-mix(in srgb,var(--blue) 45%,transparent)}
+.rep-block .sub-c7,.rep-legend .sub-c7{background:color-mix(in srgb,var(--bad) 22%,transparent); box-shadow:0 0 0 1px color-mix(in srgb,var(--bad) 45%,transparent)}
 .tools{display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-bottom:8px}
 .tools button{padding:4px 9px; border-radius:8px; border:1px solid var(--line2); background:var(--raised); font:600 11.5px var(--mono); color:var(--mut)}
 .tools button:hover{color:var(--h1); border-color:var(--acc)}
@@ -205,7 +216,7 @@ body.ops-collapsed .collapse{margin:0 auto}
 <div class="wrap">
   <div class="head">
     <h1>Chef</h1>
-    <div class="tag">Decode, decompress, deobfuscate and triage. Nothing leaves the browser, and it works offline. <span class="ver">build v73</span></div>
+    <div class="tag">Decode, decompress, deobfuscate and triage. Nothing leaves the browser, and it works offline. <span class="ver">build v74</span></div>
     <button id="save" class="savebtn" title="Save this whole tool as one HTML file you can run offline, from a USB stick, or on an air-gapped box">Download this page</button>
   </div>
 
@@ -1563,7 +1574,7 @@ async function deepScan(root){
       // the child returns its own fully resolved text, so what lands here is the deepest layer, not the next one
       const deep=await node(got.bytes,`[${finds.length+1}] ${c.how} (${c.raw.length.toLocaleString()} chars)${preview?' → '+preview:''}`,depth+1,got.how,got.recipe);
       const text=deep&&deep.text!=null?deep.text:(printable(got.bytes,400)>0.95?S(got.bytes):`«${describe(got.bytes)}, ${got.bytes.length.toLocaleString()} bytes»`);
-      subs.push({start:c.start,end:c.end??(c.start+c.raw.length),text});
+      subs.push({start:c.start,end:c.end??(c.start+c.raw.length),text,how:got.how,idx:finds.length});
     }
 
     let outStr=t, tokens=[{kind:'plain',text:t}];
@@ -1578,7 +1589,7 @@ async function deepScan(root){
         const ind=' '.repeat(Math.min(col,12));
         const body=s.text.includes('\n')?s.text.split('\n').map((l,i)=>i?ind+l:l).join('\n'):s.text;
         if(before){ outStr+=before; tokens.push({kind:'plain',text:before}) }
-        outStr+=body; tokens.push({kind:'decoded',text:body});
+        outStr+=body; tokens.push({kind:'decoded',text:body,how:s.how,idx:s.idx});
         at=s.end;
       }
       const tail=t.slice(at);
@@ -1659,13 +1670,25 @@ function renderReport(){
     const cut=shown.length>16000;
     plain+='\nreassembled, every layer decoded and put back where it came from'+(PRETTY?' (beautified)':'')+':\n\n'
       +(cut?shown.slice(0,16000)+'\n… truncated':shown)+'\n';
+    // Assign each unique recipe path its own color so the reader can see which regions came
+    // from which decoder — nothing about the extraction is hidden.
+    const hows=[...new Set(toks.filter(t=>t.kind==='decoded'&&t.how).map(t=>t.how))];
+    const colorFor=how=>{ const i=hows.indexOf(how); return i<0?0:i%8 };
     let used=0, inner='';
     for(const t of toks){
       if(used>16000)break;
       const piece=t.text.slice(0,Math.max(0,16000-used)); used+=piece.length;
-      inner+=t.kind==='decoded'?`<span class="sub">${esc2(piece)}</span>`:esc2(piece);
+      if(t.kind==='decoded'){
+        const c=colorFor(t.how);
+        const label=t.how?` (${esc2(t.how)})`:'';
+        inner+=`<span class="sub sub-c${c}" title="Decoded via: ${esc2(t.how||'')}">${esc2(piece)}</span>`;
+      } else inner+=esc2(piece);
     }
-    html+=`<div class="rep-head">reassembled, every layer decoded and put back${PRETTY?', beautified':''}</div>`
+    const legend=hows.length?`<div class="rep-legend">`
+      +hows.map((h,i)=>`<span class="sub sub-c${i%8}">${esc2(h)}</span>`).join(' ')
+      +`</div>`:'';
+    html+=`<div class="rep-head">reassembled, every layer decoded and put back${PRETTY?', beautified':''}${hows.length?` — ${hows.length} recipe${hows.length>1?'s':''} used, colored below`:''}</div>`
+      +legend
       +`<div class="rep-block">${inner}${used>16000?'\n… truncated':''}</div>`;
   }
   outBytes=B(plain); OUT_HTML=html;
