@@ -330,7 +330,7 @@ function hexdump(b,limit){
 const IOC={
   ip:/\b(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)\b/g,
   url:/\b(?:https?|ftp):\/\/[^\s"'<>\\\]}]+/gi,
-  domain:/\b(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+(?:com|net|org|io|ru|cn|info|biz|top|xyz|shop|online|site|club|icu|cc|su|to|me|co|uk|de|fr|nl|br|in|jp|pl|it|es|ca|au|ch|se|no|fi|dk|cz|tv|pw|link|live|life|world|today|space|website|store|tech|app|dev|pro|vip|fun|cloud|host|press|work|zip|mov)\b/gi,
+  domain:/(?<![\\/\w.])(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+(?:com|net|org|io|ru|cn|info|biz|top|xyz|shop|online|site|club|icu|cc|su|to|me|co|uk|de|fr|nl|br|in|jp|pl|it|es|ca|au|ch|se|no|fi|dk|cz|tv|pw|link|live|life|world|today|space|website|store|tech|app|dev|pro|vip|fun|cloud|host|press|work|zip|mov)\b/gi,
   email:/\b[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}\b/gi,
   md5:/\b[a-f0-9]{32}\b/gi, sha1:/\b[a-f0-9]{40}\b/gi, sha256:/\b[a-f0-9]{64}\b/gi,
   btc:/\b(?:bc1[a-z0-9]{25,62}|[13][a-km-zA-HJ-NP-Z1-9]{25,34})\b/g,
@@ -829,7 +829,11 @@ const BEHAVIOR=[
   [/Scriptblock\]?::Create|-as\s*\[\s*type\s*\]|\[type\]\s*\(/i,'builds code by resolving type names at runtime'],
   [/-w\s+h(?:idden)?\b|-nop\b|-noni\b|-ep\s+bypass/i,'runs PowerShell hidden or unrestricted'],
   [/\^{1,2}\w\^{1,2}\w/,'caret-escaped cmd.exe obfuscation'],
-  [/for\s+\/f\s+["']?delims=/i,'uses for /f to run captured output']
+  [/for\s+\/f\s+["']?delims=/i,'uses for /f to run captured output'],
+  [/\b(?:csc|vbc|cvtres|ilasm)\.exe\b|\.cmdline\b/i,'compiles code on the host at run time (in-memory .NET staging)'],
+  [/\b(?:irm|iwr|Invoke-RestMethod)\b/i,'downloads from the network'],
+  [/\b(?:msbuild|installutil|regasm|regsvcs|msiexec|certreq|forfiles|conhost|wmic|cmstp)\.exe\b/i,'uses a signed Windows binary to run its code'],
+  [/[A-Za-z]:\\(?:ProgramData|Users\\[^\\\n"]+\\AppData|Windows\\Temp|Users\\Public)\\[^\\\n"]*\.(?:exe|dll|scr|com|ps1|bat|js|vbs)/i,'runs a binary out of a user-writable directory']
 ];
 function foldConcat(t){
   let s=t, n=0;
@@ -1107,10 +1111,12 @@ async function deepScan(root){
     let kids=0;
     if(isText){
       const raw=S(b), t=foldConcat(raw);
-      const beh=BEHAVIOR.filter(([rx])=>rx.test(t)).map(([,n])=>n);
+      const beh=[...new Set(BEHAVIOR.filter(([rx])=>rx.test(t)).map(([,n])=>n))];
       if(beh.length)lines.push(`${pad}   behaviour: ${beh.join('; ')}`);
       const iocs=[...new Set([...(t.match(IOC.url)||[]),...(t.match(IOC.ip)||[]),...(t.match(IOC.domain)||[])])].slice(0,14);
       if(iocs.length)lines.push(`${pad}   network: ${iocs.join(', ')}`);
+      const odd=[...new Set(t.match(/[A-Za-z]:\\(?:ProgramData|Users\\[^\\\n"]+\\AppData[^\n"]*?|Windows\\Temp|Users\\Public)\\[^\n",]*?\.(?:exe|dll|scr|com|ps1|bat|js|vbs)/gi)||[])].slice(0,10);
+      if(odd.length)lines.push(`${pad}   binaries in writable paths: ${odd.join(', ')}`);
       if(t!==raw&&printable(b,4096)>0.95&&/[`^]|['"]\s*\+\s*['"]/.test(raw)){
         lines.push(`${pad}   deobfuscated (backticks, carets and string concatenation folded):`);
         lines.push(t.split('\n').slice(0,6).map(x=>pad+'     '+x.trim().slice(0,300)).join('\n'));
