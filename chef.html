@@ -48,7 +48,9 @@ a{color:var(--acc)}
 .wrap{max-width:1600px; margin:0 auto; padding:18px 16px 40px}
 .head{display:flex; align-items:baseline; gap:14px; flex-wrap:wrap; border-bottom:1px solid var(--line2); padding-bottom:.45rem}
 h1{font:700 2rem var(--mono); letter-spacing:-.02em; color:var(--h1)}
-.head .tag{font-size:13px; color:var(--mut)}
+.head .tag{font-size:13px; color:var(--mut); flex:1 1 320px}
+.savebtn{padding:5px 11px; border-radius:8px; border:1px solid var(--line2); background:var(--raised); color:var(--ink); font:600 12px var(--mono); white-space:nowrap}
+.savebtn:hover{border-color:var(--acc); color:var(--h1)}
 .eyebrow{font:600 .72rem var(--mono); letter-spacing:.14em; text-transform:uppercase; color:var(--acc)}
 
 .grid{display:grid; gap:14px; margin-top:16px; grid-template-columns:270px minmax(300px,1fr) minmax(320px,1.15fr); align-items:start}
@@ -140,6 +142,7 @@ h1{font:700 2rem var(--mono); letter-spacing:-.02em; color:var(--h1)}
   <div class="head">
     <h1>Chef</h1>
     <div class="tag">Decode, decompress, deobfuscate and triage. Nothing leaves the browser, and it works offline.</div>
+    <button id="save" class="savebtn" title="Save this whole tool as one HTML file you can run offline, from a USB stick, or on an air-gapped box">Download this page</button>
   </div>
 
   <div class="grid">
@@ -255,6 +258,16 @@ function utf16le(b){ // drop the high bytes of ASCII-range UTF-16LE
   let out=''; for(let i=0;i+1<b.length;i+=2)out+=String.fromCharCode(b[i]|(b[i+1]<<8));
   return out;
 }
+function widen(d){
+  // Payloads come back as wide text more often than not: UTF-16LE from PowerShell, UTF-32LE from some packers.
+  if(d.length<8)return null;
+  if(!d[1]&&!d[2]&&!d[3]&&!d[5]&&!d[6]&&!d[7]){
+    let s=''; for(let i=0;i+3<d.length;i+=4)s+=String.fromCharCode(d[i]|(d[i+1]<<8));
+    return {s,how:'UTF-32LE'};
+  }
+  if(!d[1]&&!d[3]&&!d[5])return {s:utf16le(d),how:'UTF-16LE'};
+  return null;
+}
 function xorBytes(b,key){ const o=new Uint8Array(b.length); for(let i=0;i<b.length;i++)o[i]=b[i]^key[i%key.length]; return o }
 function rc4(b,key){
   const s=new Uint8Array(256); for(let i=0;i<256;i++)s[i]=i;
@@ -349,9 +362,11 @@ op('To Hex','Encoding',[{k:'sep',l:'Separator',t:'select',o:['Space','None','Com
     if(a.sep==='0x')return B([...b].map(x=>'0x'+x.toString(16).padStart(2,'0')).join(', '));
     return B(hex(b,m[a.sep])) });
 op('From Charcode','Encoding',[{k:'base',l:'Base',t:'select',o:['10','16','8','2'],d:'10'}],(b,a)=>{
-  const parts=S(b).split(/[^0-9a-fA-Fx]+/).filter(Boolean).map(x=>parseInt(x.replace(/^0x/i,''),+a.base)).filter(n=>!isNaN(n));
+  // Real command lines hide the numbers behind arithmetic: [char](899-816) is 'S'.
+  let t=S(b).replace(/\(\s*(-?\d+)\s*([+-])\s*(\d+)\s*\)/g,(m,x,op,y)=>String(op==='+'?(+x)+(+y):(+x)-(+y)));
+  const parts=t.split(/[^0-9a-fA-Fx]+/).filter(Boolean).map(x=>parseInt(x.replace(/^0x/i,''),+a.base)).filter(n=>!isNaN(n)&&n>=0&&n<0x110000);
   const o=new Uint8Array(parts.length); parts.forEach((n,i)=>o[i]=n&255); return o;
-},'Turns 104,101,108,108,111 or Chr(65) lists back into text.');
+},'Turns 104,101,108 or [char](899-816) or Chr(65) lists back into text.');
 op('To Charcode','Encoding',[{k:'sep',l:'Separator',t:'text',d:','}],(b,a)=>B([...b].join(a.sep||',')));
 op('URL decode','Encoding',[],(b)=>{ try{ return B(decodeURIComponent(S(b).replace(/\+/g,' '))) }catch(e){ return B(S(b).replace(/%([0-9a-f]{2})/gi,(m,h)=>String.fromCharCode(parseInt(h,16)))) } });
 op('URL encode','Encoding',[{k:'all',l:'Encode everything',t:'bool',d:false}],
@@ -807,7 +822,14 @@ const BEHAVIOR=[
   [/schtasks|New-ScheduledTask|Run(?:Once)?\\|CurrentVersion\\Run|sc(?:\.exe)? create|WMI.*__EventFilter/i,'sets up persistence'],
   [/ComputerName|USERDOMAIN|Get-WmiObject.*Win32_Computer|hostname|GetVolumeInformation|IsDebuggerPresent|Sandboxie|VMware|VirtualBox|vbox/i,'checks the machine before running (sandbox or target check)'],
   [/net user|net group|whoami|nltest|Get-ADUser|adfind/i,'enumerates accounts'],
-  [/\.dll['"\s]|\.exe['"\s]|WriteAllBytes|\[IO\.File\]/i,'writes a file to disk']
+  [/\.dll['"\s]|\.exe['"\s]|WriteAllBytes|\[IO\.File\]/i,'writes a file to disk'],
+  [/\bfinger(?:\.exe)?\b[^\n]{0,80}@/i,'uses finger.exe as the download channel'],
+  [/--_?Verif|push[\s_-]*the[\s_-]*enter[\s_-]*key|I am not a robot|verification ID|press[\s_-]*win[\s_-]*\+[\s_-]*r/i,'carries ClickFix clipboard lure text'],
+  [/IronPython|net462|python(?:\.exe)?\s+-c\s|pythonw/i,'ships its own interpreter'],
+  [/Scriptblock\]?::Create|-as\s*\[\s*type\s*\]|\[type\]\s*\(/i,'builds code by resolving type names at runtime'],
+  [/-w\s+h(?:idden)?\b|-nop\b|-noni\b|-ep\s+bypass/i,'runs PowerShell hidden or unrestricted'],
+  [/\^{1,2}\w\^{1,2}\w/,'caret-escaped cmd.exe obfuscation'],
+  [/for\s+\/f\s+["']?delims=/i,'uses for /f to run captured output']
 ];
 function foldConcat(t){
   let s=t, n=0;
@@ -815,7 +837,7 @@ function foldConcat(t){
     const next=s.replace(/(['"])([^'"\n]*)\1\s*\+\s*(['"])([^'"\n]*)\3/g,(m,q1,a,q2,b)=>q1+a+b+q1);
     if(next===s)break; s=next;
   }
-  return s.replace(/`/g,'');
+  return s.replace(/`/g,'').replace(/\^(?=.)/g,'');
 }
 function b64Runs(t){
   // single long runs, plus runs of adjacent quoted literals (the @("...","...") pattern)
@@ -840,7 +862,8 @@ function b64Runs(t){
 function otherRuns(t){
   const out=[], push=(kind,how,raw,start)=>out.push({kind,how,raw,start});
   let m;
-  const chars=/\[char\]\s*\d{1,3}(?:\s*,\s*\[char\]\s*\d{1,3}){2,}/gi;
+  const CH='(?:\\[char\\]\\s*(?:\\(\\s*-?\\d+\\s*[+-]\\s*\\d+\\s*\\)|\\d{1,3}))';
+  const chars=new RegExp(CH+'(?:\\s*[,+]\\s*'+CH+'){2,}','gi');
   while((m=chars.exec(t))!==null)push('charcode','[char] array',m[0],m.index);
   const chr=/Chr\(\s*\d{1,3}\s*\)(?:\s*[&+]\s*Chr\(\s*\d{1,3}\s*\)){2,}/gi;
   while((m=chr.exec(t))!==null)push('charcode','Chr() concatenation',m[0],m.index);
@@ -977,8 +1000,14 @@ function xorFromKnownPlaintext(b){
         }
         if(!ok||key.some(x=>x===-1))continue;
         if(key.every(x=>x===0))continue;
+        if(c.length<3*L)continue;            // the key has to repeat, or it is just curve fitting
         const kb=new Uint8Array(key), dec=xorBytes(b,kb);
-        if(sniff(dec)||printable(dec,512)>0.9)return {key:kb,dec,crib};
+        const m=sniff(dec);
+        let good;
+        if(m==='PE/MZ executable'){ const p=peInfo(dec); good=!!(p&&!p.note) }   // the PE header has to actually parse
+        else if(m) good=c.length>=8;
+        else good=dec.length>=64&&printable(dec,1024)>0.97&&c.length>=12;
+        if(good)return {key:kb,dec,crib};
       }
     }
   }
@@ -993,8 +1022,11 @@ async function decodeCandidate(c){
       let how='From Base64', recipe=[['From Base64',{}]];
       if(d[0]===0x1f&&d[1]===0x8b){ d=await inflate(d,'gzip'); how+=' → gunzip'; recipe.push(['Auto decompress',{}]) }
       else if(d[0]===0x78&&(d[1]===0x01||d[1]===0x9c||d[1]===0xda)){ d=await inflate(d,'deflate'); how+=' → inflate'; recipe.push(['Auto decompress',{}]) }
-      else if(d.length>8&&d[1]===0&&d[3]===0&&printable(d.filter(x=>x!==0),256)>0.95){
-        d=B(utf16le(d)); how+=' → UTF-16LE'; recipe.push(['Decode UTF-16LE',{}]);
+      // whatever came out, it may still be wide text underneath
+      const w=widen(d);
+      if(w&&printable(B(w.s),256)>0.95){
+        d=B(w.s); how+=' → '+w.how;
+        recipe.push(w.how==='UTF-16LE'?['Decode UTF-16LE',{}]:['Remove null bytes',{}]);
       }
       if(!sniff(d)&&printable(d,1024)<0.85&&entropy(d)<7.2&&!peInfo(d))return null;
       return {bytes:d,how,recipe};
@@ -1077,12 +1109,16 @@ async function deepScan(root){
       const raw=S(b), t=foldConcat(raw);
       const beh=BEHAVIOR.filter(([rx])=>rx.test(t)).map(([,n])=>n);
       if(beh.length)lines.push(`${pad}   behaviour: ${beh.join('; ')}`);
-      const iocs=[...new Set([...(t.match(IOC.url)||[]),...(t.match(IOC.ip)||[])])].slice(0,12);
+      const iocs=[...new Set([...(t.match(IOC.url)||[]),...(t.match(IOC.ip)||[]),...(t.match(IOC.domain)||[])])].slice(0,14);
       if(iocs.length)lines.push(`${pad}   network: ${iocs.join(', ')}`);
-      if(t!==raw)lines.push(`${pad}   note: string concatenation and backticks folded before scanning`);
+      if(t!==raw&&printable(b,4096)>0.95&&/[`^]|['"]\s*\+\s*['"]/.test(raw)){
+        lines.push(`${pad}   deobfuscated (backticks, carets and string concatenation folded):`);
+        lines.push(t.split('\n').slice(0,6).map(x=>pad+'     '+x.trim().slice(0,300)).join('\n'));
+        finds.push({label:'deobfuscated command line',kind:'deobfuscated text',bytes:B(t),recipe:[['Find / replace',{find:'[`^]',rep:'',re:true}]],how:'carets and backticks folded'});
+      }
       const cands=[...b64Runs(t),...otherRuns(t)].sort((a,b)=>a.start-b.start);
       for(const c of cands){
-        if(kids>=12)break;
+        if(kids>=20)break;
         const got=await decodeCandidate(c);
         if(!got)continue;
         kids++;
@@ -1109,6 +1145,17 @@ async function deepScan(root){
   await node(root,'input',0,'',[]);
   return {report:lines.join('\n')+'\n',finds};
 }
+
+$('#save').onclick=async()=>{
+  // The page is one file with no dependencies, so saving its own source is the whole tool.
+  let html;
+  try{ const r=await fetch(location.pathname||'./chef.html',{cache:'no-store'}); if(!r.ok)throw 0; html=await r.text() }
+  catch(e){ html='<!doctype html>\n'+document.documentElement.outerHTML }
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([html],{type:'text/html'})); a.download='chef.html'; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),5000);
+  toast('Saved. Open it anywhere, it needs nothing else.');
+};
 
 let FINDS=[];
 $('#deep').onclick=async()=>{
