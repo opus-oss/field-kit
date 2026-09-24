@@ -384,7 +384,7 @@ function hexdump(b,limit){
 const IOC={
   ip:/\b(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)\b/g,
   url:/\b(?:https?|ftp):\/\/[^\s"'<>\\\]}]+/gi,
-  domain:/(?<![\\/\w.])(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+(?:com|net|org|io|ru|cn|info|biz|top|xyz|shop|online|site|club|icu|cc|su|to|me|co|uk|de|fr|nl|br|in|jp|pl|it|es|ca|au|ch|se|no|fi|dk|cz|tv|pw|link|live|life|world|today|space|website|store|tech|app|dev|pro|vip|fun|cloud|host|press|work|zip|mov)\b/gi,
+  domain:/(?<![\\/\w.-])(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+(?:com|net|org|io|ru|cn|info|biz|top|xyz|shop|online|site|club|icu|cc|su|to|me|co|uk|de|fr|nl|br|in|jp|pl|it|es|ca|au|ch|se|no|fi|dk|cz|tv|pw|link|live|life|world|today|space|website|store|tech|app|dev|pro|vip|fun|cloud|host|press|work|zip|mov)\b/gi,
   email:/\b[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}\b/gi,
   md5:/\b[a-f0-9]{32}\b/gi, sha1:/\b[a-f0-9]{40}\b/gi, sha256:/\b[a-f0-9]{64}\b/gi,
   btc:/\b(?:bc1[a-z0-9]{25,62}|[13][a-km-zA-HJ-NP-Z1-9]{25,34})\b/g,
@@ -1124,30 +1124,63 @@ function rankedXor(b){
   if(Bn[0][0]>=0.99&&Bn[0][0]-Bn[1][0]>=0.02)return {key:Bn[0][1],dec:xorBytes(b,new Uint8Array([Bn[0][1]])),why:'comes out as base64'};
   return null;
 }
+function statedKeys(ctx){
+  // Scripts that XOR their payload usually hand you the key: a literal after -bxor, or a
+  // variable assigned a number earlier. Resolve both, so we never have to search the key space.
+  if(!ctx)return [];
+  const keys=new Set();
+  for(const m of ctx.matchAll(/-bxor\s*(0x[0-9a-f]+|\d{1,3})/gi)){
+    const n=m[1].toLowerCase().startsWith('0x')?parseInt(m[1],16):+m[1]; if(n>=1&&n<=255)keys.add(n&255);
+  }
+  for(const m of ctx.matchAll(/-bxor\s*\$(\w+)/g)){
+    const a=ctx.match(new RegExp('\\$'+m[1]+'\\s*=\\s*(0x[0-9a-f]+|\\d{1,3})\\b','i'));
+    if(a){ const n=a[1].toLowerCase().startsWith('0x')?parseInt(a[1],16):+a[1]; if(n>=1&&n<=255)keys.add(n&255) }
+  }
+  return [...keys];
+}
+async function b64resolve(rawStr,ctx){
+  // Fully work a base64 string: decompress, un-widen, and undo a single-byte XOR when the
+  // script states the key or one wins outright. Returns null unless the result is real content.
+  let d; try{ d=b64bytes(rawStr,false,false) }catch(e){ return null }
+  if(d.length<3)return null;
+  let how='From Base64', recipe=[['From Base64',{}]];
+  if(d[0]===0x1f&&d[1]===0x8b){ d=await inflate(d,'gzip'); how+=' → gunzip'; recipe.push(['Auto decompress',{}]) }
+  else if(d[0]===0x78&&(d[1]===0x01||d[1]===0x9c||d[1]===0xda)){ d=await inflate(d,'deflate'); how+=' → inflate'; recipe.push(['Auto decompress',{}]) }
+  const applyWiden=()=>{ const w=widen(d); if(w&&printable(B(w.s),256)>0.95){ d=B(w.s); how+=' → '+w.how; recipe.push(w.how==='UTF-16LE'?['Decode UTF-16LE',{}]:['Remove null bytes',{}]); return true } return false };
+  applyWiden();
+  // XOR'd base64 often maps to lots of letters, so it scores as "language". Never trust langScore
+  // alone: if the script states a key, try it, and keep it only when it decodes cleaner.
+  if(!sniff(d)&&!peInfo(d)){
+    let xk=null, why='';
+    for(const k of statedKeys(ctx)){ const tx=xorBytes(d,new Uint8Array([k]));
+      if(b64ness(tx)>0.97||(printable(tx,256)>0.95&&langScore(tx)>langScore(d)+0.2)){ xk=k; why='key stated in the script'; d=tx; break } }
+    if(xk===null&&langScore(d)<1.2){ const rx=rankedXor(d); if(rx){ xk=rx.key; why=rx.why; d=rx.dec } }
+    if(xk!==null){
+      how+=` → XOR 0x${xk.toString(16).padStart(2,'0')} (${why})`;
+      recipe.push(['XOR',{key:xk.toString(16).padStart(2,'0'),fmt:'Hex'}]);
+      if(b64ness(d)>0.9){ try{ const inner=b64bytes(S(d),false,false);
+        const w3=widen(inner);
+        if(w3&&printable(B(w3.s),256)>0.95){ d=B(w3.s); how+=' → From Base64 → '+w3.how; recipe.push(['From Base64',{}],w3.how==='UTF-16LE'?['Decode UTF-16LE',{}]:['Remove null bytes',{}]) }
+        else if(printable(inner,256)>0.92){ d=inner; how+=' → From Base64'; recipe.push(['From Base64',{}]) }
+      }catch(e){} }
+      applyWiden();
+    } else if(printable(d,1024)<0.85){ return null }
+  }
+  return {bytes:d,how,recipe};
+}
 async function decodeCandidate(c,ctx){
   try{
     if(c.kind==='base64'){
       if(c.raw.replace(/[^A-Za-z0-9+/]/g,'').length<16)return null;
-      let d=b64bytes(c.raw,false,false);
-      if(d.length<3)return null;
-      let how='From Base64', recipe=[['From Base64',{}]];
-      if(d[0]===0x1f&&d[1]===0x8b){ d=await inflate(d,'gzip'); how+=' → gunzip'; recipe.push(['Auto decompress',{}]) }
-      else if(d[0]===0x78&&(d[1]===0x01||d[1]===0x9c||d[1]===0xda)){ d=await inflate(d,'deflate'); how+=' → inflate'; recipe.push(['Auto decompress',{}]) }
-      // whatever came out, it may still be wide text underneath
-      const w=widen(d);
-      if(w&&printable(B(w.s),256)>0.95){
-        d=B(w.s); how+=' → '+w.how;
-        recipe.push(w.how==='UTF-16LE'?['Decode UTF-16LE',{}]:['Remove null bytes',{}]);
+      let r=await b64resolve(c.raw,ctx);
+      // some loaders store the base64 reversed (StrReverse / [array]::Reverse)
+      const rev=[...c.raw].reverse().join('');
+      if(/[A-Za-z0-9+/]/.test(rev)){
+        const rr=await b64resolve(rev,ctx);
+        const q=x=>x?(printable(x.bytes,1024)+ (sniff(x.bytes)||peInfo(x.bytes)?1:0)):-1;
+        if(q(rr)>q(r)+0.15){ r=rr; r.how='Reverse → '+r.how; r.recipe=[['Reverse',{what:'Characters'}],...r.recipe] }
       }
-      if(!sniff(d)&&printable(d,1024)<0.85&&!peInfo(d)){
-        const x=rankedXor(d);
-        if(!x)return null;
-        d=x.dec; how+=` → XOR 0x${x.key.toString(16).padStart(2,'0')} (${x.why})`;
-        recipe.push(['XOR',{key:x.key.toString(16).padStart(2,'0'),fmt:'Hex'}]);
-        const w2=widen(d);
-        if(w2&&printable(B(w2.s),256)>0.95){ d=B(w2.s); how+=' → '+w2.how; recipe.push(w2.how==='UTF-16LE'?['Decode UTF-16LE',{}]:['Remove null bytes',{}]) }
-      }
-      return {bytes:d,how,recipe};
+      return r;
     }
     if(c.kind==='hex'){ const d=hexBytes(c.raw); if(d.length<6)return null;
       if(!sniff(d)&&printable(d,512)<0.9)return null;
