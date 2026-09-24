@@ -747,10 +747,17 @@ async function magicRun(){
       const txt=S(d.subarray(0,4000));
       if(txt.trim().length<3)continue;
       if(txt.replace(/\s/g,'')===t.replace(/\s/g,''))continue;   // no-op results are not discoveries
-      let score=p*100;
-      if(/https?:\/\/|powershell|invoke|cmd\.exe|function|select |http|user-agent|\.dll|\.exe/i.test(txt))score+=60;
-      if(hints.has(name.split(' ')[0]))score+=20;
-      if(name.startsWith('PowerShell'))score+=10;
+      // Printable is a weak signal: ROT13 of base64 is still printable. Score on how much the
+      // result reads like language, commands and paths, and punish results that still look encoded.
+      const words=(txt.match(/[A-Za-z]{3,}/g)||[]).length, spaces=(txt.match(/[ \t\n]/g)||[]).length;
+      const encodedLooking=/^[A-Za-z0-9+/=_-]{24,}$/.test(txt.trim().split(/\s+/)[0]||'')&&spaces<txt.length/40;
+      let score=p*40+Math.min(words,40)*2+Math.min(spaces,80);
+      if(encodedLooking)score-=90;
+      if(/https?:\/\/|powershell|invoke|cmd\.exe|function |select |user-agent|\.dll|\.exe|\\windows\\|http/i.test(txt))score+=80;
+      if(/[{}\[\]":]/.test(txt)&&/\w+":/.test(txt))score+=30;          // JSON-ish
+      if(hints.has(name.split(' ')[0]))score+=25;
+      if(name.startsWith('PowerShell'))score+=15;
+      if(/^ROT/.test(name)&&(encodedLooking||words<3))continue;       // ROT on a blob is never the answer
       found.push({name,steps,score,preview:txt.slice(0,160).replace(/\s+/g,' ')});
     }catch(e){}
   }
