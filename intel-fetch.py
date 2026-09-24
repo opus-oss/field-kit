@@ -69,7 +69,52 @@ ENTS = """LockBit|Akira|Qilin|Play ransomware|Black Basta|BlackSuit|Medusa|Ranso
 |SmokeLoader|Amadey|HijackLoader|GuLoader|Matanbuchus|Cobalt Strike|Sliver|Brute Ratel|Havoc|Mythic|Evilginx|Tycoon 2FA|Tycoon|Mamba 2FA|EvilProxy|Sneaky 2FA|Rockstar 2FA|Raccoon O365
 |Lazarus|Kimsuky|APT28|APT29|APT41|Sandworm|Turla|Volt Typhoon|Salt Typhoon|Silk Typhoon|MuddyWater|Charming Kitten|FIN7|TA505|TA577|TA578|Storm-\\d{4}|UNC\\d{3,5}|UAT-\\d+
 |ScreenConnect|AnyDesk|SimpleHelp|Ivanti|Fortinet|FortiGate|Citrix|NetScaler|SonicWall|Palo Alto|PAN-OS|Cisco ASA|SharePoint|Exchange|Veeam|ESXi|vCenter|CrushFTP|MOVEit|Cleo"""
-ENTS = re.compile(r"\b(" + ENTS.replace("\n", "") + r")\b", re.I)
+ENTS_BASE = ENTS.replace("\n", "")
+
+# Auto-derive additional RaaS group names from raas.json so the entity list stays current
+# without a hand-maintained update. Any group with at least 2 leak-site claims in the last
+# 90 days becomes a tracked entity, so the Grapevine → Converging → CONV badge closes the
+# loop between volume and vendor coverage automatically.
+def _derive_raas_ents():
+    try:
+        with open("raas.json") as f:
+            j = json.load(f)
+    except Exception:
+        return ""
+    cnt = {}
+    cut = time.time() - 90 * 86400
+    for v in j.get("items", []):
+        try:
+            t = time.mktime(time.strptime(v.get("attackdate", "")[:19].replace(" ", "T"), "%Y-%m-%dT%H:%M:%S"))
+        except Exception:
+            continue
+        if t < cut: continue
+        g = (v.get("group_name") or v.get("group") or "").strip()
+        if not g: continue
+        cnt[g] = cnt.get(g, 0) + 1
+    # A derived name must be distinctive enough not to collide with prose. Rules:
+    # - ≥ 2 claims in 90d (already filtered above)
+    # - 5+ chars
+    # - contains a digit, or an uppercase after the first char, or has a space, or is all-caps
+    # - not in a small deny-list of vendor names / single-word English that recur in blog text
+    DENY = {"barracuda","play","titan","storm","termite","anubis","embargo","fog","medusa"}
+    def distinctive(g):
+        if len(g) < 5: return False
+        if g.lower() in DENY: return False
+        if any(c.isdigit() for c in g): return True
+        if " " in g: return True
+        if g.isupper(): return True
+        return any(c.isupper() for c in g[1:])
+    picks = [g for g, n in cnt.items() if distinctive(g) and re.match(r"^[A-Za-z0-9][\w .-]{2,40}$", g)]
+    # Skip anything already covered by ENTS_BASE so we don't compile a regex with duplicates.
+    have = re.compile(r"\b(" + ENTS_BASE + r")\b", re.I)
+    fresh = sorted({g for g in picks if not have.search(g)}, key=str.lower)
+    return "|" + "|".join(re.escape(g) for g in fresh) if fresh else ""
+
+_RAAS_EXTRA = _derive_raas_ents()
+ENTS = re.compile(r"\b(" + ENTS_BASE + _RAAS_EXTRA + r")\b", re.I)
+if _RAAS_EXTRA:
+    print(f"intel-fetch: added {_RAAS_EXTRA.count('|')} RaaS groups from raas.json to the entity regex")
 CVE = re.compile(r"CVE-\d{4}-\d{4,7}", re.I)
 CANON = {}
 def ents(text):

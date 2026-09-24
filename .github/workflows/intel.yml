@@ -25,6 +25,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Ransomware leak-site claims for the Grapevine RaaS widget
+        timeout-minutes: 4
+        continue-on-error: true
+        # Runs BEFORE intel-fetch so newly seen RaaS groups auto-derive into the entity regex.
+        run: python3 raas-fetch.py
       - name: Fetch feeds
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # higher API rate limit for the adds-only IOC repos
@@ -33,10 +38,6 @@ jobs:
         timeout-minutes: 6
         continue-on-error: true
         run: python3 congress-fetch.py
-      - name: Ransomware leak-site claims for the Grapevine RaaS widget
-        timeout-minutes: 4
-        continue-on-error: true
-        run: python3 raas-fetch.py
       - name: GDP, population and world debt for the Debt page
         timeout-minutes: 6            # a slow source must never hold up the feeds
         continue-on-error: true
