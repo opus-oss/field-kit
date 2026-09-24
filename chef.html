@@ -1131,8 +1131,8 @@ async function deepScan(root){
   const seen=new Set();
   const key=b=>b.length+':'+hex(b.subarray(0,24));
   async function node(b,label,depth,how,recipe){
-    if(depth>4||finds.length>60)return;
-    const k=key(b); if(seen.has(k))return; seen.add(k);
+    if(depth>4||finds.length>60)return null;
+    const k=key(b); if(seen.has(k))return null; seen.add(k);
     const pad='  '.repeat(depth);
     const kind=describe(b);
     lines.push(`${pad}${depth?'└ ':''}${label} · ${kind} · ${b.length.toLocaleString()} bytes · entropy ${entropy(b).toFixed(2)}${how?`\n${pad}   found by: ${how}`:''}`);
@@ -1178,66 +1178,68 @@ async function deepScan(root){
       if(cmd.length)lines.push(`${pad}   command strings: ${cmd.map(x=>x.trim()).join(' | ')}`);
     }
     const isText=printable(b,4096)>0.85;
-    let kids=0;
-    if(isText){
-      const raw=S(b), t=foldConcat(raw);
-      const beh=[...new Set(BEHAVIOR.filter(([rx])=>rx.test(t)).map(([,n])=>n))];
-      if(beh.length)lines.push(`${pad}   behaviour: ${beh.join('; ')}`);
-      const iocs=[...new Set([...(t.match(IOC.url)||[]),...(t.match(IOC.ip)||[]),...(t.match(IOC.domain)||[])])].slice(0,14);
-      if(iocs.length)lines.push(`${pad}   network: ${iocs.join(', ')}`);
-      const odd=[...new Set(t.match(/[A-Za-z]:\\(?:ProgramData|Users\\[^\\\n"]+\\AppData[^\n"]*?|Windows\\Temp|Users\\Public)\\[^\n",]*?\.(?:exe|dll|scr|com|ps1|bat|js|vbs)/gi)||[])].slice(0,10);
-      if(odd.length)lines.push(`${pad}   binaries in writable paths: ${odd.join(', ')}`);
-      if(t!==raw&&printable(b,4096)>0.95&&/[`^]|['"]\s*\+\s*['"]/.test(raw)){
-        lines.push(`${pad}   deobfuscated (backticks, carets and string concatenation folded):`);
-        lines.push(t.split('\n').slice(0,6).map(x=>pad+'     '+x.trim().slice(0,300)).join('\n'));
-        finds.push({label:'deobfuscated command line',kind:'deobfuscated text',bytes:B(t),recipe:[['Find / replace',{find:'[`^]',rep:'',re:true}]],how:'carets and backticks folded'});
-      }
-      const cands=[...b64Runs(t),...otherRuns(t)].sort((a,b)=>a.start-b.start);
-      const subs=[];
-      for(const c of cands){
-        if(kids>=20)break;
-        const got=await decodeCandidate(c,t);
-        if(!got)continue;
-        kids++;
-        const readable=printable(got.bytes,400)>0.95&&got.bytes.length<=2000;
-        // keep one line per command: a multi-line payload gets flattened here and stays whole in its own finding
-        const flat=readable?S(got.bytes).replace(/\r?\n/g,' ⏎ ').replace(/\s{2,}/g,' ').trim():'';
-        subs.push({start:c.start,end:c.end??(c.start+c.raw.length),
-          text:readable?(flat.length>300?flat.slice(0,300)+'… (full text in finding '+(finds.length+1)+')':flat)
-                       :`«${describe(got.bytes)}, ${got.bytes.length.toLocaleString()} bytes, ${got.how}»`});
-        const preview=printable(got.bytes,200)>0.9?JSON.stringify(S(got.bytes.subarray(0,60))):'';
-        await node(got.bytes,`[${finds.length+1}] ${c.how} (${c.raw.length.toLocaleString()} chars)${preview?' → '+preview:''}`,depth+1,got.how,got.recipe);
-      }
-      // Put the decoded pieces back where they came from, so the command reads as one line again.
-      if(subs.length){
-        subs.sort((a,b)=>a.start-b.start);
-        let outStr='', at=0;
-        for(const s of subs){ if(s.start<at)continue; outStr+=t.slice(at,s.start)+s.text; at=s.end }
-        outStr+=t.slice(at);
-        outStr=outStr.replace(/[ \t]{3,}/g,'  ');
-        if(outStr!==t){
-          lines.push(`${pad}   reassembled with every decoded piece put back:`);
-          lines.push(outStr.split('\n').filter(x=>x.trim()).slice(0,12).map(x=>pad+'     '+x.trim().slice(0,420)).join('\n'));
-          finds.push({label:'reassembled command',kind:'reassembled command',bytes:B(outStr),
-            recipe:[['Find / replace',{find:'[`^]',rep:'',re:true}]],how:subs.length+' decoded pieces put back in place'});
-        }
-      }
+    if(!isText)return `«${kind}, ${b.length.toLocaleString()} bytes${how?', '+how:''}»`;
+
+    const raw=S(b), t=foldConcat(raw);
+    const beh=[...new Set(BEHAVIOR.filter(([rx])=>rx.test(t)).map(([,n])=>n))];
+    if(beh.length)lines.push(`${pad}   behaviour: ${beh.join('; ')}`);
+    const iocs=[...new Set([...(t.match(IOC.url)||[]),...(t.match(IOC.ip)||[]),...(t.match(IOC.domain)||[])])].slice(0,14);
+    if(iocs.length)lines.push(`${pad}   network: ${iocs.join(', ')}`);
+    const odd=[...new Set(t.match(/[A-Za-z]:\\(?:ProgramData|Users\\[^\\\n"]+\\AppData[^\n"]*?|Windows\\Temp|Users\\Public)\\[^\n",]*?\.(?:exe|dll|scr|com|ps1|bat|js|vbs)/gi)||[])].slice(0,10);
+    if(odd.length)lines.push(`${pad}   binaries in writable paths: ${odd.join(', ')}`);
+
+    const cands=[...b64Runs(t),...otherRuns(t)].sort((a,b)=>a.start-b.start);
+    const subs=[]; let kids=0;
+    for(const c of cands){
+      if(kids>=20)break;
+      const got=await decodeCandidate(c,t);
+      if(!got)continue;
+      kids++;
+      const preview=printable(got.bytes,200)>0.9?JSON.stringify(S(got.bytes.subarray(0,60))):'';
+      // the child returns its own fully resolved text, so what lands here is the deepest layer, not the next one
+      const deep=await node(got.bytes,`[${finds.length+1}] ${c.how} (${c.raw.length.toLocaleString()} chars)${preview?' → '+preview:''}`,depth+1,got.how,got.recipe);
+      const text=deep!=null?deep:(printable(got.bytes,400)>0.95?S(got.bytes):`«${describe(got.bytes)}, ${got.bytes.length.toLocaleString()} bytes»`);
+      subs.push({start:c.start,end:c.end??(c.start+c.raw.length),text});
     }
-    // Anything still unexplained: no file magic, no script structure, nothing decoded out of it.
-    // Try to lift a repeating XOR key off known plaintext before giving up. No key search.
-    const explained=sniff(b)||(isText&&(kids>0||SCRIPTS.some(([rx])=>rx.test(S(b.subarray(0,4000))))));
-    if(!explained&&depth<3&&b.length>32){
-      const x=xorFromKnownPlaintext(b);
-      if(x){
-        lines.push(`${pad}   recovered a repeating XOR key from known plaintext: ${hex(x.key,' ')} ("${x.crib.slice(0,28)}")`);
-        await node(x.dec,`[${finds.length+1}] XOR, key ${hex(x.key,' ')}`,depth+1,'known-plaintext XOR',[['XOR',{key:hex(x.key),fmt:'Hex'}]]);
-        kids++;
-      } else if(entropy(b)>7.2){
-        lines.push(`${pad}   high entropy, no recognisable structure, no key recoverable from known plaintext. Encrypted, packed, or keyed off something not in this file.`);
-      } else if(depth===0){
+
+    let outStr=t;
+    if(subs.length){
+      subs.sort((x,y)=>x.start-y.start);
+      outStr=''; let at=0;
+      for(const s of subs){
+        if(s.start<at)continue;
+        const before=t.slice(at,s.start);
+        // indent a multi-line payload under the line it was pasted into, so the result reads like source
+        const col=before.length-(before.lastIndexOf('\n')+1);
+        const ind=' '.repeat(Math.min(col,12));
+        const body=s.text.includes('\n')?s.text.split('\n').map((l,i)=>i?ind+l:l).join('\n'):s.text;
+        outStr+=before+body; at=s.end;
+      }
+      outStr+=t.slice(at);
+    }
+    if(depth===0){
+      const changed=outStr!==raw;
+      if(changed){
+        lines.push('');
+        lines.push('reassembled, every layer decoded and put back where it came from:');
+        lines.push('');
+        const shown=outStr.split('\n').slice(0,140).join('\n');
+        lines.push(shown.length>12000?shown.slice(0,12000)+'\n… truncated, the rest is in the findings list':shown);
+      } else if(!kids){
         lines.push(`${pad}   nothing encoded found inside it`);
       }
     }
+    if(!kids&&!sniff(b)&&depth<3&&b.length>32&&!SCRIPTS.some(([rx])=>rx.test(t.slice(0,4000)))){
+      const x=xorFromKnownPlaintext(b);
+      if(x){
+        lines.push(`${pad}   recovered a repeating XOR key from known plaintext: ${hex(x.key,' ')} ("${x.crib.slice(0,28)}")`);
+        const deep=await node(x.dec,`[${finds.length+1}] XOR, key ${hex(x.key,' ')}`,depth+1,'known-plaintext XOR',[['XOR',{key:hex(x.key),fmt:'Hex'}]]);
+        if(deep!=null)outStr=deep;
+      } else if(entropy(b)>7.2){
+        lines.push(`${pad}   high entropy, no recognisable structure, no key recoverable from known plaintext.`);
+      }
+    }
+    return outStr;
   }
   await node(root,'input',0,'',[]);
   return {report:lines.join('\n')+'\n',finds};
