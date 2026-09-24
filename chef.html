@@ -854,45 +854,81 @@ function otherRuns(t){
   while((m=esc.exec(t))!==null)push('escape','\\u escapes',m[0],m.index);
   return out;
 }
+const LINKER={'6.0':'Visual C++ 6','7.0':'Visual Studio 2002','7.1':'Visual Studio 2003','8.0':'Visual Studio 2005',
+  '9.0':'Visual Studio 2008','10.0':'Visual Studio 2010','11.0':'Visual Studio 2012','12.0':'Visual Studio 2013',
+  '14.0':'Visual Studio 2015','14.1':'Visual Studio 2017','14.2':'Visual Studio 2019','14.3':'Visual Studio 2022'};
+function richHeader(b,peOff){
+  // The Rich header sits between the DOS stub and the PE header, XORed with a key that follows "Rich".
+  // It survives truncation and is one of the better clustering pivots when imports are missing.
+  try{
+    const dv=new DataView(b.buffer,b.byteOffset,b.byteLength);
+    let rich=-1;
+    for(let i=0x40;i<Math.min(peOff,b.length-8);i+=4) if(dv.getUint32(i,true)===0x68636952){ rich=i; break }
+    if(rich<0)return null;
+    const key=dv.getUint32(rich+4,true);
+    let dans=-1;
+    for(let i=rich-4;i>=0x40;i-=4) if((dv.getUint32(i,true)^key)===0x536e6144){ dans=i; break }
+    if(dans<0)return null;
+    const entries=[];
+    for(let i=dans+16;i<rich;i+=8){
+      const comp=dv.getUint32(i,true)^key, cnt=dv.getUint32(i+4,true)^key;
+      entries.push({prod:comp>>>16,build:comp&0xffff,count:cnt});
+    }
+    const clear=new Uint8Array(rich-dans);
+    for(let i=0;i<clear.length;i++)clear[i]=b[dans+i]^((key>>>((i%4)*8))&255);
+    return {key:key>>>0,entries,hash:md5(clear)};
+  }catch(e){ return null }
+}
 function peInfo(b){
   try{
     if(b[0]!==0x4d||b[1]!==0x5a)return null;
     const dv=new DataView(b.buffer,b.byteOffset,b.byteLength);
     const e=dv.getUint32(0x3c,true);
-    if(e+0x18>b.length||dv.getUint32(e,true)!==0x00004550)return {note:'MZ header but the PE header is past the end of what we have'};
+    if(e+0x18>b.length||dv.getUint32(e,true)!==0x00004550)return {note:'MZ header, but the PE header is past the end of the data we have'};
     const machine=dv.getUint16(e+4,true), nsec=dv.getUint16(e+6,true), stamp=dv.getUint32(e+8,true);
     const optSize=dv.getUint16(e+20,true), chars=dv.getUint16(e+22,true);
     const opt=e+24, magic=optSize?dv.getUint16(opt,true):0;
     const plus=magic===0x20b;
     const MACH={0x14c:'x86 (i386)',0x8664:'x64 (AMD64)',0x1c0:'ARM',0xaa64:'ARM64',0x1c4:'ARMNT',0x200:'IA64'};
     const SUB={1:'native',2:'GUI',3:'console',9:'Windows CE',10:'EFI application',16:'boot application'};
+    const lv=dv.getUint8(opt+2)+'.'+dv.getUint8(opt+3);
     const info={
       kind:(chars&0x2000)?'DLL':(chars&0x0002)?'EXE':'object',
       machine:MACH[machine]||('0x'+machine.toString(16)),
       compiled:stamp?new Date(stamp*1000).toISOString().replace('T',' ').slice(0,19)+' UTC':'no timestamp',
       bits:plus?'PE32+':'PE32',
       subsystem:optSize>=70?(SUB[dv.getUint16(opt+68,true)]||'?'):'?',
-      sections:[], imports:[], exportName:null
+      linker:lv+(LINKER[lv]?' ('+LINKER[lv]+')':''),
+      entry:dv.getUint32(opt+16,true), imageBase:plus?Number(dv.getBigUint64(opt+24,true)):dv.getUint32(opt+28,true),
+      sizeOfImage:dv.getUint32(opt+56,true), checksum:dv.getUint32(opt+64,true),
+      dllchar:dv.getUint16(opt+70,true),
+      sections:[], imports:[], exportName:null, flags:[], present:b.length, expected:0,
+      rich:richHeader(b,e)
     };
     const secOff=opt+optSize, secs=[];
     for(let i=0;i<Math.min(nsec,16);i++){
       const o=secOff+i*40; if(o+40>b.length)break;
       const name=S(b.subarray(o,o+8)).replace(/\0+$/,'');
       const vsize=dv.getUint32(o+8,true), va=dv.getUint32(o+12,true), rsize=dv.getUint32(o+16,true), roff=dv.getUint32(o+20,true);
-      const body=(roff<b.length)?b.subarray(roff,Math.min(roff+rsize,b.length)):new Uint8Array(0);
-      secs.push({name,va,vsize,rsize,roff});
-      info.sections.push(`${name.padEnd(8)} ${String(rsize).padStart(8)} bytes  entropy ${body.length?entropy(body).toFixed(2):'—'}`);
+      info.expected=Math.max(info.expected,roff+rsize);
+      const have=roff<b.length;
+      const body=have?b.subarray(roff,Math.min(roff+rsize,b.length)):new Uint8Array(0);
+      const ent=body.length?entropy(body):null;
+      secs.push({name,va,vsize,rsize,roff,ent});
+      info.sections.push(`${name.padEnd(8)} ${String(rsize).padStart(8)} bytes  ${ent===null?'not in the data we have':'entropy '+ent.toFixed(2)+(ent>7.2?'  (packed or encrypted)':'')}`);
     }
     const rva2off=r=>{ for(const s of secs) if(r>=s.va&&r<s.va+Math.max(s.vsize,s.rsize))return s.roff+(r-s.va); return -1 };
     const dirs=opt+(plus?112:96);
     const getDir=i=>(dirs+i*8+8<=b.length)?{rva:dv.getUint32(dirs+i*8,true),size:dv.getUint32(dirs+i*8+4,true)}:{rva:0,size:0};
     const imp=getDir(1);
+    info.importDirRva=imp.rva;
     if(imp.rva){
       let o=rva2off(imp.rva);
+      if(o<0||o>=b.length)info.importsMissing=true;
       for(let n=0;n<24&&o>0&&o+20<=b.length;n++,o+=20){
         const nameRva=dv.getUint32(o+12,true), firstThunk=dv.getUint32(o+16,true), origThunk=dv.getUint32(o,true);
         if(!nameRva&&!firstThunk)break;
-        const no=rva2off(nameRva); if(no<0||no>=b.length)break;
+        const no=rva2off(nameRva); if(no<0||no>=b.length){ info.importsMissing=true; break }
         let dll=''; for(let i=no;i<b.length&&b[i]&&i-no<64;i++)dll+=String.fromCharCode(b[i]);
         const fns=[]; let t=rva2off(origThunk||firstThunk);
         for(let k=0;k<80&&t>0&&t+4<=b.length;k++,t+=plus?8:4){
@@ -911,6 +947,15 @@ function peInfo(b){
     if(exp.rva){ const o=rva2off(exp.rva);
       if(o>0&&o+16<b.length){ const no=rva2off(dv.getUint32(o+12,true));
         if(no>0&&no<b.length){ let n=''; for(let i=no;i<b.length&&b[i]&&i-no<64;i++)n+=String.fromCharCode(b[i]); info.exportName=n } } }
+    // things worth a second look
+    const entSec=secs.find(s=>info.entry>=s.va&&info.entry<s.va+Math.max(s.vsize,s.rsize));
+    if(entSec&&entSec.name!=='.text')info.flags.push(`entry point sits in ${entSec.name}, not .text`);
+    if(!info.checksum)info.flags.push('checksum is zero (never set, or edited after signing)');
+    if(!(info.dllchar&0x40))info.flags.push('no ASLR');
+    if(!(info.dllchar&0x100))info.flags.push('no DEP');
+    if(stamp*1000>Date.now()+864e5)info.flags.push('compile timestamp is in the future (faked)');
+    if(stamp&&stamp*1000<Date.parse('2000-01-01'))info.flags.push('compile timestamp is implausibly old (faked)');
+    if(exp.rva&&(chars&0x2000)&&!info.exportName)info.flags.push('DLL with an export directory we cannot read yet');
     return info;
   }catch(e){ return {note:'PE header is malformed or truncated: '+e.message} }
 }
@@ -991,9 +1036,16 @@ async function deepScan(root){
       if(pe.note)lines.push(`${pad}   ${pe.note}`);
       else{
         lines.push(`${pad}   ${pe.bits} ${pe.kind}, ${pe.machine}, subsystem ${pe.subsystem}, compiled ${pe.compiled}`);
+        lines.push(`${pad}   built with linker ${pe.linker}, image base 0x${pe.imageBase.toString(16)}, entry point 0x${pe.entry.toString(16)}`);
         if(pe.exportName)lines.push(`${pad}   export name: ${pe.exportName}`);
         lines.push(`${pad}   md5 ${md5(b)}`);
         lines.push(`${pad}   sha256 ${await sha(b,'SHA-256')}`);
+        if(pe.rich)lines.push(`${pad}   rich header: ${pe.rich.entries.length} toolchain entries, ${pe.rich.entries.reduce((s,x)=>s+x.count,0)} objects, rich hash ${pe.rich.hash}`);
+        else lines.push(`${pad}   no rich header (hand-built, patched, or a non-Microsoft toolchain)`);
+        if(pe.expected>pe.present){
+          const pct=(pe.present/pe.expected*100).toFixed(0);
+          lines.push(`${pad}   TRUNCATED: the section table describes ${pe.expected.toLocaleString()} bytes, this blob carries ${pe.present.toLocaleString()} (${pct}%). Everything past that is missing.`);
+        }
         if(pe.sections.length)lines.push(`${pad}   sections:\n${pe.sections.map(s=>pad+'     '+s).join('\n')}`);
         if(pe.imports.length){
           lines.push(`${pad}   imports:`);
@@ -1004,7 +1056,10 @@ async function deepScan(root){
           }
           const all=pe.imports.flatMap(i=>i.fns).filter(f=>NOTABLE.test(f));
           if(all.length)lines.push(`${pad}   worth noting: ${[...new Set(all)].slice(0,14).join(', ')}`);
+        } else if(pe.importDirRva){
+          lines.push(`${pad}   imports: the import table is at RVA 0x${pe.importDirRva.toString(16)}, which lands past the end of this blob. Get the whole file and the API list comes with it.`);
         }
+        if(pe.flags.length)lines.push(`${pad}   flags: ${pe.flags.join('; ')}`);
       }
     }
     if(printable(b,4096)<=0.85&&b.length>64){
