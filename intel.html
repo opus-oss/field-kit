@@ -174,6 +174,17 @@ mark{background:color-mix(in srgb,var(--acc) 24%,transparent); color:inherit; bo
 .conv .ct{font:11px var(--mono); color:var(--faint); align-self:center}
 .conv .bar{grid-column:1/-1; height:3px; border-radius:2px; background:var(--line); overflow:hidden}
 .conv .bar i{display:block; height:100%; background:var(--h2); border-radius:2px}
+.rh-note{float:right; font:11px var(--mono); color:var(--faint); font-weight:400}
+#raas .raas-row{display:grid; grid-template-columns:1fr auto; gap:2px 8px; padding:5px 6px; border-radius:6px; cursor:pointer; transition:background .13s}
+#raas .raas-row:hover{background:color-mix(in srgb,var(--acc) 8%,transparent)}
+#raas .raas-row .nm{font:600 .82rem var(--sans); color:var(--ink)}
+#raas .raas-row .ct{font:12px var(--mono); color:var(--faint); align-self:center; white-space:nowrap}
+#raas .raas-row .ct b{color:var(--h1)}
+#raas .raas-row .ct .delta.up{color:var(--bad)}
+#raas .raas-row .ct .delta.dn{color:var(--good)}
+#raas .raas-row .bar{grid-column:1/-1; height:3px; border-radius:2px; background:var(--line); overflow:hidden}
+#raas .raas-row .bar i{display:block; height:100%; background:var(--h4); border-radius:2px}
+#raas .raas-empty{color:var(--faint); font:.85rem var(--sans); padding:6px 4px}
 .ioc{display:block; padding:7px 8px; border-radius:8px; transition:.12s}
 .ioc:hover{background:var(--chip)}
 .ioc .m{font:12px/1.4 var(--mono); color:var(--ink); display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; word-break:break-word}
@@ -268,6 +279,7 @@ mark{background:color-mix(in srgb,var(--acc) 24%,transparent); color:inherit; bo
     <main id="main"><div class="empty">Loading…</div></main>
     <aside class="rail right"><div class="stick">
       <div class="box"><div class="rh">Converging</div><div id="conv"></div></div>
+      <div class="box"><div class="rh" title="Public leak-site claim volume from ransomware.live — claims not confirmed encryptions">RaaS volume <span class="rh-note" id="raasNote"></span></div><div id="raas"></div></div>
       <div class="box"><div class="rh">IOC drops</div><div id="ioc"></div></div>
       <div class="box"><div class="rh">Watchlist</div><div class="wl" id="wl"></div></div>
       <div class="box"><div class="rh">Feed health</div><div class="health" id="health"></div></div>
@@ -281,7 +293,9 @@ const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const store={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
 const CATS={research:['Research','var(--acc)'],ecrime:['eCrime','var(--bad)'],vuln:['Vulns','var(--h4)'],identity:['Identity','var(--h2)'],detection:['Detection','var(--h3)'],ioc:['IOC drops','var(--h5)']};
-const RANGES=[[1,'24h'],[3,'3d'],[7,'7d'],[30,'30d']];
+// range 0 = "start of today (local)". Rest are days back from now.
+const RANGES=[[0,'Today'],[0.5,'12h'],[7,'7d'],[30,'30d'],[90,'90d']];
+const cutFor=r=>{ if(r===0){ const d=new Date(); d.setHours(0,0,0,0); return d.getTime() } return Date.now()-r*864e5 };
 const WATCH_DEFAULT=['ClickFix','KongTuke','ClearFake','SocGholish','phishkit','AiTM','initial access','infostealer','BYOVD','ESXi','affiliate'];
 
 let DATA={items:[],feeds:[],updated:null}, FEED={};
@@ -312,7 +326,7 @@ const watched=i=>{if(!WRX)return false;WRX.lastIndex=0;return WRX.test(i.t+' '+(
 const hl=s=>{let h=esc(s);if(WRX){WRX.lastIndex=0;h=h.replace(WRX,'<mark>$1</mark>')}return h};
 
 function pool({ignoreCat=false,ignoreSrc=false}={}){
-  const cut=Date.now()-S.range*864e5, q=S.q.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  const cut=cutFor(S.range), q=S.q.trim().toLowerCase().split(/\s+/).filter(Boolean);
   return DATA.items.filter(i=>{
     if(!q.length&&Date.parse(eff(i))<cut) return false;          // searching looks through all 45 days
     if(i.p&&!S.promo) return false;
@@ -331,7 +345,7 @@ function renderCtl(){
   $('#range').innerHTML=RANGES.map(([d,l])=>`<button data-r="${d}" class="${S.range===d?'on':''}">${l}</button>`).join('');
   $$('#view button').forEach(b=>b.classList.toggle('on',b.dataset.v===S.view));
   $('#bWatch').classList.toggle('on',S.watch); $('#bPromo').classList.toggle('on',S.promo);
-  const cut=Date.now()-S.range*864e5; $('#nPromo').textContent=DATA.items.filter(i=>i.p&&Date.parse(i.d)>=cut).length;
+  const cut=cutFor(S.range); $('#nPromo').textContent=DATA.items.filter(i=>i.p&&Date.parse(i.d)>=cut).length;
 }
 
 function rowHTML(i){
@@ -364,7 +378,7 @@ function renderSources(){
   $('#sources').innerHTML=h;
 }
 function converging(){
-  const cut=Date.now()-Math.max(S.range,7)*864e5, m={};
+  const cut=cutFor(Math.max(S.range,7)), m={};
   DATA.items.forEach(i=>{if(i.p||Date.parse(i.d)<cut)return;const f=FEED[i.s];if(!f||f.cat==='ioc')return;
     [...(i.e||[]).map(x=>[x,0]),...(i.c||[]).map(x=>[x,1])].forEach(([x,isC])=>{if(f.name.toLowerCase().includes(x.toLowerCase()))return;
       const k=x.toLowerCase(),o=m[k]||(m[k]={nm:x,cve:isC,src:new Set(),n:0,last:0});o.src.add(i.s);o.n++;o.last=Math.max(o.last,Date.parse(i.d))})});
@@ -380,12 +394,58 @@ function renderRight(){
   const bad=DATA.feeds.filter(f=>!f.ok), quiet=DATA.feeds.filter(f=>f.ok&&!f.n), via=DATA.feeds.filter(f=>f.via);
   $('#health').innerHTML=`<b>${DATA.feeds.length-bad.length}</b> of ${DATA.feeds.length} feeds answering`+(bad.length?`<br>`+bad.map(f=>`<span class="bad">✕ ${esc(f.name)}</span> ${esc(f.err)}`).join('<br>'):'')+(via.length?`<br><span style="color:var(--faint)">${via.length} read through a relay because the site blocks the runner: ${via.map(f=>esc(f.name)).join(', ')}</span>`:'')+(quiet.length?`<br><span style="color:var(--faint)">${quiet.length} answering but empty: ${quiet.map(f=>esc(f.name)).join(', ')}</span>`:'');
 }
+// RaaS leak-site volume from ransomware.live. Public API, CORS-open, no key.
+// Cache the recent-victims list for an hour so switching ranges is instant.
+let RAAS_CACHE=null, RAAS_AT=0;
+async function fetchRaas(){
+  const now=Date.now();
+  if(RAAS_CACHE&&now-RAAS_AT<3600e3)return RAAS_CACHE;
+  const cached=store.get('iw_raas',null);
+  if(cached&&now-cached.at<3600e3){ RAAS_CACHE=cached.v; RAAS_AT=cached.at; return RAAS_CACHE }
+  try{
+    const r=await fetch('https://api.ransomware.live/v2/recentvictims',{cache:'no-store'});
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const j=await r.json();
+    RAAS_CACHE=j; RAAS_AT=now;
+    store.set('iw_raas',{v:j,at:now});
+    return j;
+  }catch(e){ return cached?cached.v:null }
+}
+function raasBucket(victims,startMs,endMs){
+  const m={};
+  for(const v of victims){
+    const t=Date.parse((v.attackdate||'').replace(' ','T'));
+    if(!t||t<startMs||t>=endMs)continue;
+    const g=v.group_name||v.group||'unknown';
+    m[g]=(m[g]||0)+1;
+  }
+  return m;
+}
+async function renderRaas(){
+  const el=$('#raas'), note=$('#raasNote'); if(!el)return;
+  const v=await fetchRaas();
+  if(!v){ el.innerHTML='<div class="raas-empty">ransomware.live unreachable</div>'; note.textContent=''; return }
+  const now=Date.now();
+  // Window follows the page's current range: Today = today, 12h = last 12h, otherwise use days.
+  const win=S.range===0?now-(now-cutFor(0)):S.range===0.5?12*36e5:S.range*864e5;
+  const nowB=raasBucket(v,now-win,now);
+  const prevB=raasBucket(v,now-2*win,now-win);
+  const rows=Object.entries(nowB).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  if(!rows.length){ el.innerHTML='<div class="raas-empty">No claims in this window</div>'; note.textContent=`${v.length} recent claims`; return }
+  const mx=rows[0][1];
+  note.textContent=RANGES.find(r=>r[0]===S.range)[1];
+  el.innerHTML=rows.map(([g,n])=>{
+    const p=prevB[g]||0, d=n-p;
+    const arrow=d>0?`<span class="delta up">▲${d}</span>`:d<0?`<span class="delta dn">▼${-d}</span>`:`<span class="delta">·</span>`;
+    return `<div class="raas-row" data-q="${esc(g)}"><span class="nm">${esc(g)}</span><span class="ct"><b>${n}</b> ${arrow}</span><span class="bar"><i style="width:${Math.round(n/mx*100)}%"></i></span></div>`;
+  }).join('');
+}
 function renderSub(){
-  const u=DATA.updated?new Date(DATA.updated):null, age=u?(Date.now()-u)/36e5:99, cut=Date.now()-S.range*864e5;
+  const u=DATA.updated?new Date(DATA.updated):null, age=u?(Date.now()-u)/36e5:99, cut=cutFor(S.range);
   const live=DATA.items.filter(i=>!i.p&&Date.parse(i.d)>=cut&&FEED[i.s]&&FEED[i.s].cat!=='ioc'), nw=live.filter(isNew).length;
   $('#sub').innerHTML=`<span><i class="pulse ${age>26?'dead':age>9?'stale':''}"></i>Updated <b>${u?u.toLocaleString(undefined,{weekday:'short',hour:'numeric',minute:'2-digit'}):'never'}</b></span><span><b>${DATA.feeds.length}</b> sources</span><span><b>${live.length}</b> stories · ${RANGES.find(r=>r[0]===S.range)[1]}</span>`+(nw?`<span><b>${nw}</b> new since last visit</span>`:'');
 }
-function render(){renderCtl();renderSub();renderSources();renderRight();(S.view==='board'?renderBoard:renderRiver)();KB=-1}
+function render(){renderCtl();renderSub();renderSources();renderRight();renderRaas();(S.view==='board'?renderBoard:renderRiver)();KB=-1}
 function setQ(v){S.q=v;$('#q').value=v;S.limit=150;render();window.scrollTo({top:0,behavior:'smooth'})}
 
 /* ---- events ---- */
