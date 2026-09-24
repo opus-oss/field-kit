@@ -344,7 +344,7 @@ def finish(feed, res, rows):
         if x.lower().startswith(t.lower()[:40]): x = x[len(t):].lstrip(" .:-–—…")
         items.append({"u": u, "t": t[:200], "s": feed["id"], "d": d, "x": x})
     items.sort(key=lambda i: i["d"] or datetime(1970, 1, 1, tzinfo=timezone.utc), reverse=True)
-    items = items[:PER_FEED]
+    items = items[:feed.get("cap", PER_FEED)]                                # per-feed hard cap; aggregators use 8
     for i in items:
         blob = i["t"] + " " + i["x"]
         promo, why = (False, "") if feed["cat"] == "ioc" else judge(i["t"], i["x"], i["u"], feed.get("trust", "mid"))

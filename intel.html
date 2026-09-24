@@ -309,7 +309,7 @@ mark{background:color-mix(in srgb,var(--acc) 24%,transparent); color:inherit; bo
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const store={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
-const CATS={research:['Research','var(--acc)'],ecrime:['eCrime','var(--bad)'],vuln:['Vulns','var(--h4)'],identity:['Identity','var(--h2)'],detection:['Detection','var(--h3)'],ioc:['IOC drops','var(--h5)']};
+const CATS={research:['Research','var(--acc)'],ecrime:['eCrime','var(--bad)'],vuln:['Vulns','var(--h4)'],identity:['Identity','var(--h2)'],detection:['Detection','var(--h3)'],ioc:['IOC drops','var(--h5)'],aggregator:['Aggregator','var(--faint)']};
 // range 0 = "start of today (local)". Rest are days back from now.
 const RANGES=[[0,'Today'],[0.5,'12h'],[7,'7d'],[30,'30d'],[90,'90d']];
 const cutFor=r=>{ if(r===0){ const d=new Date(); d.setHours(0,0,0,0); return d.getTime() } return Date.now()-r*864e5 };

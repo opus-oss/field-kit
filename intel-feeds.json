@@ -366,5 +366,25 @@
   "mode": "adds",
   "cat": "ioc",
   "trust": "high"
+ },
+ {
+  "id": "ga-loader",
+  "name": "Alert · new loader",
+  "url": "https://www.google.com/alerts/feeds/07341400213507682692/8530973949261622914",
+  "cat": "aggregator",
+  "trust": "low",
+  "cap": 8,
+  "drop": "top \\d+|best \\d+|listicle|roundup|weekly recap|our take|explained|101\\b|guide to|checklist|what is|how to|\\bthe hacker news\\b|\\bgbhackers\\b|\\bcybersecuritynews\\b|\\btechcrunch\\b|\\bindustrial cyber\\b",
+  "keep": "new .{0,30}loader|new .{0,30}malware|emerging loader|dropper|initial payload"
+ },
+ {
+  "id": "ga-phishkit",
+  "name": "Alert · phishkit",
+  "url": "https://www.google.com/alerts/feeds/07341400213507682692/1701413823855071641",
+  "cat": "aggregator",
+  "trust": "low",
+  "cap": 8,
+  "drop": "top \\d+|best \\d+|listicle|roundup|weekly recap|our take|explained|101\\b|guide to|checklist|what is|how to|\\bthe hacker news\\b|\\bgbhackers\\b|\\bcybersecuritynews\\b|\\btechcrunch\\b|\\bindustrial cyber\\b",
+  "keep": "phish(ing)? kit|phishkit|tycoon|EvilProxy|Sneaky|Rockstar|Mamba|Gaba|Flower|Raccoon O365|new .{0,30}kit"
  }
 ]
