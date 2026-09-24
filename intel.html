@@ -185,6 +185,14 @@ mark{background:color-mix(in srgb,var(--acc) 24%,transparent); color:inherit; bo
 #raas .raas-row .bar{grid-column:1/-1; height:3px; border-radius:2px; background:var(--line); overflow:hidden}
 #raas .raas-row .bar i{display:block; height:100%; background:var(--h4); border-radius:2px}
 #raas .raas-empty{color:var(--faint); font:.85rem var(--sans); padding:6px 4px}
+#raas .raas-row .conv{margin-left:6px; font:600 10px var(--mono); color:var(--h2); padding:1px 5px; border-radius:3px; background:color-mix(in srgb,var(--h2) 15%,transparent); border:1px solid color-mix(in srgb,var(--h2) 30%,transparent)}
+#raas .raas-row.new::before{content:'NEW'; font:600 9px var(--mono); color:var(--acc); background:color-mix(in srgb,var(--acc) 15%,transparent); border:1px solid color-mix(in srgb,var(--acc) 30%,transparent); padding:1px 4px; border-radius:3px; margin-right:6px; align-self:center; grid-row:1}
+#raas .raas-row.new .nm{color:var(--h1)}
+.raas-tabs{display:flex; gap:3px; margin:6px 0 5px}
+.raas-tabs button{flex:1; padding:3px 4px; font:600 10.5px var(--mono); border:1px solid var(--line); background:transparent; color:var(--faint); border-radius:5px; cursor:pointer; transition:all .13s; letter-spacing:.03em; text-transform:uppercase}
+.raas-tabs button.on{background:color-mix(in srgb,var(--h4) 15%,transparent); color:var(--h4); border-color:color-mix(in srgb,var(--h4) 30%,transparent)}
+.raas-tabs button:hover:not(.on){color:var(--ink)}
+.raas-foot{margin-top:8px; padding-top:6px; border-top:1px solid var(--line); font:italic 10.5px var(--sans); color:var(--faint); line-height:1.4}
 .ioc{display:block; padding:7px 8px; border-radius:8px; transition:.12s}
 .ioc:hover{background:var(--chip)}
 .ioc .m{font:12px/1.4 var(--mono); color:var(--ink); display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; word-break:break-word}
@@ -279,7 +287,16 @@ mark{background:color-mix(in srgb,var(--acc) 24%,transparent); color:inherit; bo
     <main id="main"><div class="empty">Loading…</div></main>
     <aside class="rail right"><div class="stick">
       <div class="box"><div class="rh">Converging</div><div id="conv"></div></div>
-      <div class="box"><div class="rh" title="Public leak-site claim volume from ransomware.live — claims not confirmed encryptions">RaaS volume <span class="rh-note" id="raasNote"></span></div><div id="raas"></div></div>
+      <div class="box"><div class="rh" title="Public leak-site claim volume from ransomware.live — claims not confirmed encryptions">RaaS volume <span class="rh-note" id="raasNote"></span></div>
+        <div class="raas-tabs" id="raasTabs">
+          <button data-t="groups" class="on">Groups</button>
+          <button data-t="new">New</button>
+          <button data-t="country">Country</button>
+          <button data-t="sector">Sector</button>
+        </div>
+        <div id="raas"></div>
+        <div class="raas-foot">Note: Groups pad, dupe, and reclaim causing inaccuracy and count disagreements.</div>
+      </div>
       <div class="box"><div class="rh">IOC drops</div><div id="ioc"></div></div>
       <div class="box"><div class="rh">Watchlist</div><div class="wl" id="wl"></div></div>
       <div class="box"><div class="rh">Feed health</div><div class="health" id="health"></div></div>
@@ -299,8 +316,8 @@ const cutFor=r=>{ if(r===0){ const d=new Date(); d.setHours(0,0,0,0); return d.g
 const WATCH_DEFAULT=['ClickFix','KongTuke','ClearFake','SocGholish','phishkit','AiTM','initial access','infostealer','BYOVD','ESXi','affiliate'];
 
 let DATA={items:[],feeds:[],updated:null}, FEED={};
-const _st=store.get('iw_state',{}); if(_st.v!==2){_st.view='board'; _st.v=2}
-const S=Object.assign({cat:'all',src:null,range:7,q:'',view:'board',watch:false,promo:false,limit:150}, _st);
+const _st=store.get('iw_state',{}); if(_st.v!==3){_st.view='board'; _st.range=0.5; _st.v=3}
+const S=Object.assign({cat:'all',src:null,range:0.5,q:'',view:'board',watch:false,promo:false,limit:150}, _st);
 S.src=null; S.q=''; S.limit=150;
 let WATCH=store.get('iw_watch',WATCH_DEFAULT), READ=new Set(store.get('iw_read',[]));
 const save=()=>store.set('iw_state',{v:2,cat:S.cat,range:S.range,view:S.view,watch:S.watch,promo:S.promo});
@@ -394,50 +411,66 @@ function renderRight(){
   const bad=DATA.feeds.filter(f=>!f.ok), quiet=DATA.feeds.filter(f=>f.ok&&!f.n), via=DATA.feeds.filter(f=>f.via);
   $('#health').innerHTML=`<b>${DATA.feeds.length-bad.length}</b> of ${DATA.feeds.length} feeds answering`+(bad.length?`<br>`+bad.map(f=>`<span class="bad">✕ ${esc(f.name)}</span> ${esc(f.err)}`).join('<br>'):'')+(via.length?`<br><span style="color:var(--faint)">${via.length} read through a relay because the site blocks the runner: ${via.map(f=>esc(f.name)).join(', ')}</span>`:'')+(quiet.length?`<br><span style="color:var(--faint)">${quiet.length} answering but empty: ${quiet.map(f=>esc(f.name)).join(', ')}</span>`:'');
 }
-// RaaS leak-site volume from ransomware.live. Public API, CORS-open, no key.
-// Cache the recent-victims list for an hour so switching ranges is instant.
-let RAAS_CACHE=null, RAAS_AT=0;
+// RaaS leak-site volume. ransomware.live blocks browser CORS from GitHub Pages, so a repo cron
+// fetches recentvictims into raas.json and the page reads that. Same pattern as pollen/intel/congress.
+let RAAS_CACHE=null;
 async function fetchRaas(){
-  const now=Date.now();
-  if(RAAS_CACHE&&now-RAAS_AT<3600e3)return RAAS_CACHE;
-  const cached=store.get('iw_raas',null);
-  if(cached&&now-cached.at<3600e3){ RAAS_CACHE=cached.v; RAAS_AT=cached.at; return RAAS_CACHE }
+  if(RAAS_CACHE)return RAAS_CACHE;
   try{
-    const r=await fetch('https://api.ransomware.live/v2/recentvictims',{cache:'no-store'});
+    const r=await fetch('./raas.json',{cache:'no-store'});
     if(!r.ok)throw new Error('HTTP '+r.status);
     const j=await r.json();
-    RAAS_CACHE=j; RAAS_AT=now;
-    store.set('iw_raas',{v:j,at:now});
-    return j;
-  }catch(e){ return cached?cached.v:null }
+    RAAS_CACHE=j.items||j;
+    return RAAS_CACHE;
+  }catch(e){ return null }
 }
-function raasBucket(victims,startMs,endMs){
+function raasBucket(victims,startMs,endMs,keyFn){
   const m={};
   for(const v of victims){
     const t=Date.parse((v.attackdate||'').replace(' ','T'));
     if(!t||t<startMs||t>=endMs)continue;
-    const g=v.group_name||v.group||'unknown';
-    m[g]=(m[g]||0)+1;
+    const k=keyFn(v); if(!k)continue;
+    m[k]=(m[k]||0)+1;
   }
   return m;
 }
+const raasKey={
+  groups:v=>v.group_name||v.group||null,
+  new:v=>v.group_name||v.group||null,
+  country:v=>(v.country||'').trim()||null,
+  sector:v=>(v.activity||'').trim()||null
+};
+let RAAS_TAB='groups';
 async function renderRaas(){
   const el=$('#raas'), note=$('#raasNote'); if(!el)return;
   const v=await fetchRaas();
   if(!v){ el.innerHTML='<div class="raas-empty">ransomware.live unreachable</div>'; note.textContent=''; return }
   const now=Date.now();
-  // Window follows the page's current range: Today = today, 12h = last 12h, otherwise use days.
-  const win=S.range===0?now-(now-cutFor(0)):S.range===0.5?12*36e5:S.range*864e5;
-  const nowB=raasBucket(v,now-win,now);
-  const prevB=raasBucket(v,now-2*win,now-win);
-  const rows=Object.entries(nowB).sort((a,b)=>b[1]-a[1]).slice(0,10);
-  if(!rows.length){ el.innerHTML='<div class="raas-empty">No claims in this window</div>'; note.textContent=`${v.length} recent claims`; return }
-  const mx=rows[0][1];
+  const win=S.range===0?now-cutFor(0):S.range===0.5?12*36e5:S.range*864e5;
+  const kfn=raasKey[RAAS_TAB]||raasKey.groups;
+  const nowB=raasBucket(v,now-win,now,kfn);
+  const prevB=raasBucket(v,now-2*win,now-win,kfn);
   note.textContent=RANGES.find(r=>r[0]===S.range)[1];
+  let rows=[];
+  if(RAAS_TAB==='new'){
+    // A group is "new" when it appears this window but never in the prior 90 days.
+    const priorB=raasBucket(v,now-90*864e5-win,now-win,kfn);
+    rows=Object.entries(nowB).filter(([g,n])=>!priorB[g]&&n>=1).sort((a,b)=>b[1]-a[1]).slice(0,10);
+    if(!rows.length){ el.innerHTML=`<div class="raas-empty">No new-actor claims in this window (checked 90-day priors).</div>`; return }
+  } else {
+    rows=Object.entries(nowB).sort((a,b)=>b[1]-a[1]).slice(0,10);
+    if(!rows.length){ el.innerHTML=`<div class="raas-empty">No claims in this window</div>`; return }
+  }
+  // Groups that also appear in the vendor Converging list right now — that's the moment
+  // volume and vendor coverage agree, and it's the reader's cue to write.
+  const convSet=new Set(converging().map(o=>o.nm.toLowerCase()));
+  const mx=rows[0][1];
   el.innerHTML=rows.map(([g,n])=>{
     const p=prevB[g]||0, d=n-p;
-    const arrow=d>0?`<span class="delta up">▲${d}</span>`:d<0?`<span class="delta dn">▼${-d}</span>`:`<span class="delta">·</span>`;
-    return `<div class="raas-row" data-q="${esc(g)}"><span class="nm">${esc(g)}</span><span class="ct"><b>${n}</b> ${arrow}</span><span class="bar"><i style="width:${Math.round(n/mx*100)}%"></i></span></div>`;
+    const arrow=RAAS_TAB==='new'?'':(d>0?`<span class="delta up">▲${d}</span>`:d<0?`<span class="delta dn">▼${-d}</span>`:`<span class="delta">·</span>`);
+    const conv=(RAAS_TAB==='groups'||RAAS_TAB==='new')&&convSet.has(g.toLowerCase())?`<span class="conv" title="Also showing up across multiple vendor sources — coverage and volume agree">CONV</span>`:'';
+    const cls=RAAS_TAB==='new'?'raas-row new':'raas-row';
+    return `<div class="${cls}" data-q="${esc(g)}"><span class="nm">${esc(g)}${conv}</span><span class="ct"><b>${n}</b> ${arrow}</span><span class="bar"><i style="width:${Math.round(n/mx*100)}%"></i></span></div>`;
   }).join('');
 }
 function renderSub(){
@@ -453,6 +486,7 @@ document.addEventListener('click',e=>{
   const t=e.target.closest('[data-q]'); if(t){e.preventDefault();setQ(S.q===t.dataset.q?'':t.dataset.q);return}
   const c=e.target.closest('[data-c]'); if(c){S.cat=c.dataset.c;S.src=null;S.limit=150;save();render();return}
   const r=e.target.closest('[data-r]'); if(r){S.range=+r.dataset.r;S.limit=150;save();render();return}
+  const rt=e.target.closest('#raasTabs [data-t]'); if(rt){RAAS_TAB=rt.dataset.t; $$('#raasTabs button').forEach(b=>b.classList.toggle('on',b===rt)); renderRaas(); return}
   const v=e.target.closest('[data-v]'); if(v){S.view=v.dataset.v;save();render();return}
   const s=e.target.closest('[data-s]'); if(s){S.src=S.src===s.dataset.s?null:s.dataset.s;S.cat='all';S.view='river';S.limit=150;render();return}
   const w=e.target.closest('[data-w]'); if(w){WATCH=WATCH.filter(x=>x!==w.dataset.w);store.set('iw_watch',WATCH);buildW();render();return}

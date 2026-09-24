@@ -11,7 +11,7 @@ on:
     - cron: "15 4,8,13,17,22 * * *"
   workflow_dispatch:
   push:
-    paths: [".github/workflows/intel.yml", "intel-fetch.py", "intel-feeds.json", "macro-fetch.py", "congress-fetch.py"]
+    paths: [".github/workflows/intel.yml", "intel-fetch.py", "intel-feeds.json", "macro-fetch.py", "congress-fetch.py", "raas-fetch.py"]
 
 permissions:
   contents: write
@@ -33,6 +33,10 @@ jobs:
         timeout-minutes: 6
         continue-on-error: true
         run: python3 congress-fetch.py
+      - name: Ransomware leak-site claims for the Grapevine RaaS widget
+        timeout-minutes: 4
+        continue-on-error: true
+        run: python3 raas-fetch.py
       - name: GDP, population and world debt for the Debt page
         timeout-minutes: 6            # a slow source must never hold up the feeds
         continue-on-error: true
@@ -44,6 +48,7 @@ jobs:
           git add intel.json
           [ -f macro.json ] && git add macro.json || true
           [ -f congress.json ] && git add congress.json || true
+          [ -f raas.json ] && git add raas.json || true
           git diff --cached --quiet && exit 0
           git commit -q -m "intel: $(date -u +%Y-%m-%d\ %H:%M) UTC"
           for i in 1 2 3 4; do git pull -q --rebase && git push -q && exit 0; sleep 7; done; exit 1
