@@ -111,6 +111,9 @@ body.ops-collapsed .collapse{margin:0 auto}
 .pane textarea{width:100%; min-height:150px; padding:10px; border-radius:10px; border:1px solid var(--line2); background:var(--raised); font-family:var(--mono); font-size:12.5px; line-height:1.45; resize:vertical; white-space:pre; overflow-wrap:normal; overflow-x:auto}
 .pane .out{width:100%; min-height:190px; height:42vh; max-height:none; resize:vertical; overflow:auto; padding:10px; border-radius:10px; border:1px solid var(--line2); background:var(--raised); font-family:var(--mono); font-size:12.5px; line-height:1.45; white-space:pre; color:var(--ink)}
 .pane .out.wrapped{white-space:pre-wrap; overflow-wrap:anywhere}
+.rep-head{margin:18px 0 8px; font:600 .72rem var(--mono); letter-spacing:.14em; text-transform:uppercase; color:var(--acc); border-top:1px solid var(--line2); padding-top:12px}
+.rep-block{border-left:3px solid var(--acc); padding:8px 0 8px 12px; background:color-mix(in srgb,var(--acc) 6%,transparent); border-radius:0 8px 8px 0}
+.rep-block .sub{background:color-mix(in srgb,var(--acc) 22%,transparent); color:var(--ink); border-radius:3px; box-shadow:0 0 0 1px color-mix(in srgb,var(--acc) 35%,transparent)}
 .tools{display:flex; gap:6px; flex-wrap:wrap; align-items:center; margin-bottom:8px}
 .tools button{padding:4px 9px; border-radius:8px; border:1px solid var(--line2); background:var(--raised); font:600 11.5px var(--mono); color:var(--mut)}
 .tools button:hover{color:var(--h1); border-color:var(--acc)}
@@ -196,6 +199,7 @@ body.ops-collapsed .collapse{margin:0 auto}
           <button id="vText" class="on">Text</button>
           <button id="vHex">Hex dump</button>
           <button id="vWrap">Wrap</button>
+          <button id="vPretty" title="Split statements and pipelines that sit outside quotes, and indent by brace depth">Beautify</button>
           <button id="copyOut">Copy</button>
           <button id="dlOut">Download</button>
           <button id="toIn">Output → input</button>
@@ -686,7 +690,7 @@ async function run(){
   // With no steps there is nothing to bake, and echoing the input back looks broken.
   // Work the input out instead, which is what you wanted from a paste anyway.
   if(!recipe.some(s=>!s.off)){ $('#bakeTime').textContent=''; return autoScan() }
-  baking=true;
+  baking=true; OUT_HTML=null; LAST=null;
   const t0=performance.now();
   let d=inputBytes;
   $$('#recipe .step').forEach(s=>s.classList.remove('err'));
@@ -711,6 +715,7 @@ async function run(){
 function paintOut(){
   const o=$('#output');
   o.classList.toggle('wrapped',wrapOut);
+  if(OUT_HTML&&outView==='text'){ o.innerHTML=OUT_HTML; $('#outLen').textContent=outBytes.length?outBytes.length.toLocaleString()+' bytes':''; return }
   o.textContent=outView==='hex'?hexdump(outBytes,32768):S(outBytes.subarray(0,400000))+(outBytes.length>400000?'\n… truncated for display, download for all of it':'');
   $('#outLen').textContent=outBytes.length?outBytes.length.toLocaleString()+' bytes':'';
 }
@@ -1130,7 +1135,7 @@ async function deepScan(root){
   const lines=[], finds=[];
   const seen=new Set();
   const key=b=>b.length+':'+hex(b.subarray(0,24));
-  async function node(b,label,depth,how,recipe){
+  async function node(b,label,depth,how,recipe,root){
     if(depth>4||finds.length>60)return null;
     const k=key(b); if(seen.has(k))return null; seen.add(k);
     const pad='  '.repeat(depth);
@@ -1178,7 +1183,7 @@ async function deepScan(root){
       if(cmd.length)lines.push(`${pad}   command strings: ${cmd.map(x=>x.trim()).join(' | ')}`);
     }
     const isText=printable(b,4096)>0.85;
-    if(!isText)return `«${kind}, ${b.length.toLocaleString()} bytes${how?', '+how:''}»`;
+    if(!isText)return {text:`«${kind}, ${b.length.toLocaleString()} bytes${how?', '+how:''}»`,tokens:null};
 
     const raw=S(b), t=foldConcat(raw);
     const beh=[...new Set(BEHAVIOR.filter(([rx])=>rx.test(t)).map(([,n])=>n))];
@@ -1198,14 +1203,14 @@ async function deepScan(root){
       const preview=printable(got.bytes,200)>0.9?JSON.stringify(S(got.bytes.subarray(0,60))):'';
       // the child returns its own fully resolved text, so what lands here is the deepest layer, not the next one
       const deep=await node(got.bytes,`[${finds.length+1}] ${c.how} (${c.raw.length.toLocaleString()} chars)${preview?' → '+preview:''}`,depth+1,got.how,got.recipe);
-      const text=deep!=null?deep:(printable(got.bytes,400)>0.95?S(got.bytes):`«${describe(got.bytes)}, ${got.bytes.length.toLocaleString()} bytes»`);
+      const text=deep&&deep.text!=null?deep.text:(printable(got.bytes,400)>0.95?S(got.bytes):`«${describe(got.bytes)}, ${got.bytes.length.toLocaleString()} bytes»`);
       subs.push({start:c.start,end:c.end??(c.start+c.raw.length),text});
     }
 
-    let outStr=t;
+    let outStr=t, tokens=[{kind:'plain',text:t}];
     if(subs.length){
       subs.sort((x,y)=>x.start-y.start);
-      outStr=''; let at=0;
+      outStr=''; tokens=[]; let at=0;
       for(const s of subs){
         if(s.start<at)continue;
         const before=t.slice(at,s.start);
@@ -1213,36 +1218,32 @@ async function deepScan(root){
         const col=before.length-(before.lastIndexOf('\n')+1);
         const ind=' '.repeat(Math.min(col,12));
         const body=s.text.includes('\n')?s.text.split('\n').map((l,i)=>i?ind+l:l).join('\n'):s.text;
-        outStr+=before+body; at=s.end;
+        if(before){ outStr+=before; tokens.push({kind:'plain',text:before}) }
+        outStr+=body; tokens.push({kind:'decoded',text:body});
+        at=s.end;
       }
-      outStr+=t.slice(at);
+      const tail=t.slice(at);
+      if(tail){ outStr+=tail; tokens.push({kind:'plain',text:tail}) }
     }
     if(depth===0){
-      const changed=outStr!==raw;
-      if(changed){
-        lines.push('');
-        lines.push('reassembled, every layer decoded and put back where it came from:');
-        lines.push('');
-        const shown=outStr.split('\n').slice(0,140).join('\n');
-        lines.push(shown.length>12000?shown.slice(0,12000)+'\n… truncated, the rest is in the findings list':shown);
-      } else if(!kids){
-        lines.push(`${pad}   nothing encoded found inside it`);
-      }
+      root.tokens=(outStr!==raw)?tokens:null;
+      if(outStr===raw&&!kids)lines.push(`${pad}   nothing encoded found inside it`);
     }
     if(!kids&&!sniff(b)&&depth<3&&b.length>32&&!SCRIPTS.some(([rx])=>rx.test(t.slice(0,4000)))){
       const x=xorFromKnownPlaintext(b);
       if(x){
         lines.push(`${pad}   recovered a repeating XOR key from known plaintext: ${hex(x.key,' ')} ("${x.crib.slice(0,28)}")`);
         const deep=await node(x.dec,`[${finds.length+1}] XOR, key ${hex(x.key,' ')}`,depth+1,'known-plaintext XOR',[['XOR',{key:hex(x.key),fmt:'Hex'}]]);
-        if(deep!=null)outStr=deep;
+        if(deep&&deep.text!=null){ outStr=deep.text; tokens=[{kind:'decoded',text:deep.text}]; if(depth===0)root.tokens=tokens }
       } else if(entropy(b)>7.2){
         lines.push(`${pad}   high entropy, no recognisable structure, no key recoverable from known plaintext.`);
       }
     }
-    return outStr;
+    return {text:outStr,tokens};
   }
-  await node(root,'input',0,'',[]);
-  return {report:lines.join('\n')+'\n',finds};
+  const rootBox={tokens:null};
+  await node(root,'input',0,'',[],rootBox);
+  return {report:lines.join('\n')+'\n',finds,tokens:rootBox.tokens};
 }
 
 $('#save').onclick=async()=>{
@@ -1262,7 +1263,55 @@ $('#save').onclick=async()=>{
   toast('Saved as chef.html. Open it anywhere, it needs nothing else.');
 };
 
-let FINDS=[];
+let FINDS=[], LAST=null, PRETTY=false, OUT_HTML=null;
+function beautify(src){
+  // Break statements and pipelines, but only at the top level: inside quotes or parentheses
+  // a semicolon or pipe belongs to the expression, and splitting there makes it harder to read.
+  const out=[]; let line='', depth=0, paren=0, q=null, i=0;
+  const push=()=>{ const t=line.trim(); if(t)out.push('  '.repeat(Math.max(0,depth))+t); line='' };
+  while(i<src.length){
+    const c=src[i], n=src[i+1];
+    if(q){ line+=c; if(c===q&&n===q){ line+=n; i+=2; continue } if(c===q)q=null; i++; continue }
+    if(c==='\''||c==='"'){ q=c; line+=c; i++; continue }
+    if(c==='`'){ line+=c+(n||''); i+=2; continue }
+    if(c==='\n'){ push(); i++; continue }
+    if(c==='('){ paren++; line+=c; i++; continue }
+    if(c===')'){ paren=Math.max(0,paren-1); line+=c; i++; continue }
+    if(paren===0&&c==='{'){ line+=c; push(); depth++; i++; continue }
+    if(paren===0&&c==='}'){ push(); depth=Math.max(0,depth-1); line='}'; push(); i++; continue }
+    if(paren===0&&c===';'){ line+=';'; push(); i++; continue }
+    if(paren===0&&c==='|'&&n!=='|'&&line.trim().length>60){ push(); line='| '; i++; continue }
+    line+=c; i++;
+  }
+  push();
+  return out.join('\n');
+}
+const esc2=s=>s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+function renderReport(){
+  if(!LAST)return;
+  const {report,tokens,auto}=LAST;
+  const head=(auto?'Deep scan ran automatically because the recipe is empty. Add steps and it bakes those instead.\n\n':'')+report;
+  let plain=head, html=esc2(head);
+  if(tokens&&tokens.length){
+    const toks=PRETTY?tokens.map(t=>({...t,text:beautify(t.text)})):tokens;
+    const body=toks.map(t=>t.text).join('');
+    const shown=body.split('\n').slice(0,200).join('\n');
+    const cut=shown.length>16000;
+    plain+='\nreassembled, every layer decoded and put back where it came from'+(PRETTY?' (beautified)':'')+':\n\n'
+      +(cut?shown.slice(0,16000)+'\n… truncated':shown)+'\n';
+    let used=0, inner='';
+    for(const t of toks){
+      if(used>16000)break;
+      const piece=t.text.slice(0,Math.max(0,16000-used)); used+=piece.length;
+      inner+=t.kind==='decoded'?`<span class="sub">${esc2(piece)}</span>`:esc2(piece);
+    }
+    html+=`<div class="rep-head">reassembled, every layer decoded and put back${PRETTY?', beautified':''}</div>`
+      +`<div class="rep-block">${inner}${used>16000?'\n… truncated':''}</div>`;
+  }
+  outBytes=B(plain); OUT_HTML=html;
+  outView='text'; $('#vText').classList.add('on'); $('#vHex').classList.remove('on');
+  paintOut();
+}
 async function autoScan(){
   const o=$('#output');
   if(!inputBytes.length){ outBytes=new Uint8Array(0); paintOut(); $('#findBox').innerHTML=''; return }
@@ -1276,25 +1325,24 @@ async function runDeep(auto){
   if(!inputBytes.length)return;
   const t0=performance.now();
   try{
-    const {report,finds}=await deepScan(inputBytes);
+    const {report,finds,tokens}=await deepScan(inputBytes);
     FINDS=finds;
-    outBytes=B((auto?'Deep scan ran automatically because the recipe is empty. Add steps and it bakes those instead.\n\n':'')
-      +report+`\nscan took ${Math.round(performance.now()-t0)} ms\n`);
-    outView='text'; $('#vText').classList.add('on'); $('#vHex').classList.remove('on');
-    paintOut();
+    LAST={report:report+`\nscan took ${Math.round(performance.now()-t0)} ms\n`,tokens,auto:!!auto};
+    renderReport();
     $('#findBox').innerHTML=finds.length
       ? `<div class="eyebrow">Pulled out of it (${finds.length})</div>`+finds.map((f,i)=>
           `<div class="mi" data-f="${i}"><span class="mn">${f.kind}</span><span class="mp">${String(f.bytes.length.toLocaleString())} bytes · ${f.how.replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]))}</span></div>`).join('')
       : '<div class="note">Nothing decodable found inside it.</div>';
     $$('#findBox .mi').forEach(el=>el.onclick=()=>{
       const f=FINDS[+el.dataset.f];
-      outBytes=f.bytes; paintOut();
+      OUT_HTML=null; outBytes=f.bytes; paintOut();
       recipe=(f.recipe||[]).map(([op,args])=>({op,args:Object.assign(defaults(op),args),off:false}));
       drawRecipe();
       toast('Loaded that artifact into the output, its recipe into the recipe pane');
     });
   }catch(e){ toast('Scan failed: '+e.message) }
 }
+
 $('#deep').onclick=async()=>{
   if(!inputBytes.length)return toast('Give it something to look at');
   $('#deep').textContent='Scanning…'; $('#deep').disabled=true;
@@ -1306,6 +1354,13 @@ $('#deep').onclick=async()=>{
 $('#vText').onclick=()=>{ outView='text'; $('#vText').classList.add('on'); $('#vHex').classList.remove('on'); paintOut() };
 $('#vHex').onclick=()=>{ outView='hex'; $('#vHex').classList.add('on'); $('#vText').classList.remove('on'); paintOut() };
 $('#vWrap').onclick=()=>{ wrapOut=!wrapOut; $('#vWrap').classList.toggle('on',wrapOut); paintOut() };
+$('#vPretty').onclick=()=>{
+  PRETTY=!PRETTY; $('#vPretty').classList.toggle('on',PRETTY);
+  try{ localStorage.setItem('fk_chef_pretty',PRETTY?'1':'0') }catch(e){}
+  if(LAST)renderReport();
+  else if(outBytes.length&&printable(outBytes,2000)>0.9){ OUT_HTML=null; outBytes=B(PRETTY?beautify(S(outBytes)):S(outBytes)); paintOut() }
+};
+try{ if(localStorage.getItem('fk_chef_pretty')==='1'){ PRETTY=true; $('#vPretty').classList.add('on') } }catch(e){}
 $('#copyOut').onclick=async()=>{ try{ await navigator.clipboard.writeText(outView==='hex'?hexdump(outBytes):S(outBytes)); toast('Copied') }catch(e){ toast('Clipboard blocked, use Download') } };
 $('#dlOut').onclick=()=>{ const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([outBytes])); a.download=(fileName?fileName.replace(/\.[^.]+$/,''):'chef')+'-out.bin'; a.click();
