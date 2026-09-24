@@ -216,7 +216,7 @@ body.ops-collapsed .collapse{margin:0 auto}
 <div class="wrap">
   <div class="head">
     <h1>Chef</h1>
-    <div class="tag">Decode, decompress, deobfuscate and triage. Nothing leaves the browser, and it works offline. <span class="ver">build v74</span></div>
+    <div class="tag">Decode, decompress, deobfuscate and triage. Nothing leaves the browser, and it works offline. <span class="ver">build v75</span></div>
     <button id="save" class="savebtn" title="Save this whole tool as one HTML file you can run offline, from a USB stick, or on an air-gapped box">Download this page</button>
   </div>
 
@@ -1766,18 +1766,63 @@ $('#presets').onchange=e=>{
 };
 $('#clear').onclick=()=>{ recipe=[]; drawRecipe(); run() };
 $('#bake').onclick=()=>run();
+// Base64url-safe encoder used for share links so the payload doesn't need extra URL escaping.
+const b64u={
+  enc:s=>btoa(unescape(encodeURIComponent(s))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''),
+  dec:s=>{ const p=(s+'==='.slice((s.length+3)%4)).replace(/-/g,'+').replace(/_/g,'/'); return decodeURIComponent(escape(atob(p))) }
+};
+async function deflate64(str){
+  try{
+    const b=B(str);
+    const ds=new Blob([b]).stream().pipeThrough(new CompressionStream('deflate-raw'));
+    const out=new Uint8Array(await new Response(ds).arrayBuffer());
+    let s=''; for(let i=0;i<out.length;i+=0x8000)s+=String.fromCharCode.apply(null,out.subarray(i,i+0x8000));
+    return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+  }catch(e){ return null }
+}
+async function inflate64(s){
+  try{
+    const p=(s+'==='.slice((s.length+3)%4)).replace(/-/g,'+').replace(/_/g,'/');
+    const bin=atob(p), b=new Uint8Array(bin.length);
+    for(let i=0;i<bin.length;i++)b[i]=bin.charCodeAt(i);
+    const ds=new Blob([b]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+    return S(new Uint8Array(await new Response(ds).arrayBuffer()));
+  }catch(e){ return null }
+}
 $('#share').onclick=async()=>{
-  const u=location.origin+location.pathname+'#r='+encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(recipe)))));
-  try{ await navigator.clipboard.writeText(u); toast('Link copied') }catch(e){ location.hash='r='+encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(recipe))))); toast('Link is in the address bar') }
+  const payload={r:recipe, i:$('#input').value||'', m:inMode};
+  const json=JSON.stringify(payload);
+  // Try deflate compression first — long inputs balloon fast otherwise. Fall back to plain
+  // base64url so the link always works.
+  let frag=await deflate64(json);
+  let scheme='z';
+  if(!frag||frag.length>json.length*1.3){ frag=b64u.enc(json); scheme='p' }
+  const url=location.origin+location.pathname+'#s='+scheme+frag;
+  const size=(url.length/1024).toFixed(1)+' KB';
+  try{ await navigator.clipboard.writeText(url); toast(`Link copied (${size}) — recipe + input`) }
+  catch(e){ location.hash='s='+scheme+frag; toast(`Link is in the address bar (${size})`) }
 };
 function save(){ try{ localStorage.setItem('fk_chef',JSON.stringify(recipe)) }catch(e){} }
-(function restore(){
-  const m=location.hash.match(/r=([^&]+)/);
-  if(m){ try{ recipe=JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(m[1]))))) }catch(e){} }
+async function restore(){
+  // s=<scheme><b64url>  — carries recipe AND input (scheme z = deflate, p = plain)
+  // r=<b64>              — legacy recipe-only links from earlier builds still work
+  const ms=location.hash.match(/s=([zp])([^&]+)/);
+  if(ms){
+    const raw=ms[1]==='z'?await inflate64(ms[2]):(()=>{try{return b64u.dec(ms[2])}catch(e){return null}})();
+    if(raw){ try{
+      const p=JSON.parse(raw);
+      if(Array.isArray(p.r))recipe=p.r;
+      if(typeof p.i==='string'&&p.i){ $('#input').value=p.i; if(p.m==='hex'){ inMode='hex'; $('#inHex').classList.add('on'); $('#inText').classList.remove('on') } }
+    }catch(e){} }
+  } else {
+    const m=location.hash.match(/r=([^&]+)/);
+    if(m){ try{ recipe=JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(m[1]))))) }catch(e){} }
+  }
   if(!recipe.length){ try{ recipe=JSON.parse(localStorage.getItem('fk_chef')||'[]') }catch(e){} }
   recipe=recipe.filter(s=>s&&OPS[s.op]).map(s=>({op:s.op,args:Object.assign(defaults(s.op),s.args||{}),off:!!s.off}));
-})();
-drawOps(''); drawRecipe(); readInput();
+}
+drawOps('');
+(async()=>{ await restore(); drawRecipe(); readInput() })();
 if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});
 </script>
 <script>(function(){var b=document.getElementById('themeBtn');if(!b)return;b.onclick=function(){var n=document.documentElement.getAttribute('data-theme')==='light'?'dark':'light';if(n==='light')document.documentElement.setAttribute('data-theme','light');else document.documentElement.removeAttribute('data-theme');try{localStorage.setItem('fk_theme',n)}catch(e){}var m=document.getElementById('tc');if(m)m.content=n==='light'?'#e0cfb0':'#1b1e1f';if(window.onFkTheme)window.onFkTheme(n)}})()</script>
