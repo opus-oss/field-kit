@@ -75,10 +75,20 @@ h1{font:700 2rem var(--mono); letter-spacing:-.02em; color:var(--h1)}
 @media(max-width:1180px){ .grid{grid-template-columns:var(--ops-w,250px) 1fr} .col-io{grid-column:1 / -1} }
 body.io-wide .grid{grid-template-columns:1fr; gap:12px}
 body.io-wide .card.ops,body.io-wide .card.rec{display:none}
-body.io-wide .col-io{grid-column:1; flex-direction:row; align-items:stretch; gap:12px}
-body.io-wide .col-io .pane{flex:1 1 0; min-width:0; display:flex; flex-direction:column}
+body.io-wide .col-io{grid-column:1; flex-direction:row; align-items:stretch; gap:0}
+body.io-wide .col-io .pane{min-width:0; display:flex; flex-direction:column}
+body.io-wide .col-io .pane:first-child{flex:0 0 var(--io-split,50%)}
+body.io-wide .col-io .pane:last-child{flex:1 1 0}
 body.io-wide .pane .out,body.io-wide .pane textarea{flex:1; height:auto; min-height:78vh}
-@media(max-width:900px){ body.io-wide .col-io{flex-direction:column} body.io-wide .pane .out,body.io-wide .pane textarea{min-height:42vh} }
+.io-split{display:none}
+body.io-wide .io-split{display:flex; flex:0 0 16px; align-items:center; justify-content:center; cursor:col-resize; position:relative}
+body.io-wide .io-split::before{content:''; position:absolute; top:12px; bottom:12px; left:7px; width:2px; border-radius:2px; background:var(--line2); transition:background .12s}
+body.io-wide .io-split::after{content:''; width:6px; height:40px; border-radius:4px; background:var(--raised); border:1px solid var(--line2); position:relative;
+  background-image:radial-gradient(var(--faint) 1px,transparent 1px); background-size:3px 5px; background-position:center; transition:border-color .12s,background-color .12s}
+body.io-wide .io-split:hover::before,body.iosplitdrag .io-split::before{background:var(--acc)}
+body.io-wide .io-split:hover::after,body.iosplitdrag .io-split::after{border-color:var(--acc)}
+body.iosplitdrag{cursor:col-resize; user-select:none}
+@media(max-width:900px){ body.io-wide .col-io{flex-direction:column} body.io-wide .col-io .pane:first-child,body.io-wide .col-io .pane:last-child{flex:0 1 auto} body.io-wide .pane .out,body.io-wide .pane textarea{min-height:42vh} body.io-wide .io-split{display:none} }
 .widebtn{margin-left:auto}
 .widebtn.on{background:var(--chip); color:var(--h1); border-color:var(--line2)}
 @media(max-width:780px){
@@ -216,7 +226,7 @@ body.ops-collapsed .collapse{margin:0 auto}
 <div class="wrap">
   <div class="head">
     <h1>Chef</h1>
-    <div class="tag">Decode, decompress, deobfuscate and triage. Nothing leaves the browser, and it works offline. <span class="ver">build v76</span></div>
+    <div class="tag">Decode, decompress, deobfuscate and triage. Nothing leaves the browser, and it works offline. <span class="ver">build v77</span></div>
     <button id="save" class="savebtn" title="Save this whole tool as one HTML file you can run offline, from a USB stick, or on an air-gapped box">Download this page</button>
   </div>
 
@@ -257,6 +267,8 @@ body.ops-collapsed .collapse{margin:0 auto}
         <textarea id="input" spellcheck="false" autocomplete="off" placeholder="Paste the blob here. Try a PowerShell -enc string, a hex dump, a JWT, base64+gzip…"></textarea>
         <div class="magic" id="magicBox"></div>
       </div>
+
+      <div class="io-split" id="ioSplit" title="Drag to resize; double-click to center"></div>
 
       <div class="card pane">
         <h2>Output <span class="n" id="outLen"></span></h2>
@@ -1751,6 +1763,31 @@ function setWide(on){ document.body.classList.toggle('io-wide',on);
 $('#ioWide').onclick=()=>setWide(!document.body.classList.contains('io-wide'));
 $('#ioWide2').onclick=()=>setWide(!document.body.classList.contains('io-wide'));
 try{ if(localStorage.getItem('fk_chef_wide')==='1')setWide(true) }catch(e){}
+(function ioSplit(){
+  const g=$('#ioSplit'); if(!g)return;
+  let from=0, start=0, total=0;
+  const move=e=>{ const x=(e.touches?e.touches[0].clientX:e.clientX);
+    const w=start+(x-from);
+    const pct=Math.max(15,Math.min(85, total?100*w/total:50));
+    document.documentElement.style.setProperty('--io-split',pct.toFixed(1)+'%');
+    try{ localStorage.setItem('fk_chef_iow',pct.toFixed(1)) }catch(e){}
+  };
+  const up=()=>{ document.body.classList.remove('iosplitdrag');
+    removeEventListener('pointermove',move); removeEventListener('pointerup',up) };
+  g.addEventListener('pointerdown',e=>{
+    if(!document.body.classList.contains('io-wide'))return;
+    e.preventDefault();
+    from=e.clientX;
+    const left=document.querySelector('.col-io .pane:first-child');
+    const io=document.querySelector('.col-io');
+    start=left.getBoundingClientRect().width; total=io.getBoundingClientRect().width;
+    document.body.classList.add('iosplitdrag');
+    addEventListener('pointermove',move); addEventListener('pointerup',up);
+  });
+  g.addEventListener('dblclick',()=>{ document.documentElement.style.setProperty('--io-split','50%');
+    try{ localStorage.setItem('fk_chef_iow','50.0') }catch(e){} });
+})();
+try{ const w=+localStorage.getItem('fk_chef_iow'); if(w)document.documentElement.style.setProperty('--io-split',w+'%'); }catch(e){}
 $('#copyOut').onclick=async()=>{ try{ await navigator.clipboard.writeText(outView==='hex'?hexdump(outBytes):S(outBytes)); toast('Copied') }catch(e){ toast('Clipboard blocked, use Download') } };
 $('#dlOut').onclick=()=>{ const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([outBytes])); a.download=(fileName?fileName.replace(/\.[^.]+$/,''):'chef')+'-out.bin'; a.click();
