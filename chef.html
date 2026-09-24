@@ -1180,6 +1180,89 @@ async function b64resolve(rawStr,ctx){
   }
   return {bytes:d,how,recipe};
 }
+function parseJsStringArray(body){
+  // Extract quoted string literals from a JS array body. Handles \xNN, \uNNNN and simple escapes.
+  const out=[]; let i=0, n=body.length;
+  const esc={n:'\n',r:'\r',t:'\t','\\':'\\',"'":"'",'"':'"','0':'\0',b:'\b',f:'\f',v:'\v','/':'/'};
+  while(i<n){
+    while(i<n&&/[\s,]/.test(body[i]))i++;
+    if(i>=n)break;
+    const q=body[i]; if(q!=="'"&&q!=='"')return null;
+    i++; let s='';
+    while(i<n&&body[i]!==q){
+      if(body[i]==='\\'){
+        const c=body[i+1];
+        if(c==='x'||c==='X'){ s+=String.fromCharCode(parseInt(body.slice(i+2,i+4),16)); i+=4 }
+        else if(c==='u'){
+          if(body[i+2]==='{'){ const e=body.indexOf('}',i+3); s+=String.fromCodePoint(parseInt(body.slice(i+3,e),16)); i=e+1 }
+          else { s+=String.fromCharCode(parseInt(body.slice(i+2,i+6),16)); i+=6 }
+        } else { s+=esc[c]!==undefined?esc[c]:c; i+=2 }
+      } else { s+=body[i]; i++ }
+    }
+    i++;
+    out.push(s);
+  }
+  return out;
+}
+function jsStringArrayUnpack(src){
+  // Recognise the string-array pattern used by common JS obfuscators: a getter function
+  // returning a literal array, a decoder that indexes it with a constant offset, and an
+  // optional shuffle IIFE that rotates the array until an arithmetic sum matches a key.
+  try{
+    const arrM=src.match(/function\s+(\w+)\s*\(\s*\)\s*\{\s*const\s+(\w+)\s*=\s*\[([\s\S]{100,}?)\]\s*;\s*\1\s*=\s*function\s*\(\s*\)\s*\{\s*return\s+\2\s*;?\s*\}\s*;\s*return\s+\1\s*\(\s*\)\s*;?\s*\}/);
+    if(!arrM)return null;
+    const arrFn=arrM[1], array=parseJsStringArray(arrM[3]);
+    if(!array||array.length<10)return null;
+    // Decoder: function DEC(z,I){const q=ARR();return DEC=function(u,V){u=u-OFFSET;...
+    const decRe=new RegExp('function\\s+(\\w+)\\s*\\(\\s*\\w+\\s*,\\s*\\w+\\s*\\)\\s*\\{\\s*const\\s+\\w+\\s*=\\s*'+arrFn+'\\s*\\(\\s*\\)\\s*;[\\s\\S]{0,300}?u\\s*=\\s*u\\s*-\\s*(0x[0-9a-fA-F]+|\\d+)');
+    const decM=src.match(decRe); if(!decM)return null;
+    const decoder=decM[1], offset=parseInt(decM[2]);
+    // Optional shuffle IIFE: capture the arithmetic body and the target key.
+    const iifeRe=new RegExp('\\(function\\s*\\(\\s*\\w+\\s*,\\s*\\w+\\s*\\)\\s*\\{\\s*const\\s+(\\w+)\\s*=\\s*'+decoder+'\\s*,\\s*\\w+\\s*=\\s*\\w+\\s*\\(\\s*\\)\\s*;\\s*while[\\s\\S]{0,50}?\\{\\s*try\\s*\\{\\s*const\\s+\\w+\\s*=\\s*([\\s\\S]+?);\\s*if\\s*\\(\\s*\\w+\\s*===\\s*\\w+\\s*\\)[\\s\\S]{0,300}?\\}\\s*\\(\\s*'+arrFn+'\\s*,\\s*(0x[0-9a-fA-F]+|\\d+)\\s*\\)\\s*\\)\\s*;');
+    const iifeM=src.match(iifeRe);
+    let shuffled=false;
+    if(iifeM){
+      const wAlias=iifeM[1];
+      const arithRaw=iifeM[2].replace(new RegExp('\\b'+wAlias+'\\b','g'),'w');
+      // Only whitelisted tokens are allowed. If anything else is left, refuse to evaluate.
+      const stripped=arithRaw.replace(/parseInt/g,'').replace(/\bw\b/g,'').replace(/0x[0-9a-fA-F]+/g,'').replace(/\d+/g,'').replace(/[\s+\-*/().]/g,'');
+      if(stripped.length===0){
+        const target=parseInt(iifeM[3]);
+        const decode=(idx)=>array[idx-offset];
+        const arithFn=new Function('w','return '+arithRaw);
+        const MAX=array.length*4;
+        for(let it=0;it<MAX;it++){
+          let v; try{ v=arithFn(decode) }catch(e){ array.push(array.shift()); continue }
+          if(v===target){ shuffled=true; break }
+          array.push(array.shift());
+        }
+        if(!shuffled)return null;
+      }
+    }
+    // Discover every alias of the decoder in the source. Aliases-of-aliases too.
+    const aliases=new Set([decoder]);
+    let grew=true;
+    while(grew){
+      grew=false;
+      for(const name of [...aliases]){
+        // Aliases only: `const a0s = a0u;` or `const w = a0u, q = z()`. Anything followed by `(` is a call, not an alias.
+        const re=new RegExp('\\b(?:const|let|var)\\s+(\\w+)\\s*=\\s*'+name.replace(/[$]/g,'\\$')+'(?=\\s*[,;\\n])','g');
+        let m; while((m=re.exec(src))!==null){ if(!aliases.has(m[1])){ aliases.add(m[1]); grew=true } }
+      }
+    }
+    const namePat=[...aliases].map(n=>n.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('|');
+    const callRe=new RegExp('\\b(?:'+namePat+')\\s*\\(\\s*(0x[0-9a-fA-F]+|\\d+)\\s*\\)','g');
+    let subs=0;
+    const out=src.replace(callRe,(m,idx)=>{
+      const s=array[parseInt(idx)-offset];
+      if(s===undefined)return m;
+      subs++;
+      return JSON.stringify(s);
+    });
+    if(subs<5)return null;
+    return {text:out, array:array.slice(), offset, aliases:[...aliases], shuffled, substitutions:subs};
+  }catch(e){ return null }
+}
 async function decodeCandidate(c,ctx){
   try{
     if(c.kind==='base64'){
@@ -1196,6 +1279,8 @@ async function decodeCandidate(c,ctx){
     }
     if(c.kind==='hex'){ const d=hexBytes(c.raw); if(d.length<6)return null;
       if(!sniff(d)&&printable(d,512)<0.9)return null;
+      // Whitespace-only \x escapes inside a template string are indent, not obfuscation.
+      let ws=0; for(const x of d){ if(x<=32||x===0x7f)ws++ } if(ws===d.length)return null;
       return {bytes:d,how:'From Hex',recipe:[['From Hex',{}]]} }
     if(c.kind==='charcode'){ let d=await OPS['From Charcode'].fn(B(c.raw),{base:'10'});
       let how='From Charcode', recipe=[['From Charcode',{base:'10'}]];
@@ -1282,7 +1367,20 @@ async function deepScan(root){
     const isText=printable(b,4096)>0.85;
     if(!isText)return {text:`«${kind}, ${b.length.toLocaleString()} bytes${how?', '+how:''}»`,tokens:null};
 
-    const raw=S(b), t=foldConcat(raw);
+    const raw=S(b);
+    let t=foldConcat(raw);
+    // If this looks like an obfuscator.io-style script, unpack the string array first, so
+    // everything downstream (behaviour scan, IOC extraction, encoded-region search) reads
+    // the resolved strings instead of a0s(0xNNN) calls.
+    let jsUnpack=null;
+    if(depth<3&&t.length>500&&/function\s+\w+\s*\(\s*\)\s*\{\s*const\s+\w+\s*=\s*\[/.test(t)){
+      jsUnpack=jsStringArrayUnpack(t);
+      if(jsUnpack){
+        lines.push(`${pad}   unpacked JavaScript string-array (${jsUnpack.array.length} strings, ${jsUnpack.substitutions.toLocaleString()} calls resolved, decoder aliases: ${jsUnpack.aliases.slice(0,6).join(', ')}${jsUnpack.aliases.length>6?', …':''}${jsUnpack.shuffled?', shuffle key matched':''})`);
+        finds.push({label:'unpacked JavaScript', kind:'JavaScript source', bytes:B(jsUnpack.text), recipe:[], how:'string-array unpack'+(jsUnpack.shuffled?' (with shuffle)':'')});
+        t=jsUnpack.text;
+      }
+    }
     const beh=[...new Set(BEHAVIOR.filter(([rx])=>rx.test(t)).map(([,n])=>n))];
     if(beh.length)lines.push(`${pad}   behaviour: ${beh.join('; ')}`);
     const iocs=[...new Set([...(t.match(IOC.url)||[]),...(t.match(IOC.ip)||[]),...(t.match(IOC.domain)||[])])].slice(0,14);
