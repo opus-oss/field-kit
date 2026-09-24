@@ -102,6 +102,13 @@ body.ops-collapsed .opsgrip{display:none}
 .collapse{border:1px solid var(--line2); background:var(--raised); color:var(--mut); border-radius:7px; padding:1px 7px; font:600 12px var(--mono); line-height:1.4}
 .collapse:hover{color:var(--acc); border-color:var(--acc)}
 body.ops-collapsed .grid{grid-template-columns:44px minmax(280px,1fr) minmax(300px,1.3fr)}
+body.rec-collapsed .grid{grid-template-columns:var(--ops-w,270px) 44px minmax(0,1fr)}
+body.rec-collapsed.ops-collapsed .grid{grid-template-columns:44px 44px minmax(0,1fr)}
+body.rec-collapsed .card.rec{padding:10px 6px}
+body.rec-collapsed .card.rec h2 .n,body.rec-collapsed .card.rec h2 span:first-child,
+body.rec-collapsed .rbar,body.rec-collapsed #recipe,body.rec-collapsed #autonote{display:none}
+body.rec-collapsed .card.rec h2{margin:0}
+@media(max-width:780px){ body.rec-collapsed .grid{grid-template-columns:1fr} }
 body.ops-collapsed .card.ops{padding:10px 6px}
 body.ops-collapsed .card.ops h2 .n,body.ops-collapsed .card.ops .lbl,
 body.ops-collapsed #opsearch,body.ops-collapsed .oplist{display:none}
@@ -197,7 +204,7 @@ body.ops-collapsed .collapse{margin:0 auto}
 <div class="wrap">
   <div class="head">
     <h1>Chef</h1>
-    <div class="tag">Decode, decompress, deobfuscate and triage. Nothing leaves the browser, and it works offline. <span class="ver">build v70</span></div>
+    <div class="tag">Decode, decompress, deobfuscate and triage. Nothing leaves the browser, and it works offline. <span class="ver">build v71</span></div>
     <button id="save" class="savebtn" title="Save this whole tool as one HTML file you can run offline, from a USB stick, or on an air-gapped box">Download this page</button>
   </div>
 
@@ -209,7 +216,7 @@ body.ops-collapsed .collapse{margin:0 auto}
     </div>
 
     <div class="card rec">
-      <h2>Recipe <span class="n" id="bakeTime"></span></h2>
+      <h2>Recipe <span class="n" id="bakeTime"></span><button class="collapse" id="recToggle" title="Hide the recipe column so the output gets full width">»</button></h2>
       <div class="rbar">
         <select id="presets"><option value="">Load a recipe…</option></select>
         <button id="clear">Clear</button>
@@ -935,13 +942,82 @@ const BEHAVIOR=[
   [/\b(?:msbuild|installutil|regasm|regsvcs|msiexec|certreq|forfiles|conhost|wmic|cmstp)\.exe\b/i,'uses a signed Windows binary to run its code'],
   [/[A-Za-z]:\\(?:ProgramData|Users\\[^\\\n"]+\\AppData|Windows\\Temp|Users\\Public)\\[^\\\n"]*\.(?:exe|dll|scr|com|ps1|bat|js|vbs)/i,'runs a binary out of a user-writable directory']
 ];
-function foldConcat(t){
+function foldConcat(t,js){
   let s=t, n=0;
   while(n++<12){
     const next=s.replace(/(['"])([^'"\n]*)\1\s*\+\s*(['"])([^'"\n]*)\3/g,(m,q1,a,q2,b)=>q1+a+b+q1);
     if(next===s)break; s=next;
   }
-  return s.replace(/`/g,'').replace(/\^(?=.)/g,'');
+  // Backticks and carets are escapes in PowerShell and cmd, but real syntax in JavaScript.
+  return js?s:s.replace(/`/g,'').replace(/\^(?=.)/g,'');
+}
+const looksJS=t=>/\bfunction\s*[\w$]*\s*\(|=>|\brequire\s*\(|\bconst\s+[\w${]/.test(t)&&!/\b(?:Get-|Set-|New-Object|Invoke-|Write-Host)\w*|\$\w+\s*=|-bxor\b|-join\b/i.test(t);
+function jsRequote(v){
+  // Long multi-line strings (embedded scripts) read best as template literals. Backslashes are
+  // left as-is on purpose so the embedded source reads exactly as its author wrote it.
+  if(v.includes('\n')&&v.length>60)return '`'+v.replace(/`/g,'\\`').replace(/\$\{/g,'\\${')+'`';
+  const q=v.includes("'")&&!v.includes('"')?'"':"'";
+  return q+v.replace(/\\/g,'\\\\').replace(new RegExp(q,'g'),'\\'+q).replace(/\n/g,'\\n').replace(/\r/g,'\\r').replace(/\t/g,'\\t')
+    .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g,ch=>'\\x'+ch.charCodeAt(0).toString(16).padStart(2,'0'))+q;
+}
+function jsCleanup(src){
+  // Readability passes that obfuscators undo: !![] and ![], ['prop'] member access,
+  // \xNN and \uNNNN escapes inside string literals, and hex numbers in code.
+  const RES=new Set('break case catch class const continue debugger default delete do else export extends finally for function if import in instanceof new return super switch this throw try typeof var void while with yield let static enum await null true false'.split(' '));
+  let s=src.replace(/!!\[\]/g,'true').replace(/!\[\]/g,'false');
+  s=s.replace(/([\w$)\]])\[\s*(['"])([A-Za-z_$][\w$]*)\2\s*\]/g,(m,pre,q,name)=>RES.has(name)?m:pre+'.'+name);
+  const esc={n:'\n',r:'\r',t:'\t','\\':'\\',"'":"'",'"':'"','0':'\0',b:'\b',f:'\f',v:'\v'};
+  let out='', i=0; const n=s.length;
+  while(i<n){
+    const c=s[i];
+    if(c==="'"||c==='"'){
+      let j=i+1, val='', ok=true;
+      while(j<n&&s[j]!==c){
+        if(s[j]==='\\'){ const e=s[j+1];
+          if(e==='x'&&/^[0-9a-fA-F]{2}$/.test(s.substr(j+2,2))){ val+=String.fromCharCode(parseInt(s.substr(j+2,2),16)); j+=4; continue }
+          if(e==='u'&&/^[0-9a-fA-F]{4}$/.test(s.substr(j+2,4))){ val+=String.fromCharCode(parseInt(s.substr(j+2,4),16)); j+=6; continue }
+          val+=esc[e]!==undefined?esc[e]:e; j+=2; continue }
+        if(s[j]==='\n'){ ok=false; break }
+        val+=s[j]; j++;
+      }
+      if(!ok||j>=n){ out+=c; i++; continue }
+      out+=jsRequote(val); i=j+1; continue;
+    }
+    if(c==='`'){ let j=i+1; while(j<n&&s[j]!=='`'){ if(s[j]==='\\')j++; j++ } out+=s.slice(i,j+1); i=j+1; continue }
+    if(c==='/'&&s[i+1]==='/'){ const j=s.indexOf('\n',i); const e=j<0?n:j; out+=s.slice(i,e); i=e; continue }
+    if(c==='/'&&s[i+1]==='*'){ const j=s.indexOf('*/',i+2); const e=j<0?n:j+2; out+=s.slice(i,e); i=e; continue }
+    if(c==='0'&&(s[i+1]==='x'||s[i+1]==='X')&&!/[\w$.]/.test(s[i-1]||'')){
+      const m=/^0[xX][0-9a-fA-F]+/.exec(s.slice(i,i+24));
+      if(m){ out+=String(parseInt(m[0],16)); i+=m[0].length; continue }
+    }
+    out+=c; i++;
+  }
+  return out;
+}
+function jsFormat(src){
+  // Brace-and-semicolon formatter. Tracks quotes (including template literals) and gives each
+  // brace block its own paren depth, so statements inside callbacks still split.
+  const out=[]; let line='', depth=0, paren=0, q=null, i=0; const stack=[];
+  const push=()=>{ const t=line.trim(); if(t)out.push('  '.repeat(Math.max(0,depth))+t); line='' };
+  while(i<src.length){
+    const c=src[i], n=src[i+1];
+    if(q){ line+=c; if(c==='\\'){ line+=n||''; i+=2; continue } if(c===q)q=null; i++; continue }
+    if(c==="'"||c==='"'||c==='`'){ q=c; line+=c; i++; continue }
+    if(c==='\n'){ push(); i++; continue }
+    if(c==='('||c==='['){ paren++; line+=c; i++; continue }
+    if(c===')'||c===']'){ paren=Math.max(0,paren-1); line+=c; i++; continue }
+    if(c==='{'){ line+=c; push(); stack.push(paren); paren=0; depth++; i++; continue }
+    if(c==='}'){
+      push(); depth=Math.max(0,depth-1); paren=stack.length?stack.pop():0; line='}'; i++;
+      while(i<src.length&&/[)\],;]/.test(src[i])){ const d=src[i]; line+=d; if(d===')'||d===']')paren=Math.max(0,paren-1); i++; if(d===';'||d===',')break }
+      if(/^\s*(else|catch|finally)\b/.test(src.slice(i,i+10))){ line+=' '; continue }
+      push(); continue;
+    }
+    if(c===';'&&paren===0){ line+=';'; push(); i++; continue }
+    line+=c; i++;
+  }
+  push();
+  return out.join('\n');
 }
 function b64Runs(t){
   // single long runs, plus runs of adjacent quoted literals (the @("...","...") pattern)
@@ -1308,6 +1384,12 @@ function jsStringArrayUnpack(src){
     // collapse blank / marker-only regions into single blank line for readability
     cleaned=cleaned.split('\n').filter(l=>l.replaceAll(MARK,'').trim().length>0||l.trim()==='').join('\n');
     cleaned=cleaned.replaceAll(MARK,'').replace(/\n{3,}/g,'\n\n').trim();
+    // Inner aliases (const i=a0s; const w=a0u,q=z()) are dead once every call is resolved.
+    const al=[...aliases].map(n=>n.replace(/[$]/g,'\\$')).join('|');
+    cleaned=cleaned
+      .replace(new RegExp('\\b(?:const|let|var)\\s+(?:'+al+')\\s*=\\s*(?:'+al+')\\s*;','g'),'')
+      .replace(new RegExp('\\b(const|let|var)\\s+(?:'+al+')\\s*=\\s*(?:'+al+')\\s*,\\s*','g'),'$1 ')
+      .replace(new RegExp(',\\s*(?:'+al+')\\s*=\\s*(?:'+al+')(?=\\s*[,;])','g'),'');
     return {text:out, cleaned, array:array.slice(), offset, aliases:[...aliases], shuffled, substitutions:subs};
   }catch(e){ return null }
 }
@@ -1416,7 +1498,9 @@ async function deepScan(root){
     if(!isText)return {text:`«${kind}, ${b.length.toLocaleString()} bytes${how?', '+how:''}»`,tokens:null};
 
     const raw=S(b);
-    let t=foldConcat(raw);
+    const isJS=looksJS(raw.slice(0,20000));
+    let t=foldConcat(raw,isJS);
+    let jsTidy=false;
     // If this looks like an obfuscator.io-style script, unpack the string array first, so
     // everything downstream (behaviour scan, IOC extraction, encoded-region search) reads
     // the resolved strings instead of a0s(0xNNN) calls.
@@ -1429,8 +1513,13 @@ async function deepScan(root){
         finds.push({label:'unpacked JavaScript, machinery kept', kind:'JavaScript source', bytes:B(jsUnpack.text), recipe:[], how:'string-array unpack (raw substitution)'});
         // Use the cleaned view for downstream analysis: behaviour, IOCs, and decoded region scan
         // all operate on the readable code, not on the infrastructure.
-        t=jsUnpack.cleaned;
+        t=jsCleanup(jsUnpack.cleaned); jsTidy=true;
       }
+    }
+    // Escape-heavy JavaScript without a string array still gets the readability passes.
+    if(!jsUnpack&&isJS&&depth<3&&(t.match(/\\x[0-9a-fA-F]{2}|\\u[0-9a-fA-F]{4}/g)||[]).length>=20){
+      const c2=jsCleanup(t);
+      if(c2!==t){ lines.push(`${pad}   decoded \\x / \\u escapes inside JavaScript string literals`); t=c2; jsTidy=true }
     }
     const beh=[...new Set(BEHAVIOR.filter(([rx])=>rx.test(t)).map(([,n])=>n))];
     if(beh.length)lines.push(`${pad}   behaviour: ${beh.join('; ')}`);
@@ -1471,6 +1560,7 @@ async function deepScan(root){
       const tail=t.slice(at);
       if(tail){ outStr+=tail; tokens.push({kind:'plain',text:tail}) }
     }
+    if(jsTidy){ outStr=jsFormat(outStr); tokens=[{kind:'plain',text:outStr,lang:'js'}] }
     if(depth===0){
       root.tokens=(outStr!==raw)?tokens:null;
       if(outStr===raw&&!kids)lines.push(`${pad}   nothing encoded found inside it`);
@@ -1539,7 +1629,7 @@ function renderReport(){
   const head=(auto?'Deep scan ran automatically because the recipe is empty. Add steps and it bakes those instead.\n\n':'')+report;
   let plain=head, html=esc2(head);
   if(tokens&&tokens.length){
-    const toks=PRETTY?tokens.map(t=>({...t,text:beautify(t.text)})):tokens;
+    const toks=PRETTY?tokens.map(t=>t.lang==='js'?t:({...t,text:beautify(t.text)})):tokens;
     const body=toks.map(t=>t.text).join('');
     const shown=body.split('\n').slice(0,200).join('\n');
     const cut=shown.length>16000;
@@ -1613,6 +1703,13 @@ function setWide(on){ document.body.classList.toggle('io-wide',on);
 $('#ioWide').onclick=()=>setWide(!document.body.classList.contains('io-wide'));
 $('#ioWide2').onclick=()=>setWide(!document.body.classList.contains('io-wide'));
 try{ if(localStorage.getItem('fk_chef_wide')==='1')setWide(true) }catch(e){}
+$('#recToggle').onclick=()=>{
+  const on=document.body.classList.toggle('rec-collapsed');
+  $('#recToggle').textContent=on?'«':'»';
+  $('#recToggle').title=on?'Show the recipe column':'Hide the recipe column';
+  try{ localStorage.setItem('fk_chef_rec',on?'1':'0') }catch(e){}
+};
+try{ if(localStorage.getItem('fk_chef_rec')==='1'){ document.body.classList.add('rec-collapsed'); $('#recToggle').textContent='«' } }catch(e){}
 $('#copyOut').onclick=async()=>{ try{ await navigator.clipboard.writeText(outView==='hex'?hexdump(outBytes):S(outBytes)); toast('Copied') }catch(e){ toast('Clipboard blocked, use Download') } };
 $('#dlOut').onclick=()=>{ const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([outBytes])); a.download=(fileName?fileName.replace(/\.[^.]+$/,''):'chef')+'-out.bin'; a.click();
