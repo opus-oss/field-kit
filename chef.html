@@ -227,8 +227,16 @@ function b64bytes(str,url,strict){
   let s=String(str).replace(/\s+/g,'');
   if(url)s=s.replace(/-/g,'+').replace(/_/g,'/');
   if(!strict)s=s.replace(/[^A-Za-z0-9+/=]/g,'');
-  s=s.replace(/=+$/,''); const pad=s.length%4; if(pad===2)s+='=='; else if(pad===3)s+='=';
-  const bin=atob(s), o=new Uint8Array(bin.length);
+  s=s.replace(/=+$/,'');
+  if(s.length%4===1)s=s.slice(0,-1);          // a stray character, usually a truncated capture
+  const pad=s.length%4; if(pad===2)s+='=='; else if(pad===3)s+='=';
+  let bin=null;
+  try{ bin=atob(s) }
+  catch(e){                                    // fall back to the longest prefix that does decode
+    for(let n=Math.floor(s.length/4)*4;n>=4&&bin===null;n-=4){ try{ bin=atob(s.slice(0,n)) }catch(x){} }
+    if(bin===null)throw new Error('not valid base64');
+  }
+  const o=new Uint8Array(bin.length);
   for(let i=0;i<bin.length;i++)o[i]=bin.charCodeAt(i);
   return o;
 }
@@ -893,7 +901,7 @@ function otherRuns(t){
   while((m=chars.exec(t))!==null)push('charcode','[char] array',m[0],m.index);
   const chr=/Chr\(\s*\d{1,3}\s*\)(?:\s*[&+]\s*Chr\(\s*\d{1,3}\s*\)){2,}/gi;
   while((m=chr.exec(t))!==null)push('charcode','Chr() concatenation',m[0],m.index);
-  const dec=/\b\d{1,3}(?:\s*,\s*\d{1,3}){5,}\b/g;
+  const dec=/\b\d{1,3}(?:\s*,\s*\d{1,3}){3,}\b/g;
   while((m=dec.exec(t))!==null){ if(!out.some(o=>o.raw.includes(m[0])))push('charcode','decimal list',m[0],m.index) }
   const hx=/(?:\\x[0-9a-f]{2}){6,}|(?:0x[0-9a-f]{2}[,\s]+){6,}|\b(?:[0-9a-f]{2}[\s:-]){10,}[0-9a-f]{2}\b|\b[0-9a-f]{32,}\b/gi;
   while((m=hx.exec(t))!==null)push('hex','hex run',m[0],m.index);
@@ -1039,7 +1047,27 @@ function xorFromKnownPlaintext(b){
   }
   return null;
 }
-async function decodeCandidate(c){
+const B64SET=new Set([...'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=\r\n'].map(c=>c.charCodeAt(0)));
+function langScore(d){
+  let s=0, n=Math.min(d.length,600);
+  for(let i=0;i<n;i++){ const c=d[i];
+    if((c>=65&&c<=90)||(c>=97&&c<=122)||c===32)s+=3;
+    else if(c>=48&&c<=57)s+=1;
+    else if(c===46||c===47||c===58||c===45||c===92||c===95||c===10||c===13||c===9)s+=1;
+    else if(c<32||c>126)s-=6; else s-=1 }
+  return s/Math.max(1,n);
+}
+function b64ness(d){ let ok=0,n=Math.min(d.length,800); for(let i=0;i<n;i++)if(B64SET.has(d[i]))ok++; return n?ok/n:0 }
+function rankedXor(b){
+  // One byte keys only, and only when a single key wins by a clear margin. No shotgun output.
+  let L=[], Bn=[];
+  for(let k=1;k<256;k++){ const d=xorBytes(b,new Uint8Array([k])); L.push([langScore(d),k]); Bn.push([b64ness(d),k]) }
+  L.sort((x,y)=>y[0]-x[0]); Bn.sort((x,y)=>y[0]-x[0]);
+  if(L[0][0]>=1.6&&L[0][0]-L[1][0]>=0.3)return {key:L[0][1],dec:xorBytes(b,new Uint8Array([L[0][1]])),why:'reads as text'};
+  if(Bn[0][0]>=0.99&&Bn[0][0]-Bn[1][0]>=0.02)return {key:Bn[0][1],dec:xorBytes(b,new Uint8Array([Bn[0][1]])),why:'comes out as base64'};
+  return null;
+}
+async function decodeCandidate(c,ctx){
   try{
     if(c.kind==='base64'){
       if(c.raw.replace(/[^A-Za-z0-9+/]/g,'').length<16)return null;
@@ -1054,15 +1082,35 @@ async function decodeCandidate(c){
         d=B(w.s); how+=' → '+w.how;
         recipe.push(w.how==='UTF-16LE'?['Decode UTF-16LE',{}]:['Remove null bytes',{}]);
       }
-      if(!sniff(d)&&printable(d,1024)<0.85&&entropy(d)<7.2&&!peInfo(d))return null;
+      if(!sniff(d)&&printable(d,1024)<0.85&&!peInfo(d)){
+        const x=rankedXor(d);
+        if(!x)return null;
+        d=x.dec; how+=` → XOR 0x${x.key.toString(16).padStart(2,'0')} (${x.why})`;
+        recipe.push(['XOR',{key:x.key.toString(16).padStart(2,'0'),fmt:'Hex'}]);
+        const w2=widen(d);
+        if(w2&&printable(B(w2.s),256)>0.95){ d=B(w2.s); how+=' → '+w2.how; recipe.push(w2.how==='UTF-16LE'?['Decode UTF-16LE',{}]:['Remove null bytes',{}]) }
+      }
       return {bytes:d,how,recipe};
     }
     if(c.kind==='hex'){ const d=hexBytes(c.raw); if(d.length<6)return null;
       if(!sniff(d)&&printable(d,512)<0.9)return null;
       return {bytes:d,how:'From Hex',recipe:[['From Hex',{}]]} }
-    if(c.kind==='charcode'){ const d=await OPS['From Charcode'].fn(B(c.raw),{base:'10'});
+    if(c.kind==='charcode'){ let d=await OPS['From Charcode'].fn(B(c.raw),{base:'10'});
+      let how='From Charcode', recipe=[['From Charcode',{base:'10'}]];
+      // scripts that xor their char arrays state the key a few characters later
+      const near=(ctx||'').slice(c.start,(c.end??c.start+c.raw.length)+220);
+      const bx=near.match(/-bxor\s*(0x[0-9a-f]+|\d{1,3})/i);
+      if(bx){
+        const k=bx[1].toLowerCase().startsWith('0x')?parseInt(bx[1],16):+bx[1];
+        const x=xorBytes(d,new Uint8Array([k&255]));
+        // take it when the stated key gives the more language-like answer, which is the point of stating it
+        if(printable(x,256)>0.95&&langScore(x)>langScore(d)){
+          d=x; how+=` → XOR 0x${(k&255).toString(16).padStart(2,'0')} (key stated in the script)`;
+          recipe.push(['XOR',{key:(k&255).toString(16).padStart(2,'0'),fmt:'Hex'}]);
+        }
+      }
       if(d.length<3||printable(d,256)<0.9)return null;
-      return {bytes:d,how:'From Charcode',recipe:[['From Charcode',{base:'10'}]]} }
+      return {bytes:d,how,recipe} }
     if(c.kind==='url'){ const d=await OPS['URL decode'].fn(B(c.raw),{});
       if(printable(d,256)<0.9||S(d)===c.raw)return null;
       return {bytes:d,how:'URL decode',recipe:[['URL decode',{}]]} }
@@ -1148,7 +1196,7 @@ async function deepScan(root){
       const subs=[];
       for(const c of cands){
         if(kids>=20)break;
-        const got=await decodeCandidate(c);
+        const got=await decodeCandidate(c,t);
         if(!got)continue;
         kids++;
         const readable=printable(got.bytes,400)>0.95&&got.bytes.length<=2000;
