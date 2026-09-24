@@ -155,6 +155,7 @@ h1{font:700 2rem var(--mono); letter-spacing:-.02em; color:var(--h1)}
         <select id="presets"><option value="">Load a recipe…</option></select>
         <button id="clear">Clear</button>
         <button id="share">Copy link</button>
+        <button id="deep" title="Walk the input like an analyst: find encoded regions, decode each on evidence, identify what comes out, recurse">Deep scan</button>
         <button class="pri" id="bake">Bake</button>
       </div>
       <div id="recipe"></div>
@@ -174,6 +175,7 @@ h1{font:700 2rem var(--mono); letter-spacing:-.02em; color:var(--h1)}
         </div>
         <textarea id="input" spellcheck="false" autocomplete="off" placeholder="Paste the blob here. Try a PowerShell -enc string, a hex dump, a JWT, base64+gzip…"></textarea>
         <div class="magic" id="magicBox"></div>
+        <div class="magic" id="findBox"></div>
       </div>
 
       <div class="card pane">
@@ -771,6 +773,313 @@ async function magicRun(){
     drawRecipe(); run(); toast('Loaded: '+f.name);
   });
 }
+
+
+/* ---------- deep scan: structure first, guessing last ----------
+   Magic tries a short list of whole-input decodes. This walks the input like an analyst:
+   find the encoded regions inside it, decode each one on evidence, identify what came out,
+   and recurse into that. Single-byte XOR is only reached for high-entropy blobs with no
+   other explanation, and even then the key is derived from known plaintext, not searched. */
+const MAGIC=[
+  [[0x4d,0x5a],'PE/MZ executable'],[[0x7f,0x45,0x4c,0x46],'ELF binary'],[[0x50,0x4b,0x03,0x04],'ZIP / Office / JAR'],
+  [[0x1f,0x8b],'gzip stream'],[[0x25,0x50,0x44,0x46],'PDF'],[[0x89,0x50,0x4e,0x47],'PNG'],[[0xff,0xd8,0xff],'JPEG'],
+  [[0x47,0x49,0x46,0x38],'GIF'],[[0x52,0x61,0x72,0x21],'RAR'],[[0x37,0x7a,0xbc,0xaf],'7-Zip'],
+  [[0x42,0x5a,0x68],'bzip2'],[[0xfd,0x37,0x7a,0x58],'xz'],[[0x4d,0x53,0x43,0x46],'CAB'],[[0xd0,0xcf,0x11,0xe0],'OLE2 / legacy Office'],
+  [[0xca,0xfe,0xba,0xbe],'Java class'],[[0x3c,0x3f,0x78,0x6d,0x6c],'XML'],[[0x78,0x01],'zlib stream'],[[0x78,0x9c],'zlib stream'],[[0x78,0xda],'zlib stream']
+];
+function sniff(b){ for(const [sig,name] of MAGIC){ let ok=true; for(let i=0;i<sig.length;i++)if(b[i]!==sig[i]){ok=false;break} if(ok)return name } return null }
+const SCRIPTS=[
+  [/(?:\$\w+\s*=|Get-Item|Invoke-Expression|\biex\b|FromBase64String|Add-Type|\[char\]|-join|Set-ExecutionPolicy|New-Object)/i,'PowerShell'],
+  [/(?:function\s*\(|=>|document\.|eval\(|unescape\(|String\.fromCharCode|ActiveXObject)/,'JavaScript'],
+  [/(?:Dim\s+\w+|CreateObject\(|WScript\.|Chr\(\d+\)|Execute\s)/i,'VBScript'],
+  [/(?:^|\n)\s*(?:@echo off|set \w+=|for \/f|start \/b|cmd\.exe \/c)/i,'Batch'],
+  [/(?:#!\/bin\/(?:ba)?sh|curl -|wget |chmod \+x)/,'Shell script'],
+  [/^\s*[{[][\s\S]*[}\]]\s*$/,'JSON']
+];
+const BEHAVIOR=[
+  [/FromBase64String|::UnicodeEncoding|\[Convert\]/i,'decodes base64 at runtime'],
+  [/Invoke-Expression|\biex\b|\bIEX\b/, 'executes a string as code'],
+  [/DownloadString|DownloadFile|WebClient|Invoke-WebRequest|curl |wget |WinHttp|XMLHTTP/i,'downloads from the network'],
+  [/Reflection\.Assembly|\[Reflection|Add-Type|LoadLibrary|rundll32|regsvr32/i,'loads code into the process'],
+  [/VirtualAlloc|WriteProcessMemory|CreateRemoteThread|NtMapViewOfSection|QueueUserAPC/i,'injects into another process'],
+  [/AmsiScanBuffer|amsiInitFailed|ETW|EtwEventWrite|bypass/i,'touches AMSI or ETW'],
+  [/-w(?:indowstyle)?\s+hidden|-nop\b|-noprofile|-enc(?:odedcommand)?\b|-ep bypass|-executionpolicy bypass/i,'runs PowerShell hidden or unrestricted'],
+  [/schtasks|New-ScheduledTask|Run(?:Once)?\\|CurrentVersion\\Run|sc(?:\.exe)? create|WMI.*__EventFilter/i,'sets up persistence'],
+  [/ComputerName|USERDOMAIN|Get-WmiObject.*Win32_Computer|hostname|GetVolumeInformation|IsDebuggerPresent|Sandboxie|VMware|VirtualBox|vbox/i,'checks the machine before running (sandbox or target check)'],
+  [/net user|net group|whoami|nltest|Get-ADUser|adfind/i,'enumerates accounts'],
+  [/\.dll['"\s]|\.exe['"\s]|WriteAllBytes|\[IO\.File\]/i,'writes a file to disk']
+];
+function foldConcat(t){
+  let s=t, n=0;
+  while(n++<12){
+    const next=s.replace(/(['"])([^'"\n]*)\1\s*\+\s*(['"])([^'"\n]*)\3/g,(m,q1,a,q2,b)=>q1+a+b+q1);
+    if(next===s)break; s=next;
+  }
+  return s.replace(/`/g,'');
+}
+function b64Runs(t){
+  // single long runs, plus runs of adjacent quoted literals (the @("...","...") pattern)
+  const out=[];
+  const lit=/(['"])([A-Za-z0-9+/=\s]{8,})\1/g; let m, group=[], lastEnd=-1, start=0;
+  while((m=lit.exec(t))!==null){
+    const body=m[2].trim();
+    if(!/^[A-Za-z0-9+/=]+$/.test(body)){ group=[]; continue }
+    const gap=t.slice(lastEnd,m.index);
+    if(group.length && /^[\s,+;]*$/.test(gap)) group.push(body);
+    else { if(group.length>1)out.push({raw:group.join(''),start,kind:'base64',how:group.length+' quoted lines joined'}); group=[body]; start=m.index }
+    lastEnd=lit.lastIndex;
+  }
+  if(group.length>1)out.push({raw:group.join(''),start,kind:'base64',how:group.length+' quoted lines joined'});
+  const run=/[A-Za-z0-9+/]{16,}={0,2}/g;
+  while((m=run.exec(t))!==null){
+    if(out.some(o=>o.raw.includes(m[0])))continue;
+    out.push({raw:m[0],start:m.index,kind:'base64',how:'base64 run'});
+  }
+  return out;
+}
+function otherRuns(t){
+  const out=[], push=(kind,how,raw,start)=>out.push({kind,how,raw,start});
+  let m;
+  const chars=/\[char\]\s*\d{1,3}(?:\s*,\s*\[char\]\s*\d{1,3}){2,}/gi;
+  while((m=chars.exec(t))!==null)push('charcode','[char] array',m[0],m.index);
+  const chr=/Chr\(\s*\d{1,3}\s*\)(?:\s*[&+]\s*Chr\(\s*\d{1,3}\s*\)){2,}/gi;
+  while((m=chr.exec(t))!==null)push('charcode','Chr() concatenation',m[0],m.index);
+  const dec=/\b\d{1,3}(?:\s*,\s*\d{1,3}){5,}\b/g;
+  while((m=dec.exec(t))!==null){ if(!out.some(o=>o.raw.includes(m[0])))push('charcode','decimal list',m[0],m.index) }
+  const hx=/(?:\\x[0-9a-f]{2}){6,}|(?:0x[0-9a-f]{2}[,\s]+){6,}|\b(?:[0-9a-f]{2}[\s:-]){10,}[0-9a-f]{2}\b|\b[0-9a-f]{32,}\b/gi;
+  while((m=hx.exec(t))!==null)push('hex','hex run',m[0],m.index);
+  const url=/(?:%[0-9a-f]{2}){6,}/gi;
+  while((m=url.exec(t))!==null)push('url','percent encoding',m[0],m.index);
+  const esc=/(?:\\u[0-9a-f]{4}){4,}/gi;
+  while((m=esc.exec(t))!==null)push('escape','\\u escapes',m[0],m.index);
+  return out;
+}
+function peInfo(b){
+  try{
+    if(b[0]!==0x4d||b[1]!==0x5a)return null;
+    const dv=new DataView(b.buffer,b.byteOffset,b.byteLength);
+    const e=dv.getUint32(0x3c,true);
+    if(e+0x18>b.length||dv.getUint32(e,true)!==0x00004550)return {note:'MZ header but the PE header is past the end of what we have'};
+    const machine=dv.getUint16(e+4,true), nsec=dv.getUint16(e+6,true), stamp=dv.getUint32(e+8,true);
+    const optSize=dv.getUint16(e+20,true), chars=dv.getUint16(e+22,true);
+    const opt=e+24, magic=optSize?dv.getUint16(opt,true):0;
+    const plus=magic===0x20b;
+    const MACH={0x14c:'x86 (i386)',0x8664:'x64 (AMD64)',0x1c0:'ARM',0xaa64:'ARM64',0x1c4:'ARMNT',0x200:'IA64'};
+    const SUB={1:'native',2:'GUI',3:'console',9:'Windows CE',10:'EFI application',16:'boot application'};
+    const info={
+      kind:(chars&0x2000)?'DLL':(chars&0x0002)?'EXE':'object',
+      machine:MACH[machine]||('0x'+machine.toString(16)),
+      compiled:stamp?new Date(stamp*1000).toISOString().replace('T',' ').slice(0,19)+' UTC':'no timestamp',
+      bits:plus?'PE32+':'PE32',
+      subsystem:optSize>=70?(SUB[dv.getUint16(opt+68,true)]||'?'):'?',
+      sections:[], imports:[], exportName:null
+    };
+    const secOff=opt+optSize, secs=[];
+    for(let i=0;i<Math.min(nsec,16);i++){
+      const o=secOff+i*40; if(o+40>b.length)break;
+      const name=S(b.subarray(o,o+8)).replace(/\0+$/,'');
+      const vsize=dv.getUint32(o+8,true), va=dv.getUint32(o+12,true), rsize=dv.getUint32(o+16,true), roff=dv.getUint32(o+20,true);
+      const body=(roff<b.length)?b.subarray(roff,Math.min(roff+rsize,b.length)):new Uint8Array(0);
+      secs.push({name,va,vsize,rsize,roff});
+      info.sections.push(`${name.padEnd(8)} ${String(rsize).padStart(8)} bytes  entropy ${body.length?entropy(body).toFixed(2):'—'}`);
+    }
+    const rva2off=r=>{ for(const s of secs) if(r>=s.va&&r<s.va+Math.max(s.vsize,s.rsize))return s.roff+(r-s.va); return -1 };
+    const dirs=opt+(plus?112:96);
+    const getDir=i=>(dirs+i*8+8<=b.length)?{rva:dv.getUint32(dirs+i*8,true),size:dv.getUint32(dirs+i*8+4,true)}:{rva:0,size:0};
+    const imp=getDir(1);
+    if(imp.rva){
+      let o=rva2off(imp.rva);
+      for(let n=0;n<24&&o>0&&o+20<=b.length;n++,o+=20){
+        const nameRva=dv.getUint32(o+12,true), firstThunk=dv.getUint32(o+16,true), origThunk=dv.getUint32(o,true);
+        if(!nameRva&&!firstThunk)break;
+        const no=rva2off(nameRva); if(no<0||no>=b.length)break;
+        let dll=''; for(let i=no;i<b.length&&b[i]&&i-no<64;i++)dll+=String.fromCharCode(b[i]);
+        const fns=[]; let t=rva2off(origThunk||firstThunk);
+        for(let k=0;k<80&&t>0&&t+4<=b.length;k++,t+=plus?8:4){
+          const v=plus?Number(dv.getBigUint64(t,true)):dv.getUint32(t,true);
+          if(!v)break;
+          const isOrd=plus?(BigInt(v)&(1n<<63n))!==0n:(v&0x80000000)!==0;
+          if(isOrd){ fns.push('#'+(v&0xffff)); continue }
+          const fo=rva2off(v); if(fo<0||fo+2>=b.length)break;
+          let fn=''; for(let i=fo+2;i<b.length&&b[i]&&i-fo<96;i++)fn+=String.fromCharCode(b[i]);
+          if(fn)fns.push(fn);
+        }
+        if(dll)info.imports.push({dll,fns});
+      }
+    }
+    const exp=getDir(0);
+    if(exp.rva){ const o=rva2off(exp.rva);
+      if(o>0&&o+16<b.length){ const no=rva2off(dv.getUint32(o+12,true));
+        if(no>0&&no<b.length){ let n=''; for(let i=no;i<b.length&&b[i]&&i-no<64;i++)n+=String.fromCharCode(b[i]); info.exportName=n } } }
+    return info;
+  }catch(e){ return {note:'PE header is malformed or truncated: '+e.message} }
+}
+const NOTABLE=/VirtualAlloc|VirtualProtect|WriteProcessMemory|CreateRemoteThread|LoadLibrary|GetProcAddress|WinExec|ShellExecute|URLDownloadToFile|InternetOpen|WSAStartup|send|recv|CryptEncrypt|CryptDecrypt|RegSetValue|CreateService|IsDebuggerPresent|CheckRemoteDebugger|GetTickCount|SetWindowsHook|waveIn|GetAsyncKeyState/i;
+function xorFromKnownPlaintext(b){
+  // Derive a repeating key from a crib instead of searching the key space.
+  // For a crib at offset `off`, key[(off+i) % L] must equal b[off+i] ^ crib[i] for every i.
+  const cribs=['This program cannot be run in DOS mode','MZ\x90\x00','PK\x03\x04','<?xml version','#!/bin/sh','\x7fELF'];
+  const limit=Math.min(b.length,0x600);
+  for(const crib of cribs){
+    const c=B(crib);
+    for(let off=0;off+c.length<=limit;off++){
+      for(const L of [1,2,3,4,5,6,7,8,12,16,24,32]){
+        if(L>c.length)break;
+        const key=new Array(L).fill(-1); let ok=true;
+        for(let i=0;i<c.length;i++){
+          const k=b[off+i]^c[i], slot=(off+i)%L;
+          if(key[slot]===-1)key[slot]=k; else if(key[slot]!==k){ ok=false; break }
+        }
+        if(!ok||key.some(x=>x===-1))continue;
+        if(key.every(x=>x===0))continue;
+        const kb=new Uint8Array(key), dec=xorBytes(b,kb);
+        if(sniff(dec)||printable(dec,512)>0.9)return {key:kb,dec,crib};
+      }
+    }
+  }
+  return null;
+}
+async function decodeCandidate(c){
+  try{
+    if(c.kind==='base64'){
+      if(c.raw.replace(/[^A-Za-z0-9+/]/g,'').length<16)return null;
+      let d=b64bytes(c.raw,false,false);
+      if(d.length<3)return null;
+      let how='From Base64', recipe=[['From Base64',{}]];
+      if(d[0]===0x1f&&d[1]===0x8b){ d=await inflate(d,'gzip'); how+=' → gunzip'; recipe.push(['Auto decompress',{}]) }
+      else if(d[0]===0x78&&(d[1]===0x01||d[1]===0x9c||d[1]===0xda)){ d=await inflate(d,'deflate'); how+=' → inflate'; recipe.push(['Auto decompress',{}]) }
+      else if(d.length>8&&d[1]===0&&d[3]===0&&printable(d.filter(x=>x!==0),256)>0.95){
+        d=B(utf16le(d)); how+=' → UTF-16LE'; recipe.push(['Decode UTF-16LE',{}]);
+      }
+      if(!sniff(d)&&printable(d,1024)<0.85&&entropy(d)<7.2&&!peInfo(d))return null;
+      return {bytes:d,how,recipe};
+    }
+    if(c.kind==='hex'){ const d=hexBytes(c.raw); if(d.length<6)return null;
+      if(!sniff(d)&&printable(d,512)<0.9)return null;
+      return {bytes:d,how:'From Hex',recipe:[['From Hex',{}]]} }
+    if(c.kind==='charcode'){ const d=await OPS['From Charcode'].fn(B(c.raw),{base:'10'});
+      if(d.length<3||printable(d,256)<0.9)return null;
+      return {bytes:d,how:'From Charcode',recipe:[['From Charcode',{base:'10'}]]} }
+    if(c.kind==='url'){ const d=await OPS['URL decode'].fn(B(c.raw),{});
+      if(printable(d,256)<0.9||S(d)===c.raw)return null;
+      return {bytes:d,how:'URL decode',recipe:[['URL decode',{}]]} }
+    if(c.kind==='escape'){ const d=await OPS['Unescape \\u and \\x'].fn(B(c.raw),{});
+      if(printable(d,256)<0.9||S(d)===c.raw)return null;
+      return {bytes:d,how:'Unescape \\u and \\x',recipe:[['Unescape \\u and \\x',{}]]} }
+  }catch(e){}
+  return null;
+}
+function describe(b){
+  const m=sniff(b), txt=printable(b,4096)>0.9;
+  if(m)return m;
+  if(txt){ const t=S(b.subarray(0,4000)); for(const [rx,name] of SCRIPTS)if(rx.test(t))return name+' source'; return 'text' }
+  return entropy(b)>7.2?'high-entropy blob (encrypted or compressed)':'binary data';
+}
+async function deepScan(root){
+  const lines=[], finds=[];
+  const seen=new Set();
+  const key=b=>b.length+':'+hex(b.subarray(0,24));
+  async function node(b,label,depth,how,recipe){
+    if(depth>4||finds.length>60)return;
+    const k=key(b); if(seen.has(k))return; seen.add(k);
+    const pad='  '.repeat(depth);
+    const kind=describe(b);
+    lines.push(`${pad}${depth?'└ ':''}${label} · ${kind} · ${b.length.toLocaleString()} bytes · entropy ${entropy(b).toFixed(2)}${how?`\n${pad}   found by: ${how}`:''}`);
+    if(depth)finds.push({label,kind,bytes:b,recipe,how});
+    const pe=peInfo(b);
+    if(pe){
+      if(pe.note)lines.push(`${pad}   ${pe.note}`);
+      else{
+        lines.push(`${pad}   ${pe.bits} ${pe.kind}, ${pe.machine}, subsystem ${pe.subsystem}, compiled ${pe.compiled}`);
+        if(pe.exportName)lines.push(`${pad}   export name: ${pe.exportName}`);
+        lines.push(`${pad}   md5 ${md5(b)}`);
+        lines.push(`${pad}   sha256 ${await sha(b,'SHA-256')}`);
+        if(pe.sections.length)lines.push(`${pad}   sections:\n${pe.sections.map(s=>pad+'     '+s).join('\n')}`);
+        if(pe.imports.length){
+          lines.push(`${pad}   imports:`);
+          for(const im of pe.imports.slice(0,10)){
+            const notable=im.fns.filter(f=>NOTABLE.test(f));
+            const show=(notable.length?notable:im.fns).slice(0,10);
+            lines.push(`${pad}     ${im.dll}${show.length?'  ('+show.join(', ')+(im.fns.length>show.length?', …':'')+')':''}`);
+          }
+          const all=pe.imports.flatMap(i=>i.fns).filter(f=>NOTABLE.test(f));
+          if(all.length)lines.push(`${pad}   worth noting: ${[...new Set(all)].slice(0,14).join(', ')}`);
+        }
+      }
+    }
+    if(printable(b,4096)<=0.85&&b.length>64){
+      const str=S(await OPS['Strings'].fn(b,{min:6,wide:true}));
+      const urls=[...new Set([...(str.match(IOC.url)||[]),...(str.match(IOC.ip)||[]),...(str.match(IOC.domain)||[])])].slice(0,12);
+      if(urls.length)lines.push(`${pad}   network strings: ${urls.join(', ')}`);
+      const notable=[...new Set((str.match(/[\w\\/.:-]{6,}\.(?:dll|exe|ps1|bat|vbs|js|sys|dat|tmp)\b/gi)||[]))].slice(0,10);
+      if(notable.length)lines.push(`${pad}   file names inside: ${notable.join(', ')}`);
+      const cmd=[...new Set((str.match(/(?:powershell|cmd\.exe|rundll32|regsvr32|schtasks|wscript|mshta)[^\n]{0,60}/gi)||[]))].slice(0,6);
+      if(cmd.length)lines.push(`${pad}   command strings: ${cmd.map(x=>x.trim()).join(' | ')}`);
+    }
+    const isText=printable(b,4096)>0.85;
+    let kids=0;
+    if(isText){
+      const raw=S(b), t=foldConcat(raw);
+      const beh=BEHAVIOR.filter(([rx])=>rx.test(t)).map(([,n])=>n);
+      if(beh.length)lines.push(`${pad}   behaviour: ${beh.join('; ')}`);
+      const iocs=[...new Set([...(t.match(IOC.url)||[]),...(t.match(IOC.ip)||[])])].slice(0,12);
+      if(iocs.length)lines.push(`${pad}   network: ${iocs.join(', ')}`);
+      if(t!==raw)lines.push(`${pad}   note: string concatenation and backticks folded before scanning`);
+      const cands=[...b64Runs(t),...otherRuns(t)].sort((a,b)=>a.start-b.start);
+      for(const c of cands){
+        if(kids>=12)break;
+        const got=await decodeCandidate(c);
+        if(!got)continue;
+        kids++;
+        const preview=printable(got.bytes,200)>0.9?JSON.stringify(S(got.bytes.subarray(0,60))):'';
+        await node(got.bytes,`[${finds.length+1}] ${c.how} (${c.raw.length.toLocaleString()} chars)${preview?' → '+preview:''}`,depth+1,got.how,got.recipe);
+      }
+    }
+    // Anything still unexplained: no file magic, no script structure, nothing decoded out of it.
+    // Try to lift a repeating XOR key off known plaintext before giving up. No key search.
+    const explained=sniff(b)||(isText&&(kids>0||SCRIPTS.some(([rx])=>rx.test(S(b.subarray(0,4000))))));
+    if(!explained&&depth<3&&b.length>32){
+      const x=xorFromKnownPlaintext(b);
+      if(x){
+        lines.push(`${pad}   recovered a repeating XOR key from known plaintext: ${hex(x.key,' ')} ("${x.crib.slice(0,28)}")`);
+        await node(x.dec,`[${finds.length+1}] XOR, key ${hex(x.key,' ')}`,depth+1,'known-plaintext XOR',[['XOR',{key:hex(x.key),fmt:'Hex'}]]);
+        kids++;
+      } else if(entropy(b)>7.2){
+        lines.push(`${pad}   high entropy, no recognisable structure, no key recoverable from known plaintext. Encrypted, packed, or keyed off something not in this file.`);
+      } else if(depth===0){
+        lines.push(`${pad}   nothing encoded found inside it`);
+      }
+    }
+  }
+  await node(root,'input',0,'',[]);
+  return {report:lines.join('\n')+'\n',finds};
+}
+
+let FINDS=[];
+$('#deep').onclick=async()=>{
+  if(!inputBytes.length)return toast('Give it something to look at');
+  $('#deep').textContent='Scanning…'; $('#deep').disabled=true;
+  try{
+    const t0=performance.now();
+    const {report,finds}=await deepScan(inputBytes);
+    FINDS=finds;
+    outBytes=B(report+`\nscan took ${Math.round(performance.now()-t0)} ms\n`);
+    outView='text'; $('#vText').classList.add('on'); $('#vHex').classList.remove('on');
+    paintOut();
+    $('#findBox').innerHTML=finds.length
+      ? `<div class="eyebrow">Pulled out of it (${finds.length})</div>`+finds.map((f,i)=>
+          `<div class="mi" data-f="${i}"><span class="mn">${f.kind}</span><span class="mp">${String(f.bytes.length.toLocaleString())} bytes · ${f.how.replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]))}</span></div>`).join('')
+      : '<div class="note">Nothing decodable found inside it.</div>';
+    $$('#findBox .mi').forEach(el=>el.onclick=()=>{
+      const f=FINDS[+el.dataset.f];
+      outBytes=f.bytes; paintOut();
+      recipe=(f.recipe||[]).map(([op,args])=>({op,args:Object.assign(defaults(op),args),off:false}));
+      drawRecipe();
+      toast('Loaded that artifact into the output, its recipe into the recipe pane');
+    });
+  }catch(e){ toast('Scan failed: '+e.message) }
+  $('#deep').textContent='Deep scan'; $('#deep').disabled=false;
+};
 
 /* ---------- output tools ---------- */
 $('#vText').onclick=()=>{ outView='text'; $('#vText').classList.add('on'); $('#vHex').classList.remove('on'); paintOut() };
