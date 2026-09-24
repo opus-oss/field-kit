@@ -71,7 +71,7 @@ h1{font:700 2rem var(--mono); letter-spacing:-.02em; color:var(--h1)}
 .savebtn:hover{border-color:var(--acc); color:var(--h1)}
 .eyebrow{font:600 .72rem var(--mono); letter-spacing:.14em; text-transform:uppercase; color:var(--acc)}
 
-.grid{display:grid; gap:14px; margin-top:16px; grid-template-columns:var(--ops-w,270px) minmax(280px,1fr) minmax(300px,1.15fr); align-items:start}
+.grid{display:grid; gap:14px; margin-top:16px; grid-template-columns:var(--ops-w,270px) var(--rec-w,minmax(280px,1fr)) minmax(300px,1.15fr); align-items:start}
 @media(max-width:1180px){ .grid{grid-template-columns:var(--ops-w,250px) 1fr} .col-io{grid-column:1 / -1} }
 body.io-wide .grid{grid-template-columns:var(--ops-w,270px) 1fr}
 body.io-wide .col-io{grid-column:1 / -1; flex-direction:row; align-items:start}
@@ -96,9 +96,17 @@ body.io-wide .pane .out,body.io-wide .pane textarea{height:64vh}
   background-image:radial-gradient(var(--faint) 1px,transparent 1px); background-size:3px 5px; background-position:center; transition:border-color .12s,background-color .12s}
 .opsgrip:hover::before,body.opsdrag .opsgrip::before{background:var(--acc)}
 .opsgrip:hover::after,body.opsdrag .opsgrip::after{border-color:var(--acc)}
-body.opsdrag{cursor:col-resize; user-select:none}
+body.opsdrag,body.recdrag{cursor:col-resize; user-select:none}
 body.ops-collapsed .opsgrip{display:none}
-@media(max-width:780px){ .opsgrip{display:none} }
+.card.rec{position:relative}
+.recgrip{position:absolute; top:0; right:-10px; width:16px; height:100%; cursor:col-resize; z-index:8; display:flex; align-items:center; justify-content:center}
+.recgrip::before{content:''; position:absolute; top:10px; bottom:10px; left:7px; width:2px; border-radius:2px; background:var(--line2); transition:background .12s}
+.recgrip::after{content:''; width:6px; height:34px; border-radius:4px; background:var(--raised); border:1px solid var(--line2); position:relative; left:-1px;
+  background-image:radial-gradient(var(--faint) 1px,transparent 1px); background-size:3px 5px; background-position:center; transition:border-color .12s,background-color .12s}
+.recgrip:hover::before,body.recdrag .recgrip::before{background:var(--acc)}
+.recgrip:hover::after,body.recdrag .recgrip::after{border-color:var(--acc)}
+body.rec-collapsed .recgrip{display:none}
+@media(max-width:780px){ .opsgrip,.recgrip{display:none} }
 .collapse{border:1px solid var(--line2); background:var(--raised); color:var(--mut); border-radius:7px; padding:1px 7px; font:600 12px var(--mono); line-height:1.4}
 .collapse:hover{color:var(--acc); border-color:var(--acc)}
 body.ops-collapsed .grid{grid-template-columns:44px minmax(280px,1fr) minmax(300px,1.3fr)}
@@ -204,7 +212,7 @@ body.ops-collapsed .collapse{margin:0 auto}
 <div class="wrap">
   <div class="head">
     <h1>Chef</h1>
-    <div class="tag">Decode, decompress, deobfuscate and triage. Nothing leaves the browser, and it works offline. <span class="ver">build v71</span></div>
+    <div class="tag">Decode, decompress, deobfuscate and triage. Nothing leaves the browser, and it works offline. <span class="ver">build v72</span></div>
     <button id="save" class="savebtn" title="Save this whole tool as one HTML file you can run offline, from a USB stick, or on an air-gapped box">Download this page</button>
   </div>
 
@@ -215,7 +223,7 @@ body.ops-collapsed .collapse{margin:0 auto}
       <div class="oplist" id="oplist"></div>
     </div>
 
-    <div class="card rec">
+    <div class="card rec"><div class="recgrip" id="recGrip" title="Drag to resize"></div>
       <h2>Recipe <span class="n" id="bakeTime"></span><button class="collapse" id="recToggle" title="Hide the recipe column so the output gets full width">»</button></h2>
       <div class="rbar">
         <select id="presets"><option value="">Load a recipe…</option></select>
@@ -704,6 +712,26 @@ $('#opToggle').onclick=()=>{
 try{
   const w=+localStorage.getItem('fk_chef_opsw'); if(w)document.documentElement.style.setProperty('--ops-w',w+'px');
   if(localStorage.getItem('fk_chef_ops')==='1'){ document.body.classList.add('ops-collapsed'); $('#opToggle').textContent='»' }
+}catch(e){}
+const setRecW=w=>{ const v=Math.max(200,Math.min(800,w)); document.documentElement.style.setProperty('--rec-w',v+'px');
+  try{ localStorage.setItem('fk_chef_recw',String(v)) }catch(e){} };
+(function recGrip(){
+  const g=$('#recGrip'); if(!g)return;
+  let from=0, start=0;
+  const move=e=>{ const x=(e.touches?e.touches[0].clientX:e.clientX); setRecW(start+(x-from)) };
+  const up=()=>{ document.body.classList.remove('recdrag');
+    removeEventListener('pointermove',move); removeEventListener('pointerup',up) };
+  g.addEventListener('pointerdown',e=>{
+    e.preventDefault();
+    from=e.clientX; start=$('.card.rec').getBoundingClientRect().width;
+    document.body.classList.add('recdrag');
+    addEventListener('pointermove',move); addEventListener('pointerup',up);
+  });
+  g.addEventListener('dblclick',()=>document.documentElement.style.removeProperty('--rec-w'));
+})();
+try{
+  const rw=+localStorage.getItem('fk_chef_recw'); if(rw)document.documentElement.style.setProperty('--rec-w',rw+'px');
+  if(localStorage.getItem('fk_chef_rec')==='1'){ document.body.classList.add('rec-collapsed'); $('#recToggle').textContent='«' }
 }catch(e){}
 
 /* ---------- recipe panel ---------- */
