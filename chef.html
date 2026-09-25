@@ -240,7 +240,7 @@ body.ops-collapsed .collapse{margin:0 auto}
 <div class="wrap">
   <div class="head">
     <h1>Chef</h1>
-    <div class="tag">Decode, decompress, deobfuscate and triage. Nothing leaves the browser, and it works offline. <span class="ver">build v79</span></div>
+    <div class="tag">Decode, decompress, deobfuscate and triage. Nothing leaves the browser, and it works offline. <span class="ver">build v84</span></div>
     <button id="save" class="savebtn" title="Save this whole tool as one HTML file you can run offline, from a USB stick, or on an air-gapped box">Download this page</button>
   </div>
 
@@ -1298,6 +1298,19 @@ async function b64resolve(rawStr,ctx){
   let how='From Base64', recipe=[['From Base64',{}]];
   if(d[0]===0x1f&&d[1]===0x8b){ d=await inflate(d,'gzip'); how+=' → gunzip'; recipe.push(['Auto decompress',{}]) }
   else if(d[0]===0x78&&(d[1]===0x01||d[1]===0x9c||d[1]===0xda)){ d=await inflate(d,'deflate'); how+=' → inflate'; recipe.push(['Auto decompress',{}]) }
+  else {
+    // PowerShell's DeflateStream produces RAW deflate (no zlib header, no magic bytes).
+    // Try inflate-raw when the source mentions DeflateStream OR when the blob looks compressed
+    // (high entropy) — if it decompresses to real text, keep it; if not, leave it alone.
+    const wantRaw=/DeflateStream|Compression\.Deflate|IO\.Compression|Convert\]::FromBase64/i.test(ctx||'')
+                || (d.length>=32 && entropy(d)>5.8 && printable(d,512)<0.5);
+    if(wantRaw){
+      try{
+        const r=await inflate(d,'deflate-raw');
+        if(r.length>4 && printable(r,1024)>0.9){ d=r; how+=' → inflate raw'; recipe.push(['Inflate raw',{}]) }
+      }catch(e){}
+    }
+  }
   const applyWiden=()=>{ const w=widen(d); if(w&&printable(B(w.s),256)>0.95){ d=B(w.s); how+=' → '+w.how; recipe.push(w.how==='UTF-16LE'?['Decode UTF-16LE',{}]:['Remove null bytes',{}]); return true } return false };
   applyWiden();
   // XOR'd base64 often maps to lots of letters, so it scores as "language". Never trust langScore
