@@ -240,7 +240,7 @@ body.ops-collapsed .collapse{margin:0 auto}
 <div class="wrap">
   <div class="head">
     <h1>Chef</h1>
-    <div class="tag">Decode, decompress, deobfuscate and triage. Nothing leaves the browser, and it works offline. <span class="ver">build v84</span></div>
+    <div class="tag">Decode, decompress, deobfuscate and triage. Nothing leaves the browser, and it works offline. <span class="ver">build v85</span></div>
     <button id="save" class="savebtn" title="Save this whole tool as one HTML file you can run offline, from a USB stick, or on an air-gapped box">Download this page</button>
   </div>
 
@@ -1329,7 +1329,14 @@ async function b64resolve(rawStr,ctx){
         else if(printable(inner,256)>0.92){ d=inner; how+=' → From Base64'; recipe.push(['From Base64',{}]) }
       }catch(e){} }
       applyWiden();
-    } else if(printable(d,1024)<0.85){ return null }
+    } else if(printable(d,1024)<0.85){
+      // The context says this is compressed (DeflateStream/FromBase64) but decompression failed,
+      // probably because the blob is truncated. Still report the decoded bytes so the analyst
+      // sees what was there instead of "nothing found."
+      const compCtx=/DeflateStream|Compression\.Deflate|IO\.Compression/i.test(ctx||'');
+      if(!compCtx) return null;
+      how+=' → raw deflate decompression failed (truncated or corrupt data)';
+    }
   }
   return {bytes:d,how,recipe};
 }
