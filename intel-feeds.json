@@ -386,5 +386,12 @@
   "cap": 8,
   "drop": "top \\d+|best \\d+|listicle|roundup|weekly recap|our take|explained|101\\b|guide to|checklist|what is|how to|\\bthe hacker news\\b|\\bgbhackers\\b|\\bcybersecuritynews\\b|\\btechcrunch\\b|\\bindustrial cyber\\b",
   "keep": "phish(ing)? kit|phishkit|tycoon|EvilProxy|Sneaky|Rockstar|Mamba|Gaba|Flower|Raccoon O365|new .{0,30}kit"
+ },
+ {
+  "id": "deceptionpro",
+  "name": "Deception.Pro",
+  "url": "https://blog.deception.pro/blog?format=rss",
+  "cat": "ecrime",
+  "trust": "high"
  }
 ]
