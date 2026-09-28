@@ -1331,7 +1331,7 @@ function evmInfo(b){
   const strSetters=selectors.filter(s=>s.name&&/set|store/i.test(s.name));
   let pattern=null;
   if(selectors.length<=8&&hasCaller&&hasSstore&&hasSload&&strGetters.length>0){
-    pattern='EtherHiding C2 resolver (address-keyed string storage, operator stores C2 URL via setter, malware reads via getter with CALLER)';
+    pattern='EtherHiding domain resolver (address-keyed string storage with CALLER-gated SLOAD)';
   } else if(selectors.length>=6&&selectors.some(s=>s.name&&/transfer|approve|balanceOf/.test(s.name))){
     pattern='ERC-20 token';
   }
@@ -1856,7 +1856,7 @@ async function deepScan(root){
       if(evm.flags.length)lines.push(`${pad}   flags: ${evm.flags.join('; ')}`);
       if(evm.pattern&&/EtherHiding/.test(evm.pattern)){
         const getter=evm.selectors.find(s=>s.name&&/get/i.test(s.name));
-        lines.push(`${pad}   the C2 string is in contract storage, not in the bytecode. Call ${getter?'selector 0x'+getter.sel+' ('+getter.name+')':'the getter'} with the operator address to retrieve it on-chain.`);
+        lines.push(`${pad}   the domain string is in contract storage, not in the bytecode. Call ${getter?'selector 0x'+getter.sel+' ('+getter.name+')':'the getter'} with the operator address to retrieve it on-chain.`);
         if(!evmHit)evmHit={topic:evm.topics[0]||null, getter:getter?getter.sel:evm.selectors[0]?.sel, selectors:evm.selectors, pattern:evm.pattern, compiler:evm.compiler};
       } else {
         lines.push(`${pad}   any stored values (strings, config) live in contract storage. Call the getters on-chain to retrieve them.`);
