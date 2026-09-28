@@ -411,5 +411,14 @@
   "mode": "adds",
   "cat": "ioc",
   "trust": "high"
+ },
+ {
+  "id": "socketdev",
+  "name": "Socket",
+  "url": "https://socket.dev/api/blog/feed.atom",
+  "cat": "ecrime",
+  "trust": "mid",
+  "drop": "Joins .{0,40}Program|Happy Birthday|\\bRewrites\\b|partnership|announces|\\bfunding\\b|\\bopen.?source.?economy\\b",
+  "keep": "malicious|supply.chain|compromised|credential.steal|hijack|backdoor|worm|typosquat|npm|PyPI|packagist|nuget"
  }
 ]

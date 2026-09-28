@@ -240,7 +240,7 @@ body.ops-collapsed .collapse{margin:0 auto}
 <div class="wrap">
   <div class="head">
     <h1>Chef</h1>
-    <div class="tag">Decode, decompress, deobfuscate and triage. Nothing leaves the browser, and it works offline. <span class="ver">build v85</span></div>
+    <div class="tag">Decode, decompress, deobfuscate and triage. Nothing leaves the browser, and it works offline. <span class="ver">build v86</span></div>
     <button id="save" class="savebtn" title="Save this whole tool as one HTML file you can run offline, from a USB stick, or on an air-gapped box">Download this page</button>
   </div>
 
@@ -972,7 +972,8 @@ const MAGIC=[
   [[0x42,0x5a,0x68],'bzip2'],[[0xfd,0x37,0x7a,0x58],'xz'],[[0x4d,0x53,0x43,0x46],'CAB'],[[0xd0,0xcf,0x11,0xe0],'OLE2 / legacy Office'],
   [[0xca,0xfe,0xba,0xbe],'Java class'],[[0x3c,0x3f,0x78,0x6d,0x6c],'XML'],[[0x78,0x01],'zlib stream'],[[0x78,0x9c],'zlib stream'],[[0x78,0xda],'zlib stream']
 ];
-function sniff(b){ for(const [sig,name] of MAGIC){ let ok=true; for(let i=0;i<sig.length;i++)if(b[i]!==sig[i]){ok=false;break} if(ok)return name } return null }
+function isEVM(b){ return b.length>=10&&b[0]===0x60&&b[1]===0x80&&b[2]===0x60&&b[3]===0x40&&b[4]===0x52 }
+function sniff(b){ for(const [sig,name] of MAGIC){ let ok=true; for(let i=0;i<sig.length;i++)if(b[i]!==sig[i]){ok=false;break} if(ok)return name } if(isEVM(b))return 'EVM bytecode'; return null }
 const SCRIPTS=[
   [/(?:\$\w+\s*=|Get-Item|Invoke-Expression|\biex\b|FromBase64String|Add-Type|\[char\]|-join|Set-ExecutionPolicy|New-Object)/i,'PowerShell'],
   [/(?:function\s*\(|=>|document\.|eval\(|unescape\(|String\.fromCharCode|ActiveXObject)/,'JavaScript'],
@@ -1112,7 +1113,7 @@ function otherRuns(t){
   while((m=chr.exec(t))!==null)push('charcode','Chr() concatenation',m[0],m.index);
   const dec=/\b\d{1,3}(?:\s*,\s*\d{1,3}){3,}\b/g;
   while((m=dec.exec(t))!==null){ if(!out.some(o=>o.raw.includes(m[0])))push('charcode','decimal list',m[0],m.index) }
-  const hx=/(?:\\x[0-9a-f]{2}){6,}|(?:0x[0-9a-f]{2}[,\s]+){6,}|\b(?:[0-9a-f]{2}[\s:-]){10,}[0-9a-f]{2}\b|\b[0-9a-f]{32,}\b/gi;
+  const hx=/(?:\\x[0-9a-f]{2}){6,}|(?:0x[0-9a-f]{2}[,\s]+){6,}|\b(?:[0-9a-f]{2}[\s:-]){10,}[0-9a-f]{2}\b|\b0x[0-9a-f]{32,}\b|\b[0-9a-f]{32,}\b/gi;
   while((m=hx.exec(t))!==null)push('hex','hex run',m[0],m.index);
   const url=/(?:%[0-9a-f]{2}){6,}/gi;
   while((m=url.exec(t))!==null)push('url','percent encoding',m[0],m.index);
@@ -1255,6 +1256,89 @@ function xorFromKnownPlaintext(b){
     }
   }
   return null;
+}
+const EVM_SIGS={
+  '06fdde03':'name()','095ea7b3':'approve(address,uint256)','18160ddd':'totalSupply()',
+  '23b872dd':'transferFrom(address,address,uint256)','313ce567':'decimals()',
+  '70a08231':'balanceOf(address)','95d89b41':'symbol()','a9059cbb':'transfer(address,uint256)',
+  'dd62ed3e':'allowance(address,address)','8da5cb5b':'owner()','715018a6':'renounceOwnership()',
+  'f2fde38b':'transferOwnership(address)','3ccfd60b':'withdraw()','d0e30db0':'deposit()',
+  '5c975abb':'paused()','8456cb72':'pause()','3f4ba83a':'unpause()',
+  'a0712d68':'mint(uint256)','42966c68':'burn(uint256)','40c10f19':'mint(address,uint256)',
+  '2e1a7d4d':'withdraw(uint256)','e8a3d485':'setDomain(string)',
+  '7d434425':'get(address)','d1a47551':'set(string)','ffb952d9':'getString()',
+  '7fcaf666':'getByAddr(address)','6057361d':'store(uint256)','2e64cec1':'retrieve()',
+  '60fe47b1':'set(uint256)','6d4ce63c':'get()'
+};
+function evmInfo(b){
+  if(!isEVM(b))return null;
+  const selectors=[], addresses=[], topics=[], constants=[];
+  let i=0, opcnt=0;
+  while(i<b.length&&opcnt<50000){
+    const op=b[i]; opcnt++;
+    if(op>=0x60&&op<=0x7f){
+      const n=op-0x5f, val=b.subarray(i+1,i+1+n);
+      if(i+1+n>b.length)break;
+      if(op===0x63){
+        const sel=hex(val);
+        if(!selectors.some(s=>s.sel===sel))selectors.push({sel,name:EVM_SIGS[sel]||null});
+      }
+      if(op===0x73){
+        const addr='0x'+hex(val);
+        if(!/^0x0{40}$/.test(addr)&&!addresses.includes(addr))addresses.push(addr);
+      }
+      if(op===0x7f){
+        const h=hex(val);
+        if(!/^0{64}$/.test(h)&&!/^f{64}$/i.test(h)&&!/^4e487b71/.test(h)){
+          if(!val.every(x=>x===0||x===0xff)&&!topics.includes('0x'+h))topics.push('0x'+h);
+        }
+      }
+      if(op>=0x64&&op<=0x72&&op!==0x63){
+        const h=hex(val);
+        if(!/^0+$/.test(h)&&!/^f+$/i.test(h)&&val.length>=5)constants.push({len:n,hex:h});
+      }
+      i+=1+n;
+    } else {
+      i++;
+    }
+  }
+  let compiler=null, ipfs=null, solcVersion=null;
+  const allHex=hex(b);
+  const solcMatch=allHex.match(/736f6c6343([0-9a-f]{6})/);
+  if(solcMatch){
+    const vb=solcMatch[1];
+    solcVersion=parseInt(vb.slice(0,2),16)+'.'+parseInt(vb.slice(2,4),16)+'.'+parseInt(vb.slice(4,6),16);
+    compiler='Solidity '+solcVersion;
+  }
+  const ipfsMatch=allHex.match(/a264697066735822([0-9a-f]{68})/i);
+  if(ipfsMatch)ipfs=ipfsMatch[1];
+  else{
+    const ipfsAlt=allHex.match(/697066735822([0-9a-f]{68})/i);
+    if(ipfsAlt)ipfs=ipfsAlt[1];
+  }
+  let hasCaller=false, hasSstore=false, hasSload=false;
+  for(let j=0;j<b.length;){
+    const op2=b[j];
+    if(op2>=0x60&&op2<=0x7f){ j+=1+(op2-0x5f); continue }
+    if(op2===0x33)hasCaller=true;
+    if(op2===0x55)hasSstore=true;
+    if(op2===0x54)hasSload=true;
+    j++;
+  }
+  const strGetters=selectors.filter(s=>s.name&&/get|string|domain/i.test(s.name));
+  const strSetters=selectors.filter(s=>s.name&&/set|store/i.test(s.name));
+  let pattern=null;
+  if(selectors.length<=8&&hasCaller&&hasSstore&&hasSload&&strGetters.length>0){
+    pattern='EtherHiding C2 resolver (address-keyed string storage, operator stores C2 URL via setter, malware reads via getter with CALLER)';
+  } else if(selectors.length>=6&&selectors.some(s=>s.name&&/transfer|approve|balanceOf/.test(s.name))){
+    pattern='ERC-20 token';
+  }
+  const flags=[];
+  if(selectors.length<=4&&b.length<2000)flags.push('very small contract, likely single-purpose storage');
+  if(hasCaller&&hasSstore)flags.push('stores data keyed by msg.sender');
+  if(!compiler)flags.push('no Solidity CBOR metadata (Vyper, hand-rolled, or stripped)');
+  if(addresses.length===0&&selectors.length>0)flags.push('no hardcoded addresses in bytecode');
+  return {selectors,addresses,topics,constants:constants.slice(0,8),compiler,solcVersion,ipfs,pattern,flags,size:b.length};
 }
 const B64SET=new Set([...'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=\r\n'].map(c=>c.charCodeAt(0)));
 function langScore(d){
@@ -1566,6 +1650,29 @@ async function deepScan(root){
           lines.push(`${pad}   imports: the import table is at RVA 0x${pe.importDirRva.toString(16)}, which lands past the end of this blob. Get the whole file and the API list comes with it.`);
         }
         if(pe.flags.length)lines.push(`${pad}   flags: ${pe.flags.join('; ')}`);
+      }
+    }
+    const evm=evmInfo(b);
+    if(evm){
+      lines.push(`${pad}   EVM bytecode, ${evm.size.toLocaleString()} bytes${evm.compiler?' compiled with '+evm.compiler:''}`);
+      if(evm.pattern)lines.push(`${pad}   pattern: ${evm.pattern}`);
+      if(evm.selectors.length){
+        const sels=evm.selectors.map(s=>`0x${s.sel}${s.name?' '+s.name:''}`);
+        lines.push(`${pad}   function selectors: ${sels.join(', ')}`);
+      }
+      if(evm.topics.length)lines.push(`${pad}   event topics / 32-byte constants: ${evm.topics.join(', ')}`);
+      if(evm.addresses.length)lines.push(`${pad}   embedded addresses: ${evm.addresses.join(', ')}`);
+      if(evm.constants.length){
+        const cs=evm.constants.map(c=>`0x${c.hex} (${c.len} bytes)`);
+        lines.push(`${pad}   notable constants: ${cs.join(', ')}`);
+      }
+      if(evm.ipfs)lines.push(`${pad}   IPFS metadata: ${evm.ipfs}`);
+      if(evm.flags.length)lines.push(`${pad}   flags: ${evm.flags.join('; ')}`);
+      if(evm.pattern&&/EtherHiding/.test(evm.pattern)){
+        const getter=evm.selectors.find(s=>s.name&&/get/i.test(s.name));
+        lines.push(`${pad}   the C2 string is in contract storage, not in the bytecode. Call ${getter?'selector 0x'+getter.sel+' ('+getter.name+')':'the getter'} with the operator address to retrieve it on-chain.`);
+      } else {
+        lines.push(`${pad}   any stored values (strings, config) live in contract storage. Call the getters on-chain to retrieve them.`);
       }
     }
     if(printable(b,4096)<=0.85&&b.length>64){
