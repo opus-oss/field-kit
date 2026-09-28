@@ -1465,7 +1465,8 @@ async function evmChainQuery(addr,chainId){
       }catch(e){}
     }
     out.textContent+='querying event logs …\n';
-    const rawLogs=await evmFetchLogs(chain.explorer,addr);
+    let rawLogs=[];
+    try{ rawLogs=await evmFetchLogs(chain.explorer,addr) }catch(e){ rawLogs=[] }
     let report=`contract ${addr} · ${evm.size} bytes`;
     if(evm.compiler)report+=` · ${evm.compiler}`;
     report+='\n';
@@ -1518,7 +1519,7 @@ async function evmChainQuery(addr,chainId){
         for(const w of callers)report+=`  ${w}\n`;
       }
     } else {
-      report+='\nno event logs found. the contract may be on a different chain.\n';
+      report+='\nno event logs available (explorer may block browser requests for this chain).\n';
     }
     out.textContent=report;
   }catch(e){ out.textContent+='query failed: '+e.message+'\n' }
