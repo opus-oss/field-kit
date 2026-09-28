@@ -249,7 +249,8 @@
   "name": "Sandfly Security",
   "url": "https://sandflysecurity.com/blog/rss.xml",
   "cat": "detection",
-  "trust": "mid"
+  "trust": "mid",
+  "drop": "\\bSandfly \\d+\\.\\d|Now Available|Splunk App|\\bpodcast\\b|\\bwebinar\\b|\\binterview\\b|\\bvideo\\b|Hacker Con|Destination Linux|Cheat Sheet|\\bVPNs?\\b|Anonymity|Why You Must|Why You Should"
  },
  {
   "id": "ioc-netskope",
