@@ -299,21 +299,6 @@ body.ops-collapsed .collapse{margin:0 auto}
         </div>
         <div class="out" id="output"></div>
         <div class="magic" id="findBox"></div>
-        <div class="evm-query" style="margin:12px 0 4px;padding:8px 10px;border:1px solid var(--border,#444);border-radius:4px;font:13px/1.5 var(--mono,monospace)">
-          <div style="margin-bottom:6px;font-weight:600">EVM contract query</div>
-          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:end">
-            <label style="flex:1;min-width:200px">Contract address<br><input id="evmAddr" type="text" placeholder="0x…" style="width:100%;padding:3px 6px;font:inherit;background:var(--bg2,#1a1a1a);color:inherit;border:1px solid var(--border,#555);border-radius:3px"></label>
-            <label style="min-width:120px">Chain<br><select id="evmChain" style="padding:3px 6px;font:inherit;background:var(--bg2,#1a1a1a);color:inherit;border:1px solid var(--border,#555);border-radius:3px">
-              <option value="eth" selected>Ethereum</option>
-              <option value="bsc">BSC</option>
-              <option value="polygon">Polygon</option>
-              <option value="arbitrum">Arbitrum</option>
-              <option value="base">Base</option>
-            </select></label>
-            <button id="evmGo" style="padding:4px 14px;font:inherit;cursor:pointer;background:var(--accent,#4a9eff);color:#fff;border:none;border-radius:3px">Query</button>
-          </div>
-          <pre id="evmOut" style="margin:8px 0 0;white-space:pre-wrap;display:none"></pre>
-        </div>
       </div>
     </div>
   </div>
@@ -1405,16 +1390,14 @@ async function evmAnalyzeFromChain(rpc,addr){
   const getter=evm.selectors.find(s=>s.name&&/^get/i.test(s.name));
   return{topic:evm.topics[0], getter:getter?getter.sel:evm.selectors[0]?.sel, selectors:evm.selectors, pattern:evm.pattern, compiler:evm.compiler, size:b.length};
 }
-async function evmChainQuery(){
-  const out=$('#evmOut');
-  const addr=($('#evmAddr').value||'').trim().toLowerCase();
-  const chainId=$('#evmChain').value;
-  const chain=EVM_CHAINS[chainId];
+async function evmChainQuery(addr,chainId){
+  const chain=EVM_CHAINS[chainId||'eth'];
   if(!chain){ toast('Unknown chain'); return }
   if(!/^0x[0-9a-f]{40}$/.test(addr)){ toast('Paste a valid contract address'); return }
   let evm=LAST&&LAST.evm;
-  out.style.display='block';
-  const btn=$('#evmGo'); btn.disabled=true; btn.textContent='Querying…';
+  const out=$('#output'); out.innerHTML=''; out.textContent='';
+  $('#findBox').innerHTML='';
+  const btn=$('#evmGo'); if(btn){btn.disabled=true; btn.textContent='Querying…'}
   try{
     if(!evm||!evm.topic){
       out.textContent='fetching bytecode from '+chainId+' …\n';
@@ -1482,7 +1465,7 @@ async function evmChainQuery(){
     }
     out.textContent=report;
   }catch(e){ out.textContent+='query failed: '+e.message+'\n' }
-  finally{ btn.disabled=false; btn.textContent='Query' }
+  finally{ if(btn){btn.disabled=false; btn.textContent='Resolve contract'} }
 }
 const B64SET=new Set([...'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=\r\n'].map(c=>c.charCodeAt(0)));
 function langScore(d){
@@ -2022,6 +2005,19 @@ function renderReport(){
 async function autoScan(){
   const o=$('#output');
   if(!inputBytes.length){ outBytes=new Uint8Array(0); paintOut(); $('#findBox').innerHTML=''; return }
+  const raw=$('#input').value.trim();
+  if(/^0x[0-9a-fA-F]{40}$/.test(raw)){
+    o.innerHTML='';
+    $('#findBox').innerHTML=`<div style="padding:8px 0;font:13px/1.6 var(--mono,monospace)">Looks like a contract address.<br>`
+      +`<span style="display:inline-flex;gap:6px;align-items:center;margin-top:4px">`
+      +`<select id="evmChain" style="padding:2px 6px;font:inherit;background:var(--bg2,#1a1a1a);color:inherit;border:1px solid var(--border,#555);border-radius:3px">`
+      +`<option value="eth" selected>Ethereum</option><option value="bsc">BSC</option><option value="polygon">Polygon</option><option value="arbitrum">Arbitrum</option><option value="base">Base</option>`
+      +`</select>`
+      +`<button id="evmGo" style="padding:3px 12px;font:inherit;cursor:pointer;background:var(--accent,#4a9eff);color:#fff;border:none;border-radius:3px">Resolve contract</button>`
+      +`</span></div>`;
+    $('#evmGo').onclick=()=>evmChainQuery(raw.toLowerCase(),$('#evmChain').value);
+    return;
+  }
   if(inputBytes.length>400000){
     o.textContent='Loaded '+inputBytes.length.toLocaleString()+' bytes. Hit Deep scan to work through it, or add steps to the recipe.';
     return;
@@ -2056,7 +2052,6 @@ $('#deep').onclick=async()=>{
   await runDeep(false);
   $('#deep').textContent='Deep scan'; $('#deep').disabled=false;
 };
-$('#evmGo').onclick=()=>evmChainQuery();
 
 /* ---------- output tools ---------- */
 $('#vText').onclick=()=>{ outView='text'; $('#vText').classList.add('on'); $('#vHex').classList.remove('on'); paintOut() };
