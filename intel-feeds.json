@@ -393,5 +393,23 @@
   "url": "https://blog.deception.pro/blog?format=rss",
   "cat": "ecrime",
   "trust": "high"
+ },
+ {
+  "id": "groupib",
+  "name": "Group-IB",
+  "url": "https://www.group-ib.com/feed/blogfeed/",
+  "cat": "ecrime",
+  "trust": "low",
+  "drop": "One Adversary|Top \\d+|\\bMSSPs?\\b|\\bSOC\\b.*service|No Room For Compromise|Browser Agent|Fraud Prevention|Building Scalable|Ciaops|webinar|podcast|\\bawards?\\b|\\bwins\\b|\\bleader\\b|partnership|announces",
+  "keep": "malware|RAT\\b|backdoor|phish|ransomware|stealer|loader|APT|campaign|intrusion|exploit|trojan|smishing|cryptomin"
+ },
+ {
+  "id": "ioc-talos",
+  "name": "Cisco Talos IOCs",
+  "url": "https://github.com/Cisco-Talos/IOCs/commits.atom",
+  "gh": "Cisco-Talos/IOCs",
+  "mode": "adds",
+  "cat": "ioc",
+  "trust": "high"
  }
 ]
