@@ -240,7 +240,7 @@ body.ops-collapsed .collapse{margin:0 auto}
 <div class="wrap">
   <div class="head">
     <h1>Chef</h1>
-    <div class="tag">Decode, decompress, deobfuscate and triage. Nothing leaves the browser, and it works offline. <span class="ver">build v86</span></div>
+    <div class="tag">Decode, decompress, deobfuscate and triage. Nothing leaves the browser, and it works offline. <span class="ver">build v87</span></div>
     <button id="save" class="savebtn" title="Save this whole tool as one HTML file you can run offline, from a USB stick, or on an air-gapped box">Download this page</button>
   </div>
 
@@ -299,6 +299,21 @@ body.ops-collapsed .collapse{margin:0 auto}
         </div>
         <div class="out" id="output"></div>
         <div class="magic" id="findBox"></div>
+        <div class="evm-query" style="margin:12px 0 4px;padding:8px 10px;border:1px solid var(--border,#444);border-radius:4px;font:13px/1.5 var(--mono,monospace)">
+          <div style="margin-bottom:6px;font-weight:600">EVM contract query</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:end">
+            <label style="flex:1;min-width:200px">Contract address<br><input id="evmAddr" type="text" placeholder="0x…" style="width:100%;padding:3px 6px;font:inherit;background:var(--bg2,#1a1a1a);color:inherit;border:1px solid var(--border,#555);border-radius:3px"></label>
+            <label style="min-width:120px">Chain<br><select id="evmChain" style="padding:3px 6px;font:inherit;background:var(--bg2,#1a1a1a);color:inherit;border:1px solid var(--border,#555);border-radius:3px">
+              <option value="eth" selected>Ethereum</option>
+              <option value="bsc">BSC</option>
+              <option value="polygon">Polygon</option>
+              <option value="arbitrum">Arbitrum</option>
+              <option value="base">Base</option>
+            </select></label>
+            <button id="evmGo" style="padding:4px 14px;font:inherit;cursor:pointer;background:var(--accent,#4a9eff);color:#fff;border:none;border-radius:3px">Query</button>
+          </div>
+          <pre id="evmOut" style="margin:8px 0 0;white-space:pre-wrap;display:none"></pre>
+        </div>
       </div>
     </div>
   </div>
@@ -1340,6 +1355,135 @@ function evmInfo(b){
   if(addresses.length===0&&selectors.length>0)flags.push('no hardcoded addresses in bytecode');
   return {selectors,addresses,topics,constants:constants.slice(0,8),compiler,solcVersion,ipfs,pattern,flags,size:b.length};
 }
+async function evmRpc(rpc, method, params){
+  const r=await fetch(rpc,{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({jsonrpc:'2.0',id:1,method,params})});
+  const j=await r.json();
+  if(j.error)throw new Error(j.error.message||JSON.stringify(j.error));
+  return j.result;
+}
+function abiDecodeString(data){
+  if(!data||data==='0x'||data.length<130)return null;
+  const h=data.startsWith('0x')?data.slice(2):data;
+  const offset=parseInt(h.slice(0,64),16)*2;
+  if(offset+64>h.length)return null;
+  const len=parseInt(h.slice(offset,offset+64),16);
+  if(offset+64+len*2>h.length)return null;
+  const bytes=[];
+  for(let i=0;i<len;i++)bytes.push(parseInt(h.slice(offset+64+i*2,offset+66+i*2),16));
+  return String.fromCharCode(...bytes);
+}
+const EVM_CHAINS={
+  eth:{rpc:'https://ethereum-rpc.publicnode.com',explorer:'https://eth.blockscout.com'},
+  bsc:{rpc:'https://bsc-rpc.publicnode.com',explorer:'https://bsc.blockscout.com'},
+  polygon:{rpc:'https://polygon-bor-rpc.publicnode.com',explorer:'https://polygon.blockscout.com'},
+  arbitrum:{rpc:'https://arbitrum-one-rpc.publicnode.com',explorer:'https://arbitrum.blockscout.com'},
+  base:{rpc:'https://base-rpc.publicnode.com',explorer:'https://base.blockscout.com'}
+};
+async function evmFetchLogs(explorer,addr){
+  const all=[];
+  let url=`${explorer}/api/v2/addresses/${addr}/logs?`;
+  for(let page=0;page<20;page++){
+    const r=await fetch(url);
+    if(!r.ok)throw new Error(`explorer returned ${r.status}`);
+    const j=await r.json();
+    if(j.items)all.push(...j.items);
+    if(!j.next_page_params)break;
+    url=`${explorer}/api/v2/addresses/${addr}/logs?`+new URLSearchParams(j.next_page_params);
+  }
+  return all;
+}
+async function evmAnalyzeFromChain(rpc,addr){
+  const codeHex=await evmRpc(rpc,'eth_getCode',[addr,'latest']);
+  if(!codeHex||codeHex==='0x')return null;
+  const hex=codeHex.startsWith('0x')?codeHex.slice(2):codeHex;
+  const b=new Uint8Array(hex.length/2);
+  for(let i=0;i<b.length;i++)b[i]=parseInt(hex.substr(i*2,2),16);
+  if(!isEVM(b))return null;
+  const evm=evmInfo(b);
+  if(!evm.topics.length)return null;
+  const getter=evm.selectors.find(s=>s.name&&/^get/i.test(s.name));
+  return{topic:evm.topics[0], getter:getter?getter.sel:evm.selectors[0]?.sel, selectors:evm.selectors, pattern:evm.pattern, compiler:evm.compiler, size:b.length};
+}
+async function evmChainQuery(){
+  const out=$('#evmOut');
+  const addr=($('#evmAddr').value||'').trim().toLowerCase();
+  const chainId=$('#evmChain').value;
+  const chain=EVM_CHAINS[chainId];
+  if(!chain){ toast('Unknown chain'); return }
+  if(!/^0x[0-9a-f]{40}$/.test(addr)){ toast('Paste a valid contract address'); return }
+  let evm=LAST&&LAST.evm;
+  out.style.display='block';
+  const btn=$('#evmGo'); btn.disabled=true; btn.textContent='Querying…';
+  try{
+    if(!evm||!evm.topic){
+      out.textContent='fetching bytecode from '+chainId+' …\n';
+      evm=await evmAnalyzeFromChain(chain.rpc,addr);
+      if(!evm){ out.textContent+='no EVM bytecode at that address, or no event topics found.\ntry a different chain.'; return }
+      out.textContent+=evm.size+' bytes, '+evm.compiler+', '+(evm.pattern||'unknown pattern')+'\n';
+    }
+    out.textContent+='querying event logs via '+chain.explorer+' …\n';
+    const rawLogs=await evmFetchLogs(chain.explorer,addr);
+    const logs=rawLogs.filter(l=>l.topics&&l.topics[0]&&l.topics[0].toLowerCase()===evm.topic.toLowerCase());
+    if(!logs.length){ out.textContent+='\nno matching events found ('+rawLogs.length+' total logs, none match topic '+evm.topic+')\nthe contract may be on a different chain.'; return }
+    const entries=[];
+    for(const log of logs){
+      const data=log.data;
+      const opAddr=log.topics.length>1&&log.topics[1]?'0x'+log.topics[1].slice(26).toLowerCase():null;
+      let str=null;
+      if(opAddr){
+        str=abiDecodeString(data);
+      } else {
+        const h=(data.startsWith('0x')?data.slice(2):data);
+        if(h.length>=128){
+          const a='0x'+h.slice(24,64).replace(/^0+/,'').padStart(40,'0');
+          const rest='0x'+h.slice(64);
+          str=abiDecodeString(rest);
+          if(str&&/^0x[0-9a-f]{40}$/.test(a)){
+            entries.push({block:log.block_number,addr:a,str,ts:log.block_timestamp,tx:log.transaction_hash});
+            continue;
+          }
+        }
+      }
+      if(str)entries.push({block:log.block_number,addr:opAddr,str,ts:log.block_timestamp,tx:log.transaction_hash});
+    }
+    entries.reverse();
+    const operators=[...new Set(entries.map(e=>e.addr).filter(Boolean))];
+    let report=`contract ${addr}`;
+    if(evm.size)report+=` · ${evm.size} bytes`;
+    if(evm.compiler)report+=` · ${evm.compiler}`;
+    report+=` · ${logs.length} event${logs.length!==1?'s':''}\n`;
+    if(evm.selectors&&evm.selectors.length){
+      report+='\nfunctions\n';
+      for(const s of evm.selectors){if(s.sel==='4e487b71')continue; report+=`  0x${s.sel}  ${s.name||'?'}\n`}
+    }
+    if(entries.length){
+      report+='\nstaged values, oldest first\n';
+      for(const e of entries){
+        const ts=e.ts?e.ts.replace('T',' ').replace(/\.\d+Z$/,'').slice(0,16):'?';
+        report+=`  ${ts}  ${e.addr||'?'}  ${e.str}\n`;
+      }
+    }
+    if(operators.length){
+      report+=`\noperator wallets · ${operators.length}\n`;
+      const getterSel=evm.getter;
+      for(const op of operators){
+        report+=`  ${op}\n`;
+        if(getterSel){
+          try{
+            const callData='0x'+getterSel+op.slice(2).padStart(64,'0');
+            const result=await evmRpc(chain.rpc,'eth_call',[{to:addr,data:callData},'latest']);
+            const cur=abiDecodeString(result);
+            if(cur)report+=`    current: ${cur}\n`;
+            else report+=`    current: (empty or unreadable)\n`;
+          }catch(e){ report+=`    current: query failed (${e.message})\n` }
+        }
+      }
+    }
+    out.textContent=report;
+  }catch(e){ out.textContent+='query failed: '+e.message+'\n' }
+  finally{ btn.disabled=false; btn.textContent='Query' }
+}
 const B64SET=new Set([...'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=\r\n'].map(c=>c.charCodeAt(0)));
 function langScore(d){
   let s=0, n=Math.min(d.length,600);
@@ -1612,6 +1756,7 @@ function describe(b){
 }
 async function deepScan(root){
   const lines=[], finds=[];
+  let evmHit=null;
   const seen=new Set();
   const key=b=>b.length+':'+hex(b.subarray(0,24));
   async function node(b,label,depth,how,recipe,root){
@@ -1671,8 +1816,10 @@ async function deepScan(root){
       if(evm.pattern&&/EtherHiding/.test(evm.pattern)){
         const getter=evm.selectors.find(s=>s.name&&/get/i.test(s.name));
         lines.push(`${pad}   the C2 string is in contract storage, not in the bytecode. Call ${getter?'selector 0x'+getter.sel+' ('+getter.name+')':'the getter'} with the operator address to retrieve it on-chain.`);
+        if(!evmHit)evmHit={topic:evm.topics[0]||null, getter:getter?getter.sel:evm.selectors[0]?.sel, selectors:evm.selectors, pattern:evm.pattern, compiler:evm.compiler};
       } else {
         lines.push(`${pad}   any stored values (strings, config) live in contract storage. Call the getters on-chain to retrieve them.`);
+        if(!evmHit&&evm.topics.length)evmHit={topic:evm.topics[0], getter:(evm.selectors.find(s=>s.name&&/get/i.test(s.name))||evm.selectors[0])?.sel, selectors:evm.selectors, pattern:evm.pattern, compiler:evm.compiler};
       }
     }
     if(printable(b,4096)<=0.85&&b.length>64){
@@ -1786,7 +1933,7 @@ async function deepScan(root){
   }
   const rootBox={tokens:null};
   await node(root,'input',0,'',[],rootBox);
-  return {report:lines.join('\n')+'\n',finds,tokens:rootBox.tokens};
+  return {report:lines.join('\n')+'\n',finds,tokens:rootBox.tokens,evm:evmHit};
 }
 
 $('#save').onclick=async()=>{
@@ -1885,9 +2032,9 @@ async function runDeep(auto){
   if(!inputBytes.length)return;
   const t0=performance.now();
   try{
-    const {report,finds,tokens}=await deepScan(inputBytes);
+    const {report,finds,tokens,evm}=await deepScan(inputBytes);
     FINDS=finds;
-    LAST={report:report+`\nscan took ${Math.round(performance.now()-t0)} ms\n`,tokens,auto:!!auto};
+    LAST={report:report+`\nscan took ${Math.round(performance.now()-t0)} ms\n`,tokens,auto:!!auto,evm};
     renderReport();
     $('#findBox').innerHTML=finds.length
       ? `<div class="eyebrow">Pulled out of it (${finds.length})</div>`+finds.map((f,i)=>
@@ -1909,6 +2056,7 @@ $('#deep').onclick=async()=>{
   await runDeep(false);
   $('#deep').textContent='Deep scan'; $('#deep').disabled=false;
 };
+$('#evmGo').onclick=()=>evmChainQuery();
 
 /* ---------- output tools ---------- */
 $('#vText').onclick=()=>{ outView='text'; $('#vText').classList.add('on'); $('#vHex').classList.remove('on'); paintOut() };
