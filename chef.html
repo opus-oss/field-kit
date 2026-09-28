@@ -240,7 +240,7 @@ body.ops-collapsed .collapse{margin:0 auto}
 <div class="wrap">
   <div class="head">
     <h1>Chef</h1>
-    <div class="tag">Decode, decompress, deobfuscate and triage. Nothing leaves the browser, and it works offline. <span class="ver">build v87</span></div>
+    <div class="tag">Decode, decompress, deobfuscate and triage. Nothing leaves the browser, and it works offline. <span class="ver">build v88</span></div>
     <button id="save" class="savebtn" title="Save this whole tool as one HTML file you can run offline, from a USB stick, or on an air-gapped box">Download this page</button>
   </div>
 
@@ -1268,7 +1268,9 @@ const EVM_SIGS={
   '2e1a7d4d':'withdraw(uint256)','e8a3d485':'setDomain(string)',
   '7d434425':'get(address)','d1a47551':'set(string)','ffb952d9':'getString()',
   '7fcaf666':'getByAddr(address)','6057361d':'store(uint256)','2e64cec1':'retrieve()',
-  '60fe47b1':'set(uint256)','6d4ce63c':'get()'
+  '60fe47b1':'set(uint256)','6d4ce63c':'get()',
+  'e096a091':'getDomain()','31797239':'getBannerEnabled()','cae72633':'setBannerEnabled(bool)',
+  'e30c3978':'pendingOwner()','79ba5097':'acceptOwnership()'
 };
 function evmInfo(b){
   if(!isEVM(b))return null;
@@ -1381,87 +1383,142 @@ async function evmFetchLogs(explorer,addr){
 async function evmAnalyzeFromChain(rpc,addr){
   const codeHex=await evmRpc(rpc,'eth_getCode',[addr,'latest']);
   if(!codeHex||codeHex==='0x')return null;
-  const hex=codeHex.startsWith('0x')?codeHex.slice(2):codeHex;
-  const b=new Uint8Array(hex.length/2);
-  for(let i=0;i<b.length;i++)b[i]=parseInt(hex.substr(i*2,2),16);
+  const h2=codeHex.startsWith('0x')?codeHex.slice(2):codeHex;
+  const b=new Uint8Array(h2.length/2);
+  for(let i=0;i<b.length;i++)b[i]=parseInt(h2.substr(i*2,2),16);
   if(!isEVM(b))return null;
-  const evm=evmInfo(b);
-  if(!evm.topics.length)return null;
-  const getter=evm.selectors.find(s=>s.name&&/^get/i.test(s.name));
-  return{topic:evm.topics[0], getter:getter?getter.sel:evm.selectors[0]?.sel, selectors:evm.selectors, pattern:evm.pattern, compiler:evm.compiler, size:b.length};
+  return evmInfo(b);
+}
+function abiDecodeValue(data){
+  if(!data||data==='0x')return null;
+  const h=data.startsWith('0x')?data.slice(2):data;
+  if(!h.length||h.length%64!==0)return {type:'raw',val:'0x'+h};
+  const s=abiDecodeString(data);
+  if(s&&s.length>0&&/[\x20-\x7e]/.test(s))return {type:'string',val:s};
+  if(h.length===64){
+    const n=BigInt('0x'+h);
+    if(n<=1n)return {type:'uint',val:n.toString()};
+    const trimmed=h.replace(/^0+/,'');
+    if(trimmed.length>=8&&trimmed.length<=40){
+      const addr='0x'+h.slice(24);
+      if(/^0x[0-9a-f]{40}$/.test(addr)&&!/^0x0{40}$/.test(addr))return {type:'address',val:addr};
+    }
+    return {type:'uint',val:n.toString()};
+  }
+  const words=[];
+  for(let i=0;i<h.length;i+=64)words.push(h.slice(i,i+64));
+  const strings=[];
+  for(let i=0;i<words.length;i++){
+    const ptr=parseInt(words[i],16);
+    if(ptr>=32&&ptr%32===0){
+      const byteOff=ptr*2;
+      if(byteOff+64<=h.length){
+        const len=parseInt(h.slice(byteOff,byteOff+64),16);
+        if(len>0&&len<10000&&byteOff+64+len*2<=h.length){
+          const bytes=[];
+          for(let j=0;j<len;j++)bytes.push(parseInt(h.slice(byteOff+64+j*2,byteOff+66+j*2),16));
+          const candidate=String.fromCharCode(...bytes);
+          if(candidate.length>0&&/[\x20-\x7e]/.test(candidate))strings.push(candidate);
+        }
+      }
+    }
+  }
+  if(strings.length)return {type:'string',val:strings.join(' | ')};
+  const parts=[];
+  for(const w of words){
+    const n=BigInt('0x'+w);
+    if(n===0n)continue;
+    if(n<=1n){parts.push(n.toString());continue}
+    const t=w.replace(/^0+/,'');
+    if(t.length>=8&&t.length<=40){
+      const a='0x'+w.slice(24);
+      if(/^0x[0-9a-f]{40}$/.test(a)&&!/^0x0{40}$/.test(a)){parts.push(a);continue}
+    }
+    parts.push(n<=Number.MAX_SAFE_INTEGER?n.toString():'0x'+t);
+  }
+  if(!parts.length)return {type:'uint',val:'0'};
+  return {type:'words',val:parts.join(', ')};
 }
 async function evmChainQuery(addr,chainId){
   const chain=EVM_CHAINS[chainId||'eth'];
   if(!chain){ toast('Unknown chain'); return }
   if(!/^0x[0-9a-f]{40}$/.test(addr)){ toast('Paste a valid contract address'); return }
-  let evm=LAST&&LAST.evm;
   const out=$('#output'); out.innerHTML=''; out.textContent='';
   $('#findBox').innerHTML='';
   const btn=$('#evmGo'); if(btn){btn.disabled=true; btn.textContent='Querying…'}
   try{
-    if(!evm||!evm.topic){
-      out.textContent='fetching bytecode from '+chainId+' …\n';
-      evm=await evmAnalyzeFromChain(chain.rpc,addr);
-      if(!evm){ out.textContent+='no EVM bytecode at that address, or no event topics found.\ntry a different chain.'; return }
-      out.textContent+=evm.size+' bytes, '+evm.compiler+', '+(evm.pattern||'unknown pattern')+'\n';
+    out.textContent='fetching bytecode from '+chainId+' …\n';
+    const evm=await evmAnalyzeFromChain(chain.rpc,addr);
+    if(!evm){ out.textContent+='no EVM bytecode at that address.\ntry a different chain.'; return }
+    out.textContent+=evm.size+' bytes'+(evm.compiler?' · '+evm.compiler:'')+(evm.pattern?' · '+evm.pattern:'')+'\n';
+    const sels=evm.selectors.filter(s=>s.sel!=='4e487b71');
+    const noArgSels=sels.filter(s=>!s.name||/\(\)$/.test(s.name));
+    out.textContent+='reading storage …\n';
+    const reads=[];
+    for(const s of noArgSels){
+      try{
+        const result=await evmRpc(chain.rpc,'eth_call',[{to:addr,data:'0x'+s.sel},'latest']);
+        if(result&&result!=='0x'){
+          const decoded=abiDecodeValue(result);
+          if(decoded&&decoded.val!=='0'&&decoded.type!=='raw')reads.push({sel:s.sel,name:s.name,decoded});
+        }
+      }catch(e){}
     }
-    out.textContent+='querying event logs via '+chain.explorer+' …\n';
+    out.textContent+='querying event logs …\n';
     const rawLogs=await evmFetchLogs(chain.explorer,addr);
-    const logs=rawLogs.filter(l=>l.topics&&l.topics[0]&&l.topics[0].toLowerCase()===evm.topic.toLowerCase());
-    if(!logs.length){ out.textContent+='\nno matching events found ('+rawLogs.length+' total logs, none match topic '+evm.topic+')\nthe contract may be on a different chain.'; return }
-    const entries=[];
-    for(const log of logs){
-      const data=log.data;
-      const opAddr=log.topics.length>1&&log.topics[1]?'0x'+log.topics[1].slice(26).toLowerCase():null;
-      let str=null;
-      if(opAddr){
-        str=abiDecodeString(data);
-      } else {
-        const h=(data.startsWith('0x')?data.slice(2):data);
-        if(h.length>=128){
-          const a='0x'+h.slice(24,64).replace(/^0+/,'').padStart(40,'0');
-          const rest='0x'+h.slice(64);
-          str=abiDecodeString(rest);
-          if(str&&/^0x[0-9a-f]{40}$/.test(a)){
-            entries.push({block:log.block_number,addr:a,str,ts:log.block_timestamp,tx:log.transaction_hash});
-            continue;
+    let report=`contract ${addr} · ${evm.size} bytes`;
+    if(evm.compiler)report+=` · ${evm.compiler}`;
+    report+='\n';
+    if(sels.length){
+      report+='\nfunctions\n';
+      for(const s of sels)report+=`  0x${s.sel}  ${s.name||'?'}\n`;
+    }
+    if(reads.length){
+      report+='\ncurrent state\n';
+      for(const r of reads)report+=`  ${r.name||'0x'+r.sel}  ${r.decoded.val}\n`;
+    }
+    if(evm.addresses.length){
+      report+='\nhardcoded addresses\n';
+      for(const a of evm.addresses)report+=`  ${a}\n`;
+    }
+    if(rawLogs.length){
+      const events=rawLogs.slice().reverse();
+      report+=`\nevent history · ${events.length} event${events.length!==1?'s':''}, oldest first\n`;
+      const callers=new Set();
+      for(const log of events){
+        const ts=log.block_timestamp?log.block_timestamp.replace('T',' ').replace(/\.\d+Z$/,'').slice(0,16):'?';
+        const topicAddrs=[];
+        if(log.topics){
+          for(let ti=1;ti<log.topics.length;ti++){
+            const t=log.topics[ti];
+            if(t&&t.length===66){
+              const a='0x'+t.slice(26).toLowerCase();
+              if(!/^0x0{40}$/.test(a)){topicAddrs.push(a);callers.add(a)}
+            }
           }
         }
-      }
-      if(str)entries.push({block:log.block_number,addr:opAddr,str,ts:log.block_timestamp,tx:log.transaction_hash});
-    }
-    entries.reverse();
-    const operators=[...new Set(entries.map(e=>e.addr).filter(Boolean))];
-    let report=`contract ${addr}`;
-    if(evm.size)report+=` · ${evm.size} bytes`;
-    if(evm.compiler)report+=` · ${evm.compiler}`;
-    report+=` · ${logs.length} event${logs.length!==1?'s':''}\n`;
-    if(evm.selectors&&evm.selectors.length){
-      report+='\nfunctions\n';
-      for(const s of evm.selectors){if(s.sel==='4e487b71')continue; report+=`  0x${s.sel}  ${s.name||'?'}\n`}
-    }
-    if(entries.length){
-      report+='\nstaged values, oldest first\n';
-      for(const e of entries){
-        const ts=e.ts?e.ts.replace('T',' ').replace(/\.\d+Z$/,'').slice(0,16):'?';
-        report+=`  ${ts}  ${e.addr||'?'}  ${e.str}\n`;
-      }
-    }
-    if(operators.length){
-      report+=`\noperator wallets · ${operators.length}\n`;
-      const getterSel=evm.getter;
-      for(const op of operators){
-        report+=`  ${op}\n`;
-        if(getterSel){
-          try{
-            const callData='0x'+getterSel+op.slice(2).padStart(64,'0');
-            const result=await evmRpc(chain.rpc,'eth_call',[{to:addr,data:callData},'latest']);
-            const cur=abiDecodeString(result);
-            if(cur)report+=`    current: ${cur}\n`;
-            else report+=`    current: (empty or unreadable)\n`;
-          }catch(e){ report+=`    current: query failed (${e.message})\n` }
+        const data=log.data;
+        let decoded='';
+        if(data&&data!=='0x'){
+          const str=abiDecodeString(data);
+          if(str&&str.length>0&&/[\x20-\x7e]/.test(str)){
+            decoded=str;
+          } else {
+            const v=abiDecodeValue(data);
+            if(v&&v.val!=='0')decoded=v.val;
+          }
         }
+        const parts=[ts];
+        if(topicAddrs.length)parts.push(topicAddrs.join(' -> '));
+        if(decoded)parts.push(decoded);
+        report+=`  ${parts.join('  ')}\n`;
       }
+      if(callers.size){
+        report+=`\ninteracting wallets · ${callers.size}\n`;
+        for(const w of callers)report+=`  ${w}\n`;
+      }
+    } else {
+      report+='\nno event logs found. the contract may be on a different chain.\n';
     }
     out.textContent=report;
   }catch(e){ out.textContent+='query failed: '+e.message+'\n' }
