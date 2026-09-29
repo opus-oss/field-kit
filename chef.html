@@ -1637,15 +1637,28 @@ async function tryShellAesCtr(t){
 }
 const ETH_MAINNET_RPCS=['https://eth.llamarpc.com','https://ethereum-rpc.publicnode.com','https://eth.drpc.org','https://eth-mainnet.public.blastapi.io','https://rpc.eth.gateway.fm'];
 const ETH_SEPOLIA_RPCS=['https://ethereum-sepolia-rpc.publicnode.com','https://sepolia.drpc.org','https://rpc.sepolia.org','https://rpc2.sepolia.org'];
-function extractEtherHidingConfig(t){
-  const cm=t.match(/contract_address\s*[=:"']+\s*["']?(0x[0-9a-fA-F]{40})/i);
-  if(!cm)return null;
-  const sm=t.match(/(?:get_data_)?selector\s*[=:"']+\s*["']?([0-9a-fA-F]{8})\b/i);
-  if(!sm)return null;
+function extractEthContracts(t){
+  const out=[],seen=new Set();
   const rm=t.match(/rpc_endpoints?\s*[=:"']+\s*["']?([^"'\n]+)/i);
   const rpcs=rm?rm[1].split(',').map(s=>s.trim()).filter(s=>/^https?:\/\//.test(s)):[];
-  const km=t.match(/(?:blockchain_key|token)\s*[=:"']+\s*["']?([0-9a-fA-F]{64})\b/i);
-  return{contract:cm[1],rpcs,selector:sm[1],key:km?km[1]:null};
+  const km=t.match(/(?:blockchain_key|token)\s*[=:"']+\s*["']?([0-9a-fA-F]{64})(?![0-9a-fA-F])/i);
+  const key=km?km[1]:null;
+  for(const am of t.matchAll(/0x[0-9a-fA-F]{40}(?![0-9a-fA-F])/g)){
+    const addr=am[0];
+    if(seen.has(addr.toLowerCase()))continue; seen.add(addr.toLowerCase());
+    const lo=Math.max(0,am.index-1500),hi=Math.min(t.length,am.index+1500);
+    const ctx=t.slice(lo,hi);
+    let sel=null;
+    const lab=ctx.match(/selector[^0-9a-fA-F]{0,20}(?:0x)?([0-9a-fA-F]{8})(?![0-9a-fA-F])/i);
+    if(lab){sel=lab[1]}
+    if(!sel){const par=ctx.match(/\([^)]{0,40},\s*0x([0-9a-fA-F]{8})(?![0-9a-fA-F])\s*\)/);if(par)sel=par[1]}
+    if(!sel){for(const sm of ctx.matchAll(/(?<![0-9a-fA-F])0x([0-9a-fA-F]{8})(?![0-9a-fA-F])/g)){
+      if(sm[0]===addr.slice(0,10))continue; sel=sm[1]; break;
+    }}
+    if(!sel)continue;
+    out.push({contract:addr,rpcs,selector:sel,key});
+  }
+  return out;
 }
 async function ethCallTry(rpcs,contract,selector){
   const body=JSON.stringify({jsonrpc:'2.0',method:'eth_call',params:[{to:contract,data:'0x'+selector},'latest'],id:1});
@@ -1658,10 +1671,8 @@ async function ethCallTry(rpcs,contract,selector){
   }
   return null;
 }
-async function tryEtherHiding(t){
-  const cfg=extractEtherHidingConfig(t);
-  if(!cfg)return null;
-  let hit=null; let network='';
+async function resolveEthContract(cfg){
+  let hit=null,network='';
   if(cfg.rpcs.length) hit=await ethCallTry(cfg.rpcs,cfg.contract,cfg.selector);
   if(hit){network='payload RPCs'}
   else{
@@ -2085,16 +2096,16 @@ async function deepScan(root){
       const preview=printable(aesCtr.bytes,200)>0.9?JSON.stringify(S(aesCtr.bytes.subarray(0,60))):'';
       await node(aesCtr.bytes,`[${finds.length+1}] AES-128-CTR payload (${aesCtr.bytes.length.toLocaleString()} bytes)${preview?' → '+preview:''}`,depth+1,aesCtr.how,aesCtr.recipe);
     }
-    const ethHide=extractEtherHidingConfig(t)?await tryEtherHiding(t):null;
-    if(ethHide){
-      const c=ethHide.cfg;
-      lines.push(`${pad}   EtherHiding: contract ${c.contract} selector 0x${c.selector}${c.network?' ['+c.network+']':''}`);
-      if(ethHide.resolved){
+    const ethContracts=extractEthContracts(t);
+    for(const ec of ethContracts){
+      const res=await resolveEthContract(ec);
+      lines.push(`${pad}   EtherHiding: contract ${ec.contract} selector 0x${ec.selector}${ec.network?' ['+ec.network+']':''}`);
+      if(res.resolved){
         kids++;
-        const preview=printable(ethHide.resolved,200)>0.9?JSON.stringify(S(ethHide.resolved.subarray(0,80))):'hex '+hex(ethHide.resolved.subarray(0,32));
-        await node(ethHide.resolved,`[${finds.length+1}] EtherHiding on-chain payload → ${preview}`,depth+1,ethHide.how,[]);
-      } else if(ethHide.raw){
-        lines.push(`${pad}   on-chain ciphertext (${ethHide.raw.length} bytes, decryption key not recovered): ${hex(ethHide.raw.subarray(0,32))}…`);
+        const preview=printable(res.resolved,200)>0.9?JSON.stringify(S(res.resolved.subarray(0,80))):'hex '+hex(res.resolved.subarray(0,32));
+        await node(res.resolved,`[${finds.length+1}] EtherHiding on-chain payload → ${preview}`,depth+1,res.how,[]);
+      } else if(res.raw){
+        lines.push(`${pad}   on-chain ciphertext (${res.raw.length} bytes, decryption key not recovered): ${hex(res.raw.subarray(0,32))}…`);
       } else {
         lines.push(`${pad}   RPC call failed or returned empty (contract may be dead)`);
       }
