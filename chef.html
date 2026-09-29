@@ -240,7 +240,7 @@ body.ops-collapsed .collapse{margin:0 auto}
 <div class="wrap">
   <div class="head">
     <h1>Chef</h1>
-    <div class="tag">Decode, decompress, deobfuscate and triage. Nothing leaves the browser, and it works offline. <span class="ver">build v92</span></div>
+    <div class="tag">Decode, decompress, deobfuscate and triage. Nothing leaves the browser, and it works offline. <span class="ver">build v93</span></div>
     <button id="save" class="savebtn" title="Save this whole tool as one HTML file you can run offline, from a USB stick, or on an air-gapped box">Download this page</button>
   </div>
 
@@ -1664,7 +1664,10 @@ async function ethCallTry(rpcs,contract,selector){
   const body=JSON.stringify({jsonrpc:'2.0',method:'eth_call',params:[{to:contract,data:'0x'+selector},'latest'],id:1});
   for(const rpc of rpcs){
     try{
-      const r=await fetch(rpc,{method:'POST',headers:{'Content-Type':'application/json'},body});
+      const ac=new AbortController();
+      const tm=setTimeout(()=>ac.abort(),6000);
+      const r=await fetch(rpc,{method:'POST',headers:{'Content-Type':'text/plain'},body,signal:ac.signal});
+      clearTimeout(tm);
       const j=await r.json();
       if(j.result&&j.result!=='0x'&&j.result.length>66)return{hex:j.result,rpc};
     }catch(e){continue}
