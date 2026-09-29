@@ -240,7 +240,7 @@ body.ops-collapsed .collapse{margin:0 auto}
 <div class="wrap">
   <div class="head">
     <h1>Chef</h1>
-    <div class="tag">Decode, decompress, deobfuscate and triage. Nothing leaves the browser, and it works offline. <span class="ver">build v93</span></div>
+    <div class="tag">Decode, decompress, deobfuscate and triage. Nothing leaves the browser, and it works offline. <span class="ver">build v94</span></div>
     <button id="save" class="savebtn" title="Save this whole tool as one HTML file you can run offline, from a USB stick, or on an air-gapped box">Download this page</button>
   </div>
 
@@ -1399,7 +1399,8 @@ const EVM_CHAINS={
   bsc:{rpc:'https://bsc-rpc.publicnode.com',explorer:'https://bsc.blockscout.com'},
   polygon:{rpc:'https://polygon-bor-rpc.publicnode.com',explorer:'https://polygon.blockscout.com'},
   arbitrum:{rpc:'https://arbitrum-one-rpc.publicnode.com',explorer:'https://arbitrum.blockscout.com'},
-  base:{rpc:'https://base-rpc.publicnode.com',explorer:'https://base.blockscout.com'}
+  base:{rpc:'https://base-rpc.publicnode.com',explorer:'https://base.blockscout.com'},
+  sepolia:{rpc:'https://ethereum-sepolia-rpc.publicnode.com',explorer:'https://eth-sepolia.blockscout.com'}
 };
 async function evmFetchLogs(explorer,addr){
   const all=[];
@@ -2280,7 +2281,7 @@ async function autoScan(){
     $('#findBox').innerHTML=`<div style="padding:8px 0;font:13px/1.6 var(--mono,monospace)">Looks like a contract address.<br>`
       +`<span style="display:inline-flex;gap:6px;align-items:center;margin-top:4px">`
       +`<select id="evmChain" style="padding:2px 6px;font:inherit;background:var(--bg2,#1a1a1a);color:inherit;border:1px solid var(--border,#555);border-radius:3px">`
-      +`<option value="eth" selected>Ethereum</option><option value="bsc">BSC</option><option value="polygon">Polygon</option><option value="arbitrum">Arbitrum</option><option value="base">Base</option>`
+      +`<option value="eth" selected>Ethereum</option><option value="bsc">BSC</option><option value="polygon">Polygon</option><option value="arbitrum">Arbitrum</option><option value="base">Base</option><option value="sepolia">Sepolia</option>`
       +`</select>`
       +`<button id="evmGo" style="padding:3px 12px;font:inherit;cursor:pointer;background:var(--accent,#4a9eff);color:#fff;border:none;border-radius:3px">Resolve contract</button>`
       +`</span></div>`;
