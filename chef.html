@@ -240,7 +240,7 @@ body.ops-collapsed .collapse{margin:0 auto}
 <div class="wrap">
   <div class="head">
     <h1>Chef</h1>
-    <div class="tag">Decode, decompress, deobfuscate and triage. Nothing leaves the browser, and it works offline. <span class="ver">build v94</span></div>
+    <div class="tag">Decode, decompress, deobfuscate and triage. Nothing leaves the browser, and it works offline. <span class="ver">build v95</span></div>
     <button id="save" class="savebtn" title="Save this whole tool as one HTML file you can run offline, from a USB stick, or on an air-gapped box">Download this page</button>
   </div>
 
@@ -1647,15 +1647,19 @@ function extractEthContracts(t){
   for(const am of t.matchAll(/0x[0-9a-fA-F]{40}(?![0-9a-fA-F])/g)){
     const addr=am[0];
     if(seen.has(addr.toLowerCase()))continue; seen.add(addr.toLowerCase());
-    const lo=Math.max(0,am.index-1500),hi=Math.min(t.length,am.index+1500);
-    const ctx=t.slice(lo,hi);
+    const after=t.slice(am.index,Math.min(t.length,am.index+500));
+    const before=t.slice(Math.max(0,am.index-500),am.index);
     let sel=null;
-    const lab=ctx.match(/selector[^0-9a-fA-F]{0,20}(?:0x)?([0-9a-fA-F]{8})(?![0-9a-fA-F])/i);
-    if(lab){sel=lab[1]}
-    if(!sel){const par=ctx.match(/\([^)]{0,40},\s*0x([0-9a-fA-F]{8})(?![0-9a-fA-F])\s*\)/);if(par)sel=par[1]}
-    if(!sel){for(const sm of ctx.matchAll(/(?<![0-9a-fA-F])0x([0-9a-fA-F]{8})(?![0-9a-fA-F])/g)){
-      if(sm[0]===addr.slice(0,10))continue; sel=sm[1]; break;
-    }}
+    for(const zone of [after,before]){
+      if(sel)break;
+      const lab=zone.match(/selector[^0-9a-fA-F]{0,20}(?:0x)?([0-9a-fA-F]{8})(?![0-9a-fA-F])/i);
+      if(lab){sel=lab[1];break}
+      const par=zone.match(/\([^)]{0,40},\s*0x([0-9a-fA-F]{8})(?![0-9a-fA-F])\s*\)/);
+      if(par){sel=par[1];break}
+      for(const sm of zone.matchAll(/(?<![0-9a-fA-F])0x([0-9a-fA-F]{8})(?![0-9a-fA-F])/g)){
+        if(sm[0]===addr.slice(0,10))continue; sel=sm[1]; break;
+      }
+    }
     if(!sel)continue;
     out.push({contract:addr,rpcs,selector:sel,key});
   }
@@ -1692,7 +1696,7 @@ async function resolveEthContract(cfg){
   const stripped=hit.hex.replace(/^0x/,'');
   if(stripped.length<128)return{cfg,resolved:null};
   const dataLen=parseInt(stripped.slice(64,128),16);
-  if(!dataLen||dataLen>10000)return{cfg,resolved:null};
+  if(!dataLen||dataLen>200000)return{cfg,resolved:null};
   const cipherBytes=hexBytes(stripped.slice(128,128+dataLen*2));
   if(!cfg.key)return{cfg,resolved:null,raw:cipherBytes};
   const keyInput=new TextEncoder().encode(cfg.key);
