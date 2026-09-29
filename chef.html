@@ -240,7 +240,7 @@ body.ops-collapsed .collapse{margin:0 auto}
 <div class="wrap">
   <div class="head">
     <h1>Chef</h1>
-    <div class="tag">Decode, decompress, deobfuscate and triage. Nothing leaves the browser, and it works offline. <span class="ver">build v91</span></div>
+    <div class="tag">Decode, decompress, deobfuscate and triage. Nothing leaves the browser, and it works offline. <span class="ver">build v92</span></div>
     <button id="save" class="savebtn" title="Save this whole tool as one HTML file you can run offline, from a USB stick, or on an air-gapped box">Download this page</button>
   </div>
 
@@ -390,6 +390,36 @@ function rc4(b,key){
   const o=new Uint8Array(b.length);
   for(let k=0,i=0,j=0;k<b.length;k++){ i=(i+1)&255; j=(j+s[i])&255; const t=s[i]; s[i]=s[j]; s[j]=t; o[k]=b[k]^s[(s[i]+s[j])&255] }
   return o;
+}
+function chacha20(data,key32,nonce12){
+  function qr(s,a,b,c,d){
+    s[a]=(s[a]+s[b])|0; s[d]^=s[a]; s[d]=(s[d]<<16)|(s[d]>>>16);
+    s[c]=(s[c]+s[d])|0; s[b]^=s[c]; s[b]=(s[b]<<12)|(s[b]>>>20);
+    s[a]=(s[a]+s[b])|0; s[d]^=s[a]; s[d]=(s[d]<<8)|(s[d]>>>24);
+    s[c]=(s[c]+s[d])|0; s[b]^=s[c]; s[b]=(s[b]<<7)|(s[b]>>>25);
+  }
+  function block(ctr){
+    const s=new Int32Array([0x61707865,0x3320646e,0x79622d32,0x6b206574,0,0,0,0,0,0,0,0,ctr,0,0,0]);
+    const kv=new DataView(key32.buffer,key32.byteOffset,32);
+    for(let i=0;i<8;i++)s[4+i]=kv.getInt32(i*4,true);
+    const nv=new DataView(nonce12.buffer,nonce12.byteOffset,12);
+    for(let i=0;i<3;i++)s[13+i]=nv.getInt32(i*4,true);
+    const w=new Int32Array(s);
+    for(let r=0;r<10;r++){
+      qr(w,0,4,8,12);qr(w,1,5,9,13);qr(w,2,6,10,14);qr(w,3,7,11,15);
+      qr(w,0,5,10,15);qr(w,1,6,11,12);qr(w,2,7,8,13);qr(w,3,4,9,14);
+    }
+    const out=new Uint8Array(64),dv=new DataView(out.buffer);
+    for(let i=0;i<16;i++)dv.setInt32(i*4,(w[i]+s[i])|0,true);
+    return out;
+  }
+  const out=new Uint8Array(data.length);
+  for(let off=0;off<data.length;off+=64){
+    const ks=block(off>>>6);
+    const end=Math.min(64,data.length-off);
+    for(let j=0;j<end;j++)out[off+j]=data[off+j]^ks[j];
+  }
+  return out;
 }
 function keyBytes(v,fmt){ return fmt==='Hex'?hexBytes(v):fmt==='Base64'?b64bytes(v):B(v) }
 /* MD5, because SubtleCrypto refuses to carry it */
@@ -1605,9 +1635,52 @@ async function tryShellAesCtr(t){
   }catch(e){}
   return null;
 }
+function extractEtherHidingConfig(t){
+  const cm=t.match(/contract_address\s*[=:"']+\s*["']?(0x[0-9a-fA-F]{40})/i);
+  if(!cm)return null;
+  const rm=t.match(/rpc_endpoints?\s*[=:"']+\s*["']?([^"'\n]+)/i);
+  const rpcs=rm?rm[1].split(',').map(s=>s.trim()).filter(s=>/^https?:\/\//.test(s)):[];
+  if(!rpcs.length)return null;
+  const sm=t.match(/(?:get_data_)?selector\s*[=:"']+\s*["']?([0-9a-fA-F]{8})\b/i);
+  if(!sm)return null;
+  const km=t.match(/(?:blockchain_key|token)\s*[=:"']+\s*["']?([0-9a-fA-F]{64})\b/i);
+  return{contract:cm[1],rpcs,selector:sm[1],key:km?km[1]:null};
+}
+async function tryEtherHiding(t){
+  const cfg=extractEtherHidingConfig(t);
+  if(!cfg)return null;
+  const callData='0x'+cfg.selector;
+  let rawHex=null;
+  for(const rpc of cfg.rpcs){
+    try{
+      const r=await fetch(rpc,{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({jsonrpc:'2.0',method:'eth_call',params:[{to:cfg.contract,data:callData},'latest'],id:1})});
+      const j=await r.json();
+      if(j.result&&j.result!=='0x'&&j.result.length>66){rawHex=j.result;break}
+    }catch(e){continue}
+  }
+  if(!rawHex)return{cfg,resolved:null};
+  const stripped=rawHex.replace(/^0x/,'');
+  if(stripped.length<128)return{cfg,resolved:null};
+  const dataLen=parseInt(stripped.slice(64,128),16);
+  if(!dataLen||dataLen>10000)return{cfg,resolved:null};
+  const cipherBytes=hexBytes(stripped.slice(128,128+dataLen*2));
+  if(!cfg.key)return{cfg,resolved:null,raw:cipherBytes};
+  const keyInput=new TextEncoder().encode(cfg.key);
+  const keyHex=await sha(keyInput,'SHA-256');
+  const keyArr=hexBytes(keyHex);
+  const nonceHex=cfg.contract.replace(/^0x/,'').slice(0,24);
+  const nonceArr=hexBytes(nonceHex);
+  const plain=chacha20(cipherBytes,keyArr,nonceArr);
+  if(printable(plain,256)>0.5||plain.length<32)
+    return{cfg,resolved:plain,how:`eth_call(0x${cfg.selector}) on ${cfg.contract} → ABI decode → ChaCha20 decrypt (key=SHA256(token), nonce=contract[:12])`};
+  const keyArr2=hexBytes(cfg.key);
+  const plain2=chacha20(cipherBytes,keyArr2,nonceArr);
+  if(printable(plain2,256)>0.5)
+    return{cfg,resolved:plain2,how:`eth_call(0x${cfg.selector}) on ${cfg.contract} → ABI decode → ChaCha20 decrypt (key=token bytes, nonce=contract[:12])`};
+  return{cfg,resolved:null,raw:cipherBytes};
+}
 function statedKeys(ctx){
-  // Scripts that XOR their payload usually hand you the key: a literal after -bxor, or a
-  // variable assigned a number earlier. Resolve both, so we never have to search the key space.
   if(!ctx)return [];
   const keys=new Set();
   for(const m of ctx.matchAll(/-bxor\s*(0x[0-9a-f]+|\d{1,3})/gi)){
@@ -1997,6 +2070,20 @@ async function deepScan(root){
       kids++;
       const preview=printable(aesCtr.bytes,200)>0.9?JSON.stringify(S(aesCtr.bytes.subarray(0,60))):'';
       await node(aesCtr.bytes,`[${finds.length+1}] AES-128-CTR payload (${aesCtr.bytes.length.toLocaleString()} bytes)${preview?' → '+preview:''}`,depth+1,aesCtr.how,aesCtr.recipe);
+    }
+    const ethHide=extractEtherHidingConfig(t)?await tryEtherHiding(t):null;
+    if(ethHide){
+      const c=ethHide.cfg;
+      lines.push(`${pad}   EtherHiding: contract ${c.contract} selector 0x${c.selector}`);
+      if(ethHide.resolved){
+        kids++;
+        const preview=printable(ethHide.resolved,200)>0.9?JSON.stringify(S(ethHide.resolved.subarray(0,80))):'hex '+hex(ethHide.resolved.subarray(0,32));
+        await node(ethHide.resolved,`[${finds.length+1}] EtherHiding on-chain payload → ${preview}`,depth+1,ethHide.how,[]);
+      } else if(ethHide.raw){
+        lines.push(`${pad}   on-chain ciphertext (${ethHide.raw.length} bytes, decryption key not recovered): ${hex(ethHide.raw.subarray(0,32))}…`);
+      } else {
+        lines.push(`${pad}   RPC call failed or returned empty (contract may be dead)`);
+      }
     }
     for(const c of cands){
       if(aesCtr&&c.kind==='hex')continue;
