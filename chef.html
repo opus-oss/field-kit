@@ -1635,32 +1635,46 @@ async function tryShellAesCtr(t){
   }catch(e){}
   return null;
 }
+const ETH_MAINNET_RPCS=['https://eth.llamarpc.com','https://ethereum-rpc.publicnode.com','https://eth.drpc.org','https://eth-mainnet.public.blastapi.io','https://rpc.eth.gateway.fm'];
+const ETH_SEPOLIA_RPCS=['https://ethereum-sepolia-rpc.publicnode.com','https://sepolia.drpc.org','https://rpc.sepolia.org','https://rpc2.sepolia.org'];
 function extractEtherHidingConfig(t){
   const cm=t.match(/contract_address\s*[=:"']+\s*["']?(0x[0-9a-fA-F]{40})/i);
   if(!cm)return null;
-  const rm=t.match(/rpc_endpoints?\s*[=:"']+\s*["']?([^"'\n]+)/i);
-  const rpcs=rm?rm[1].split(',').map(s=>s.trim()).filter(s=>/^https?:\/\//.test(s)):[];
-  if(!rpcs.length)return null;
   const sm=t.match(/(?:get_data_)?selector\s*[=:"']+\s*["']?([0-9a-fA-F]{8})\b/i);
   if(!sm)return null;
+  const rm=t.match(/rpc_endpoints?\s*[=:"']+\s*["']?([^"'\n]+)/i);
+  const rpcs=rm?rm[1].split(',').map(s=>s.trim()).filter(s=>/^https?:\/\//.test(s)):[];
   const km=t.match(/(?:blockchain_key|token)\s*[=:"']+\s*["']?([0-9a-fA-F]{64})\b/i);
   return{contract:cm[1],rpcs,selector:sm[1],key:km?km[1]:null};
+}
+async function ethCallTry(rpcs,contract,selector){
+  const body=JSON.stringify({jsonrpc:'2.0',method:'eth_call',params:[{to:contract,data:'0x'+selector},'latest'],id:1});
+  for(const rpc of rpcs){
+    try{
+      const r=await fetch(rpc,{method:'POST',headers:{'Content-Type':'application/json'},body});
+      const j=await r.json();
+      if(j.result&&j.result!=='0x'&&j.result.length>66)return{hex:j.result,rpc};
+    }catch(e){continue}
+  }
+  return null;
 }
 async function tryEtherHiding(t){
   const cfg=extractEtherHidingConfig(t);
   if(!cfg)return null;
-  const callData='0x'+cfg.selector;
-  let rawHex=null;
-  for(const rpc of cfg.rpcs){
-    try{
-      const r=await fetch(rpc,{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({jsonrpc:'2.0',method:'eth_call',params:[{to:cfg.contract,data:callData},'latest'],id:1})});
-      const j=await r.json();
-      if(j.result&&j.result!=='0x'&&j.result.length>66){rawHex=j.result;break}
-    }catch(e){continue}
+  let hit=null; let network='';
+  if(cfg.rpcs.length) hit=await ethCallTry(cfg.rpcs,cfg.contract,cfg.selector);
+  if(hit){network='payload RPCs'}
+  else{
+    hit=await ethCallTry(ETH_MAINNET_RPCS,cfg.contract,cfg.selector);
+    if(hit){network='Ethereum mainnet'}
+    else{
+      hit=await ethCallTry(ETH_SEPOLIA_RPCS,cfg.contract,cfg.selector);
+      if(hit)network='Sepolia testnet';
+    }
   }
-  if(!rawHex)return{cfg,resolved:null};
-  const stripped=rawHex.replace(/^0x/,'');
+  if(!hit)return{cfg,resolved:null};
+  cfg.network=network;
+  const stripped=hit.hex.replace(/^0x/,'');
   if(stripped.length<128)return{cfg,resolved:null};
   const dataLen=parseInt(stripped.slice(64,128),16);
   if(!dataLen||dataLen>10000)return{cfg,resolved:null};
@@ -1673,11 +1687,11 @@ async function tryEtherHiding(t){
   const nonceArr=hexBytes(nonceHex);
   const plain=chacha20(cipherBytes,keyArr,nonceArr);
   if(printable(plain,256)>0.5||plain.length<32)
-    return{cfg,resolved:plain,how:`eth_call(0x${cfg.selector}) on ${cfg.contract} → ABI decode → ChaCha20 decrypt (key=SHA256(token), nonce=contract[:12])`};
+    return{cfg,resolved:plain,how:`eth_call(0x${cfg.selector}) on ${cfg.contract} [${network}] → ABI decode → ChaCha20 decrypt (key=SHA256(token), nonce=contract[:12])`};
   const keyArr2=hexBytes(cfg.key);
   const plain2=chacha20(cipherBytes,keyArr2,nonceArr);
   if(printable(plain2,256)>0.5)
-    return{cfg,resolved:plain2,how:`eth_call(0x${cfg.selector}) on ${cfg.contract} → ABI decode → ChaCha20 decrypt (key=token bytes, nonce=contract[:12])`};
+    return{cfg,resolved:plain2,how:`eth_call(0x${cfg.selector}) on ${cfg.contract} [${network}] → ABI decode → ChaCha20 decrypt (key=token bytes, nonce=contract[:12])`};
   return{cfg,resolved:null,raw:cipherBytes};
 }
 function statedKeys(ctx){
@@ -2074,7 +2088,7 @@ async function deepScan(root){
     const ethHide=extractEtherHidingConfig(t)?await tryEtherHiding(t):null;
     if(ethHide){
       const c=ethHide.cfg;
-      lines.push(`${pad}   EtherHiding: contract ${c.contract} selector 0x${c.selector}`);
+      lines.push(`${pad}   EtherHiding: contract ${c.contract} selector 0x${c.selector}${c.network?' ['+c.network+']':''}`);
       if(ethHide.resolved){
         kids++;
         const preview=printable(ethHide.resolved,200)>0.9?JSON.stringify(S(ethHide.resolved.subarray(0,80))):'hex '+hex(ethHide.resolved.subarray(0,32));
