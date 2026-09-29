@@ -240,7 +240,7 @@ body.ops-collapsed .collapse{margin:0 auto}
 <div class="wrap">
   <div class="head">
     <h1>Chef</h1>
-    <div class="tag">Decode, decompress, deobfuscate and triage. Nothing leaves the browser, and it works offline. <span class="ver">build v88</span></div>
+    <div class="tag">Decode, decompress, deobfuscate and triage. Nothing leaves the browser, and it works offline. <span class="ver">build v90</span></div>
     <button id="save" class="savebtn" title="Save this whole tool as one HTML file you can run offline, from a USB stick, or on an air-gapped box">Download this page</button>
   </div>
 
@@ -1099,6 +1099,8 @@ function b64Runs(t){
   const run=/[A-Za-z0-9+/]{16,}={0,2}/g;
   while((m=run.exec(t))!==null){
     if(out.some(o=>o.raw.includes(m[0])))continue;
+    if(m.index>0&&/[\w$]/.test(t[m.index-1]))continue;
+    if(m.index>0&&!/['"]/.test(t[m.index-1])&&!/[+/]/.test(m[0]))continue;
     out.push({raw:m[0],start:m.index,end:m.index+m[0].length,kind:'base64',how:'base64 run'});
   }
   return out;
@@ -1545,6 +1547,62 @@ function rankedXor(b){
   if(Bn[0][0]>=0.99&&Bn[0][0]-Bn[1][0]>=0.02)return {key:Bn[0][1],dec:xorBytes(b,new Uint8Array([Bn[0][1]])),why:'comes out as base64'};
   return null;
 }
+function extractPSByteKeys(ctx){
+  if(!ctx)return [];
+  const out=[];
+  const ba=ctx.match(/\[byte\[\]\]\s*@\s*\(([0-9,\s]+)\)/i);
+  if(ba){
+    const nums=ba[1].split(',').map(s=>parseInt(s.trim())).filter(n=>!isNaN(n)&&n>=0&&n<=255);
+    if(nums.length>=4&&nums.length<=256)out.push(new Uint8Array(nums));
+  }
+  const re=/(['"])([A-Za-z0-9+/]{16,64}={0,2})\1/g;
+  let m;
+  while((m=re.exec(ctx))!==null){
+    try{const bytes=b64bytes(m[2],false,false);if(bytes.length>=8&&bytes.length<=48)out.push(bytes)}catch(e){}
+  }
+  return out;
+}
+function hasRC4Shape(ctx){
+  if(!ctx)return false;
+  return /0\.\.255/.test(ctx)&&/-bxor\b/i.test(ctx)&&/%\s*256/.test(ctx);
+}
+function hasAesCtrShape(t){
+  return /aes-128-ctr/i.test(t)&&/-r\s+-p\b/.test(t)&&/_kb=\$\(\(/.test(t);
+}
+async function tryShellAesCtr(t){
+  if(!hasAesCtrShape(t))return null;
+  const vars={};
+  for(const m of t.matchAll(/^_([a-z_][a-z_0-9]*)="([^"]*)"$/gm)) vars['_'+m[1]]=m[2];
+  for(const m of t.matchAll(/^_([a-z_][a-z_0-9]*)=(\d+)$/gm)) vars['_'+m[1]]=parseInt(m[2]);
+  const kbm=t.match(/_kb=\$\(\(\s*([\s\S]*?)\s*\)\)/);
+  if(!kbm)return null;
+  let expr=kbm[1].replace(/\n/g,' ');
+  expr=expr.replace(/\$\{#(_[a-z_0-9]+)\}/gi,(_,n)=>{const v=vars[n];return typeof v==='string'?v.length:typeof v==='number'?String(v).length:0});
+  expr=expr.replace(/\$(_[a-z_0-9]+)/gi,(_,n)=>{const v=vars[n];return typeof v==='number'?v:typeof v==='string'?(parseInt(v)||0):0});
+  if(!/^[\d+\-*/%() ]+$/.test(expr))return null;
+  let kb; try{kb=Function('"use strict";return('+expr+')')()}catch(e){return null}
+  const kbStr=String(kb);
+  const md5Key=md5(new TextEncoder().encode(kbStr));
+  const arrm=t.match(/_(?:z|cfg|blob)=\(\s*([\s\S]*?)\s*\)/);
+  if(!arrm)return null;
+  const arrVars=[...arrm[1].matchAll(/\$(_[a-z_0-9]+)/gi)].map(m=>m[1]);
+  let hexStr='';
+  for(const v of arrVars){const val=vars[v];if(typeof val==='string'&&/^[0-9a-f]+$/i.test(val))hexStr+=val;else return null}
+  if(hexStr.length<64)return null;
+  const data=hexBytes(hexStr);
+  const keyBytes=hexBytes(md5Key);
+  const iv=new Uint8Array(16);
+  try{
+    const k=await crypto.subtle.importKey('raw',keyBytes,'AES-CTR',false,['decrypt']);
+    const dec=new Uint8Array(await crypto.subtle.decrypt({name:'AES-CTR',counter:iv,length:128},k,data));
+    if(dec[0]===0x1f&&dec[1]===0x8b){
+      const plain=await inflate(dec,'gzip');
+      return{bytes:plain,how:'Hex decode → AES-128-CTR (key from script, md5('+kbStr+')) → gunzip',recipe:[['From Hex',{}],['AES Decrypt',{key:md5Key,iv:'00'.repeat(16),mode:'CTR'}],['Auto decompress',{}]]}
+    }
+    if(printable(dec,1024)>0.85) return{bytes:dec,how:'Hex decode → AES-128-CTR (key from script, md5('+kbStr+'))',recipe:[['From Hex',{}],['AES Decrypt',{key:md5Key,iv:'00'.repeat(16),mode:'CTR'}]]}
+  }catch(e){}
+  return null;
+}
 function statedKeys(ctx){
   // Scripts that XOR their payload usually hand you the key: a literal after -bxor, or a
   // variable assigned a number earlier. Resolve both, so we never have to search the key space.
@@ -1578,6 +1636,23 @@ async function b64resolve(rawStr,ctx){
         const r=await inflate(d,'deflate-raw');
         if(r.length>4 && printable(r,1024)>0.9){ d=r; how+=' → inflate raw'; recipe.push(['Inflate raw',{}]) }
       }catch(e){}
+    }
+    if(printable(d,1024)<0.85&&d.length>32&&hasRC4Shape(ctx)){
+      const cands=extractPSByteKeys(ctx);
+      for(const bk of cands){
+        const dec=rc4(d,bk); let took=false;
+        if(dec[0]===0x1f&&dec[1]===0x8b){
+          try{const g=await inflate(dec,'gzip');d=g;how+=' → RC4 (key from script) → gunzip';recipe.push(['RC4',{key:hex(bk),fmt:'Hex'}],['Auto decompress',{}]);took=true}catch(e){}
+        }
+        if(!took&&dec[0]===0x78&&(dec[1]===0x01||dec[1]===0x9c||dec[1]===0xda)){
+          try{const z=await inflate(dec,'deflate');d=z;how+=' → RC4 (key from script) → inflate';recipe.push(['RC4',{key:hex(bk),fmt:'Hex'}],['Auto decompress',{}]);took=true}catch(e){}
+        }
+        if(!took){try{const r=await inflate(dec,'deflate-raw');
+          if(r.length>4&&printable(r,1024)>0.8){d=r;how+=' → RC4 (key from script) → inflate raw';recipe.push(['RC4',{key:hex(bk),fmt:'Hex'}],['Inflate raw',{}]);took=true}
+        }catch(e){}}
+        if(!took&&printable(dec,1024)>0.85){d=dec;how+=' → RC4 (key from script)';recipe.push(['RC4',{key:hex(bk),fmt:'Hex'}]);took=true}
+        if(took)break;
+      }
     }
   }
   const applyWiden=()=>{ const w=widen(d); if(w&&printable(B(w.s),256)>0.95){ d=B(w.s); how+=' → '+w.how; recipe.push(w.how==='UTF-16LE'?['Decode UTF-16LE',{}]:['Remove null bytes',{}]); return true } return false };
@@ -1908,6 +1983,13 @@ async function deepScan(root){
 
     const cands=[...b64Runs(t),...otherRuns(t)].sort((a,b)=>a.start-b.start);
     const subs=[]; let kids=0;
+
+    const aesCtr=depth===0?await tryShellAesCtr(t):null;
+    if(aesCtr){
+      kids++;
+      const preview=printable(aesCtr.bytes,200)>0.9?JSON.stringify(S(aesCtr.bytes.subarray(0,60))):'';
+      await node(aesCtr.bytes,`[${finds.length+1}] AES-128-CTR payload (${aesCtr.bytes.length.toLocaleString()} bytes)${preview?' → '+preview:''}`,depth+1,aesCtr.how,aesCtr.recipe);
+    }
     for(const c of cands){
       if(kids>=20)break;
       const got=await decodeCandidate(c,t);
