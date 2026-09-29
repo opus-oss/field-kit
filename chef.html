@@ -240,7 +240,7 @@ body.ops-collapsed .collapse{margin:0 auto}
 <div class="wrap">
   <div class="head">
     <h1>Chef</h1>
-    <div class="tag">Decode, decompress, deobfuscate and triage. Nothing leaves the browser, and it works offline. <span class="ver">build v97</span></div>
+    <div class="tag">Decode, decompress, deobfuscate and triage. Nothing leaves the browser, and it works offline. <span class="ver">build v98</span></div>
     <button id="save" class="savebtn" title="Save this whole tool as one HTML file you can run offline, from a USB stick, or on an air-gapped box">Download this page</button>
   </div>
 
@@ -1474,6 +1474,43 @@ function abiDecodeValue(data){
   if(!parts.length)return {type:'uint',val:'0'};
   return {type:'words',val:parts.join(', ')};
 }
+function byteEntropy(bytes){
+  if(!bytes||!bytes.length)return 0;
+  const freq=new Array(256).fill(0);
+  for(let i=0;i<bytes.length;i++)freq[bytes[i]]++;
+  let e=0;
+  for(let i=0;i<256;i++){if(!freq[i])continue;const p=freq[i]/bytes.length;e-=p*Math.log2(p)}
+  return e;
+}
+function extractAbiBytes(data){
+  const h=(data.startsWith('0x')?data.slice(2):data);
+  if(h.length<128)return null;
+  const offset=parseInt(h.slice(0,64),16)*2;
+  if(offset+64>h.length)return null;
+  const len=parseInt(h.slice(offset,offset+64),16);
+  if(!len||len>200000||offset+64+len*2>h.length)return null;
+  const b=new Uint8Array(len);
+  for(let i=0;i<len;i++)b[i]=parseInt(h.slice(offset+64+i*2,offset+66+i*2),16);
+  return b;
+}
+async function lookupSelectors(sels){
+  const unknown=sels.filter(s=>!s.name);
+  if(!unknown.length)return;
+  const hexList=unknown.map(s=>'0x'+s.sel).join(',');
+  try{
+    const ac=new AbortController();
+    const tm=setTimeout(()=>ac.abort(),4000);
+    const r=await fetch('https://api.openchain.xyz/signature-database/v1/lookup?function='+hexList,{signal:ac.signal});
+    clearTimeout(tm);
+    const j=await r.json();
+    if(j.ok&&j.result&&j.result.function){
+      for(const s of unknown){
+        const matches=j.result.function['0x'+s.sel];
+        if(matches&&matches.length)s.name=matches[0].name;
+      }
+    }
+  }catch(e){}
+}
 async function evmChainQuery(addr,chainId){
   const chain=EVM_CHAINS[chainId||'eth'];
   if(!chain){ toast('Unknown chain'); return }
@@ -1487,6 +1524,8 @@ async function evmChainQuery(addr,chainId){
     if(!evm){ out.textContent+='no EVM bytecode at that address.\ntry a different chain.'; return }
     out.textContent+=evm.size+' bytes'+(evm.compiler?' · '+evm.compiler:'')+(evm.pattern?' · '+evm.pattern:'')+'\n';
     const sels=evm.selectors.filter(s=>s.sel!=='4e487b71');
+    out.textContent+='looking up function signatures …\n';
+    await lookupSelectors(sels);
     const noArgSels=sels.filter(s=>!s.name||/\(\)$/.test(s.name));
     out.textContent+='reading storage …\n';
     const reads=[];
@@ -1494,8 +1533,9 @@ async function evmChainQuery(addr,chainId){
       try{
         const result=await evmRpc(chain.rpc,'eth_call',[{to:addr,data:'0x'+s.sel},'latest']);
         if(result&&result!=='0x'){
+          const raw=extractAbiBytes(result);
           const decoded=abiDecodeValue(result);
-          if(decoded&&decoded.val!=='0'&&decoded.type!=='raw')reads.push({sel:s.sel,name:s.name,decoded});
+          if(decoded&&decoded.val!=='0'&&decoded.type!=='raw')reads.push({sel:s.sel,name:s.name,decoded,raw});
         }
       }catch(e){}
     }
@@ -1509,12 +1549,39 @@ async function evmChainQuery(addr,chainId){
       report+='\nfunctions\n';
       for(const s of sels)report+=`  0x${s.sel}  ${s.name||'?'}\n`;
     }
+    const dupeMap=new Map();
+    let hasEncrypted=false;
     if(reads.length){
       report+='\ncurrent state\n';
       for(const r of reads){
-        let v=r.decoded.val;
-        if(v.length>120)v=v.slice(0,60)+'…('+Math.ceil(v.length/2)+' bytes)';
-        report+=`  ${r.name||'0x'+r.sel}  ${v}\n`;
+        const label=r.name||'0x'+r.sel;
+        if(r.decoded.type==='address'||r.decoded.type==='uint'){
+          report+=`  ${label}  ${r.decoded.val}\n`;
+          continue;
+        }
+        if(r.raw&&r.raw.length>64){
+          const ent=byteEntropy(r.raw);
+          const printable=r.raw.reduce((n,b)=>(b>=0x20&&b<=0x7e)?n+1:n,0)/r.raw.length;
+          const hexPrev=hex(r.raw.subarray(0,24));
+          const sig=hexPrev;
+          if(dupeMap.has(sig)){dupeMap.get(sig).push(label)} else {dupeMap.set(sig,[label])}
+          if(ent>7.0&&printable<0.5){
+            report+=`  ${label}  [encrypted payload] ${r.raw.length} bytes, entropy ${ent.toFixed(2)}, hex ${hexPrev}…\n`;
+            hasEncrypted=true;
+          } else if(printable>0.8){
+            const preview=S(r.raw.subarray(0,120));
+            report+=`  ${label}  "${preview.length<r.raw.length?preview+'…':preview}" (${r.raw.length} bytes)\n`;
+          } else {
+            report+=`  ${label}  [binary] ${r.raw.length} bytes, entropy ${ent.toFixed(2)}, hex ${hexPrev}…\n`;
+          }
+        } else {
+          let v=r.decoded.val;
+          if(v.length>120)v=v.slice(0,60)+'…('+Math.ceil(v.length/2)+' bytes)';
+          report+=`  ${label}  ${v}\n`;
+        }
+      }
+      for(const [sig,labels] of dupeMap){
+        if(labels.length>1)report+=`  note: ${labels.join(' and ')} return identical data\n`;
       }
     }
     if(evm.addresses.length){
@@ -1540,12 +1607,24 @@ async function evmChainQuery(addr,chainId){
         const data=log.data;
         let decoded='';
         if(data&&data!=='0x'){
-          const str=abiDecodeString(data);
-          if(str&&str.length>0&&/[\x20-\x7e]/.test(str)){
-            decoded=str.length>200?str.slice(0,100)+'…('+str.length+' chars)':str;
+          const raw=extractAbiBytes(data);
+          if(raw&&raw.length>64){
+            const ent=byteEntropy(raw);
+            const printable=raw.reduce((n,b)=>(b>=0x20&&b<=0x7e)?n+1:n,0)/raw.length;
+            if(printable>0.8){
+              const preview=S(raw.subarray(0,120));
+              decoded=`"${preview.length<raw.length?preview+'…':preview}" (${raw.length} bytes)`;
+            } else {
+              decoded=`[${ent>7?'encrypted':'binary'}] ${raw.length} bytes, entropy ${ent.toFixed(2)}`;
+            }
           } else {
-            const v=abiDecodeValue(data);
-            if(v&&v.val!=='0')decoded=v.val.length>120?v.val.slice(0,60)+'…('+Math.ceil(v.val.length/2)+' bytes)':v.val;
+            const str=abiDecodeString(data);
+            if(str&&str.length>0&&/[\x20-\x7e]/.test(str)){
+              decoded=str.length>200?`"${str.slice(0,100)}…" (${str.length} chars)`:`"${str}"`;
+            } else {
+              const v=abiDecodeValue(data);
+              if(v&&v.val!=='0')decoded=v.val.length>80?v.val.slice(0,40)+'…':v.val;
+            }
           }
         }
         const parts=[ts];
@@ -1559,6 +1638,9 @@ async function evmChainQuery(addr,chainId){
       }
     } else {
       report+='\nno event logs available (explorer may block browser requests for this chain).\n';
+    }
+    if(hasEncrypted||evm.pattern&&/EtherHiding/.test(evm.pattern)){
+      report+='\nassessment: contract stores encrypted payload. paste the full dropper script (with contract address, selector, and key) into the input for automated decryption.\n';
     }
     out.textContent=report;
   }catch(e){ out.textContent+='query failed: '+e.message+'\n' }
