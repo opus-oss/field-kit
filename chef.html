@@ -240,7 +240,7 @@ body.ops-collapsed .collapse{margin:0 auto}
 <div class="wrap">
   <div class="head">
     <h1>Chef</h1>
-    <div class="tag">Decode, decompress, deobfuscate and triage. Nothing leaves the browser, and it works offline. <span class="ver">build v95</span></div>
+    <div class="tag">Decode, decompress, deobfuscate and triage. Nothing leaves the browser, and it works offline. <span class="ver">build v96</span></div>
     <button id="save" class="savebtn" title="Save this whole tool as one HTML file you can run offline, from a USB stick, or on an air-gapped box">Download this page</button>
   </div>
 
@@ -1642,7 +1642,7 @@ function extractEthContracts(t){
   const out=[],seen=new Set();
   const rm=t.match(/rpc_endpoints?\s*[=:"']+\s*["']?([^"'\n]+)/i);
   const rpcs=rm?rm[1].split(',').map(s=>s.trim()).filter(s=>/^https?:\/\//.test(s)):[];
-  const km=t.match(/(?:blockchain_key|token)\s*[=:"']+\s*["']?([0-9a-fA-F]{64})(?![0-9a-fA-F])/i);
+  const km=t.match(/(?:\w+[_ ])?(?:key|token|secret)\s*[=:"']+\s*["']?([0-9a-fA-F]{64})(?![0-9a-fA-F])/i);
   const key=km?km[1]:null;
   for(const am of t.matchAll(/0x[0-9a-fA-F]{40}(?![0-9a-fA-F])/g)){
     const addr=am[0];
