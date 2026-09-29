@@ -240,7 +240,7 @@ body.ops-collapsed .collapse{margin:0 auto}
 <div class="wrap">
   <div class="head">
     <h1>Chef</h1>
-    <div class="tag">Decode, decompress, deobfuscate and triage. Nothing leaves the browser, and it works offline. <span class="ver">build v96</span></div>
+    <div class="tag">Decode, decompress, deobfuscate and triage. Nothing leaves the browser, and it works offline. <span class="ver">build v97</span></div>
     <button id="save" class="savebtn" title="Save this whole tool as one HTML file you can run offline, from a USB stick, or on an air-gapped box">Download this page</button>
   </div>
 
@@ -1511,7 +1511,11 @@ async function evmChainQuery(addr,chainId){
     }
     if(reads.length){
       report+='\ncurrent state\n';
-      for(const r of reads)report+=`  ${r.name||'0x'+r.sel}  ${r.decoded.val}\n`;
+      for(const r of reads){
+        let v=r.decoded.val;
+        if(v.length>120)v=v.slice(0,60)+'…('+Math.ceil(v.length/2)+' bytes)';
+        report+=`  ${r.name||'0x'+r.sel}  ${v}\n`;
+      }
     }
     if(evm.addresses.length){
       report+='\nhardcoded addresses\n';
@@ -1538,10 +1542,10 @@ async function evmChainQuery(addr,chainId){
         if(data&&data!=='0x'){
           const str=abiDecodeString(data);
           if(str&&str.length>0&&/[\x20-\x7e]/.test(str)){
-            decoded=str;
+            decoded=str.length>200?str.slice(0,100)+'…('+str.length+' chars)':str;
           } else {
             const v=abiDecodeValue(data);
-            if(v&&v.val!=='0')decoded=v.val;
+            if(v&&v.val!=='0')decoded=v.val.length>120?v.val.slice(0,60)+'…('+Math.ceil(v.val.length/2)+' bytes)':v.val;
           }
         }
         const parts=[ts];
