@@ -240,7 +240,7 @@ body.ops-collapsed .collapse{margin:0 auto}
 <div class="wrap">
   <div class="head">
     <h1>Chef</h1>
-    <div class="tag">Decode, decompress, deobfuscate and triage. Nothing leaves the browser, and it works offline. <span class="ver">build v90</span></div>
+    <div class="tag">Decode, decompress, deobfuscate and triage. Nothing leaves the browser, and it works offline. <span class="ver">build v91</span></div>
     <button id="save" class="savebtn" title="Save this whole tool as one HTML file you can run offline, from a USB stick, or on an air-gapped box">Download this page</button>
   </div>
 
@@ -1121,6 +1121,8 @@ function otherRuns(t){
   while((m=url.exec(t))!==null)push('url','percent encoding',m[0],m.index);
   const esc=/(?:\\u[0-9a-f]{4}){4,}/gi;
   while((m=esc.exec(t))!==null)push('escape','\\u escapes',m[0],m.index);
+  const oct=/(?:\\[0-3][0-7]{2}){4,}/g;
+  while((m=oct.exec(t))!==null)push('octal','octal escapes',m[0],m.index);
   return out;
 }
 const LINKER={'6.0':'Visual C++ 6','7.0':'Visual Studio 2002','7.1':'Visual Studio 2003','8.0':'Visual Studio 2005',
@@ -1861,6 +1863,12 @@ async function decodeCandidate(c,ctx){
     if(c.kind==='escape'){ const d=await OPS['Unescape \\u and \\x'].fn(B(c.raw),{});
       if(printable(d,256)<0.9||S(d)===c.raw)return null;
       return {bytes:d,how:'Unescape \\u and \\x',recipe:[['Unescape \\u and \\x',{}]]} }
+    if(c.kind==='octal'){
+      const chars=c.raw.match(/\\([0-3][0-7]{2})/g);
+      if(!chars||chars.length<4)return null;
+      const d=new Uint8Array(chars.map(s=>parseInt(s.slice(1),8)));
+      if(printable(d,256)<0.9)return null;
+      return {bytes:d,how:'Octal escapes',recipe:[['From Octal',{}]]} }
   }catch(e){}
   return null;
 }
@@ -1991,6 +1999,7 @@ async function deepScan(root){
       await node(aesCtr.bytes,`[${finds.length+1}] AES-128-CTR payload (${aesCtr.bytes.length.toLocaleString()} bytes)${preview?' → '+preview:''}`,depth+1,aesCtr.how,aesCtr.recipe);
     }
     for(const c of cands){
+      if(aesCtr&&c.kind==='hex')continue;
       if(kids>=20)break;
       const got=await decodeCandidate(c,t);
       if(!got)continue;
@@ -2005,11 +2014,12 @@ async function deepScan(root){
     let outStr=t, tokens=[{kind:'plain',text:t}];
     if(subs.length){
       subs.sort((x,y)=>x.start-y.start);
+      const scriptDecodeIdx=subs.findIndex(s=>s.how&&/RC4 \(key from script\)|AES-128-CTR \(key from script/.test(s.how));
+      if(scriptDecodeIdx>=0) subs.length=scriptDecodeIdx+1;
       outStr=''; tokens=[]; let at=0;
       for(const s of subs){
         if(s.start<at)continue;
         const before=t.slice(at,s.start);
-        // indent a multi-line payload under the line it was pasted into, so the result reads like source
         const col=before.length-(before.lastIndexOf('\n')+1);
         const ind=' '.repeat(Math.min(col,12));
         const body=s.text.includes('\n')?s.text.split('\n').map((l,i)=>i?ind+l:l).join('\n'):s.text;
@@ -2017,7 +2027,11 @@ async function deepScan(root){
         outStr+=body; tokens.push({kind:'decoded',text:body,how:s.how,idx:s.idx});
         at=s.end;
       }
-      const tail=t.slice(at);
+      let tail=t.slice(at);
+      if(scriptDecodeIdx>=0&&tail.length>200){
+        const brief=tail.slice(0,tail.indexOf('\n',0)+1||60);
+        tail=brief+'…\n\n[' + (tail.length-brief.length).toLocaleString() + ' chars of decryption infrastructure omitted]';
+      }
       if(tail){ outStr+=tail; tokens.push({kind:'plain',text:tail}) }
     }
     if(jsTidy){
