@@ -1,14 +1,12 @@
 # Refreshes intel.json for the Grapevine page. GitHub starts scheduled runs late on small repos
-# (hours, observed), so the times below sit well ahead of when the data is wanted:
-#   04:15 + 08:15 UTC  -> fresh before and just after 5am Central
-#   13:15 + 17:15 UTC  -> fresh for early afternoon Central
-#   22:15 UTC          -> evening catch-up
+# (hours, observed), so the times below sit well ahead of when the data is wanted.
+# Every 3 hours keeps the board reasonably current throughout the day.
 # Also runs on edits to the fetcher or feed list, or by hand from the Actions tab.
 name: Intel
 
 on:
   schedule:
-    - cron: "15 4,8,13,17,22 * * *"
+    - cron: "15 1,4,7,10,13,16,19,22 * * *"
   workflow_dispatch:
   push:
     paths: [".github/workflows/intel.yml", "intel-fetch.py", "intel-feeds.json", "macro-fetch.py", "congress-fetch.py", "raas-fetch.py"]

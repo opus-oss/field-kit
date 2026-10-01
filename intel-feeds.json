@@ -93,6 +93,21 @@
   "trust": "high"
  },
  {
+  "id": "lab52",
+  "name": "Lab52",
+  "url": "https://lab52.io/blog/feed/",
+  "cat": "research",
+  "trust": "high"
+ },
+ {
+  "id": "sophos",
+  "name": "Sophos X-Ops",
+  "url": "https://news.sophos.com/en-us/category/threat-research/feed/",
+  "cat": "research",
+  "trust": "high",
+  "drop": "Patch Tuesday|patch haul"
+ },
+ {
   "id": "fortinet",
   "name": "FortiGuard Labs",
   "url": "https://feeds.fortinet.com/fortinet/blog/threat-research",
