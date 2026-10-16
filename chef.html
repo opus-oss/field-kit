@@ -201,6 +201,7 @@ body.ops-collapsed .collapse{margin:0 auto}
 .magic{margin-top:10px; border-top:1px solid var(--line); padding-top:10px}
 .magic .mi{display:flex; gap:10px; align-items:flex-start; padding:7px 8px; border-radius:9px; border:1px solid var(--line2); background:var(--raised); margin-top:7px; cursor:pointer}
 .magic .mi:hover{border-color:var(--acc)}
+.magic .mi.sel{border-color:var(--acc);background:color-mix(in srgb,var(--acc) 12%,var(--raised))}
 .magic .mi .mn{font:600 12.5px var(--mono); color:var(--h1); white-space:nowrap}
 .magic .mi .mp{font-family:var(--mono); font-size:11.5px; color:var(--mut); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; min-width:0}
 .note{font-size:12px; color:var(--mut); margin-top:9px}
@@ -2050,13 +2051,24 @@ async function decodeCandidate(c,ctx){
       if(nums.length>=4){
         const mn=Math.min(...nums), mx=Math.max(...nums);
         const subM=near.match(/[\$\w]\s*-\s*(\d{2,5})\b/);
-        const offsets=[];
-        if(subM) offsets.push(+subM[1]);
-        if(mn>127){ for(let g=mn-126;g<=mn-32;g++) offsets.push(g) }
-        for(const off of offsets){
+        if(subM){
+          const off=+subM[1];
           const shifted=new Uint8Array(nums.map(n=>(n-off)&255));
-          if(printable(shifted,256)>=0.92&&langScore(shifted)>0.1){
+          if(printable(shifted,256)>=0.85&&langScore(shifted)>0.05){
             return {bytes:shifted,how:`From Charcode − ${off} (offset subtracted)`,recipe:[['From Charcode',{base:'10'}],['Offset subtract',{offset:String(off)}]]};
+          }
+        }
+        if(mn>127){
+          let bestOff=-1, bestScore=-1;
+          for(let g=mn-126;g<=mn-32;g++){
+            const shifted=new Uint8Array(nums.map(n=>(n-g)&255));
+            if(printable(shifted,256)<0.92)continue;
+            const sc=langScore(shifted);
+            if(sc>bestScore){bestScore=sc;bestOff=g}
+          }
+          if(bestOff>=0&&bestScore>0.1){
+            const shifted=new Uint8Array(nums.map(n=>(n-bestOff)&255));
+            return {bytes:shifted,how:`From Charcode − ${bestOff} (offset subtracted)`,recipe:[['From Charcode',{base:'10'}],['Offset subtract',{offset:String(bestOff)}]]};
           }
         }
       }
@@ -2203,8 +2215,9 @@ async function deepScan(root){
         if(u16.length>10&&printable(B(u16),256)>=0.85){
           kids++;
           lines.push(`${pad}   PowerShell -EncodedCommand (${psEnc[1].length} chars base64 → ${u16.length} chars UTF-16LE)`);
-          subs.push({start:t.indexOf(psEnc[1]),end:t.indexOf(psEnc[1])+psEnc[1].length,text:u16,how:'PowerShell -EncodedCommand',idx:finds.length});
-          await node(B(u16),`[${finds.length+1}] PowerShell -EncodedCommand`,depth+1,'Base64 → UTF-16LE',[['From Base64',{}],['Decode UTF-16LE',{}]]);
+          const psDeep=await node(B(u16),`[${finds.length+1}] PowerShell -EncodedCommand`,depth+1,'Base64 → UTF-16LE',[['From Base64',{}],['Decode UTF-16LE',{}]]);
+          const psText=(psDeep&&psDeep.text!=null)?psDeep.text:u16;
+          subs.push({start:t.indexOf(psEnc[1]),end:t.indexOf(psEnc[1])+psEnc[1].length,text:psText,how:'PowerShell -EncodedCommand',idx:finds.length});
         }
       }catch(e){}
     }
@@ -2218,8 +2231,9 @@ async function deepScan(root){
         kids++;
         const txt=S(decoded);
         lines.push(`${pad}   Caesar char-shift (${shift>0?'+':''}${shift}) on ${str.length}-char string`);
-        subs.push({start:csm.index,end:csm.index+csm[0].length,text:txt,how:`Caesar shift (${shift})`,idx:finds.length});
-        await node(B(txt),`[${finds.length+1}] Caesar shift (${shift>0?'+':''}${shift})`,depth+1,`char shift ${shift}`,[['Caesar shift',{offset:String(shift)}]]);
+        const csDeep=await node(B(txt),`[${finds.length+1}] Caesar shift (${shift>0?'+':''}${shift})`,depth+1,`char shift ${shift}`,[['Caesar shift',{offset:String(shift)}]]);
+        const csText=(csDeep&&csDeep.text!=null)?csDeep.text:txt;
+        subs.push({start:csm.index,end:csm.index+csm[0].length,text:csText,how:`Caesar shift (${shift})`,idx:finds.length});
       }
     }
 
@@ -2254,9 +2268,10 @@ async function deepScan(root){
               kids++;
               const txt=S(decoded);
               lines.push(`${pad}   custom alphabet substitution (${htMap.size} trigrams, key length ${htKeyLen}) → ${txt.length} chars`);
+              const htDeep=await node(B(txt),`[${finds.length+1}] hashtable substitution (${enc.length} chars)`,depth+1,`${htKeyLen}-char key hashtable, ${htMap.size} entries`,[['Hashtable substitution',{keys:htKeyLen.toString()}]]);
+              const htText=(htDeep&&htDeep.text!=null)?htDeep.text:txt;
               const tIdx=t.indexOf(enc);
-              if(tIdx>=0) subs.push({start:tIdx,end:tIdx+enc.length,text:txt,how:`hashtable substitution (${htKeyLen}-char keys)`,idx:finds.length});
-              await node(B(txt),`[${finds.length+1}] hashtable substitution (${enc.length} chars)`,depth+1,`${htKeyLen}-char key hashtable, ${htMap.size} entries`,[['Hashtable substitution',{keys:htKeyLen.toString()}]]);
+              if(tIdx>=0) subs.push({start:tIdx,end:tIdx+enc.length,text:htText,how:`hashtable substitution (${htKeyLen}-char keys)`,idx:finds.length});
             }
           }
         }
@@ -2481,9 +2496,9 @@ async function runDeep(auto){
     $$('#findBox .mi').forEach(el=>el.onclick=()=>{
       const f=FINDS[+el.dataset.f];
       OUT_HTML=null; outBytes=f.bytes; paintOut();
-      recipe=(f.recipe||[]).map(([op,args])=>({op,args:Object.assign(defaults(op),args),off:false}));
-      drawRecipe();
-      toast('Loaded that artifact into the output, its recipe into the recipe pane');
+      $$('#findBox .mi').forEach(m=>m.classList.remove('sel'));
+      el.classList.add('sel');
+      toast(f.how);
     });
   }catch(e){ toast('Scan failed: '+e.message) }
 }
