@@ -417,7 +417,8 @@
   "cat": "ecrime",
   "trust": "low",
   "drop": "One Adversary|Top \\d+|\\bMSSPs?\\b|\\bSOC\\b.*service|No Room For Compromise|Browser Agent|Fraud Prevention|Building Scalable|Ciaops|webinar|podcast|\\bawards?\\b|\\bwins\\b|\\bleader\\b|partnership|announces",
-  "keep": "malware|RAT\\b|backdoor|phish|ransomware|stealer|loader|APT|campaign|intrusion|exploit|trojan|smishing|cryptomin"
+  "keep": "malware|RAT\\b|backdoor|phish|ransomware|stealer|loader|APT|campaign|intrusion|exploit|trojan|smishing|cryptomin",
+  "exclude_url": "-(es|pt|fr|de|ja|ko|zh)/"
  },
  {
   "id": "ioc-talos",

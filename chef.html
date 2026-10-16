@@ -1130,7 +1130,7 @@ function b64Runs(t){
   while((m=run.exec(t))!==null){
     if(out.some(o=>o.raw.includes(m[0])))continue;
     if(m.index>0&&/[\w$]/.test(t[m.index-1]))continue;
-    if(m.index>0&&!/['"]/.test(t[m.index-1])&&!/[+/]/.test(m[0]))continue;
+    if(m.index>0&&!/['"]/.test(t[m.index-1])&&!/[+/]/.test(m[0])&&m[0].length<40)continue;
     out.push({raw:m[0],start:m.index,end:m.index+m[0].length,kind:'base64',how:'base64 run'});
   }
   return out;
@@ -1138,12 +1138,12 @@ function b64Runs(t){
 function otherRuns(t){
   const out=[], push=(kind,how,raw,start)=>out.push({kind,how,raw,start,end:start+raw.length});
   let m;
-  const CH='(?:\\[char\\]\\s*(?:\\(\\s*-?\\d+\\s*[+-]\\s*\\d+\\s*\\)|\\d{1,3}))';
+  const CH='(?:\\[char\\]\\s*(?:\\(\\s*-?\\d+\\s*[+-]\\s*\\d+\\s*\\)|\\(\\s*\\d{1,5}\\s*\\)|\\d{1,5}))';
   const chars=new RegExp(CH+'(?:\\s*[,+]\\s*'+CH+'){2,}','gi');
   while((m=chars.exec(t))!==null)push('charcode','[char] array',m[0],m.index);
   const chr=/Chr\(\s*\d{1,3}\s*\)(?:\s*[&+]\s*Chr\(\s*\d{1,3}\s*\)){2,}/gi;
   while((m=chr.exec(t))!==null)push('charcode','Chr() concatenation',m[0],m.index);
-  const dec=/\b\d{1,3}(?:\s*,\s*\d{1,3}){3,}\b/g;
+  const dec=/\b\d{1,5}(?:\s*,\s*\d{1,5}){3,}\b/g;
   while((m=dec.exec(t))!==null){ if(!out.some(o=>o.raw.includes(m[0])))push('charcode','decimal list',m[0],m.index) }
   const hx=/(?:\\x[0-9a-f]{2}){6,}|(?:0x[0-9a-f]{2}[,\s]+){6,}|\b(?:[0-9a-f]{2}[\s:-]){10,}[0-9a-f]{2}\b|\b0x[0-9a-f]{32,}\b|\b[0-9a-f]{32,}\b/gi;
   while((m=hx.exec(t))!==null)push('hex','hex run',m[0],m.index);
@@ -2035,16 +2035,29 @@ async function decodeCandidate(c,ctx){
       return {bytes:d,how:'From Hex',recipe:[['From Hex',{}]]} }
     if(c.kind==='charcode'){ let d=await OPS['From Charcode'].fn(B(c.raw),{base:'10'});
       let how='From Charcode', recipe=[['From Charcode',{base:'10'}]];
-      // scripts that xor their char arrays state the key a few characters later
-      const near=(ctx||'').slice(c.start,(c.end??c.start+c.raw.length)+220);
+      const near=(ctx||'').slice(Math.max(0,c.start-300),(c.end??c.start+c.raw.length)+300);
       const bx=near.match(/-bxor\s*(0x[0-9a-f]+|\d{1,3})/i);
       if(bx){
         const k=bx[1].toLowerCase().startsWith('0x')?parseInt(bx[1],16):+bx[1];
         const x=xorBytes(d,new Uint8Array([k&255]));
-        // take it when the stated key gives the more language-like answer, which is the point of stating it
         if(printable(x,256)>0.95&&langScore(x)>langScore(d)){
           d=x; how+=` → XOR 0x${(k&255).toString(16).padStart(2,'0')} (key stated in the script)`;
           recipe.push(['XOR',{key:(k&255).toString(16).padStart(2,'0'),fmt:'Hex'}]);
+        }
+      }
+      if(d.length>=3&&printable(d,256)>=0.9) return {bytes:d,how,recipe};
+      const nums=c.raw.split(/[^0-9]+/).filter(Boolean).map(Number).filter(n=>!isNaN(n));
+      if(nums.length>=4){
+        const mn=Math.min(...nums), mx=Math.max(...nums);
+        const subM=near.match(/[\$\w]\s*-\s*(\d{2,5})\b/);
+        const offsets=[];
+        if(subM) offsets.push(+subM[1]);
+        if(mn>127){ for(let g=mn-126;g<=mn-32;g++) offsets.push(g) }
+        for(const off of offsets){
+          const shifted=new Uint8Array(nums.map(n=>(n-off)&255));
+          if(printable(shifted,256)>=0.92&&langScore(shifted)>0.1){
+            return {bytes:shifted,how:`From Charcode − ${off} (offset subtracted)`,recipe:[['From Charcode',{base:'10'}],['Offset subtract',{offset:String(off)}]]};
+          }
         }
       }
       if(d.length<3||printable(d,256)<0.9)return null;
@@ -2181,8 +2194,35 @@ async function deepScan(root){
     const odd=[...new Set(t.match(/[A-Za-z]:\\(?:ProgramData|Users\\[^\\\n"]+\\AppData[^\n"]*?|Windows\\Temp|Users\\Public)\\[^\n",]*?\.(?:exe|dll|scr|com|ps1|bat|js|vbs)/gi)||[])].slice(0,10);
     if(odd.length)lines.push(`${pad}   binaries in writable paths: ${odd.join(', ')}`);
 
-    const cands=[...b64Runs(t),...otherRuns(t)].sort((a,b)=>a.start-b.start);
     const subs=[]; let kids=0;
+    const psEnc=t.match(/(?:^|[\s"'])(?:powershell|pwsh)(?:\.exe)?(?:\s+(?:-\w+\s+\w+|-\w+))*\s+(?:-e(?:nc(?:odedcommand)?)?)\s+([A-Za-z0-9+/=]{20,})/i);
+    if(psEnc){
+      try{
+        const raw=Uint8Array.from(atob(psEnc[1]),c=>c.charCodeAt(0));
+        const u16=utf16le(raw);
+        if(u16.length>10&&printable(B(u16),256)>=0.85){
+          kids++;
+          lines.push(`${pad}   PowerShell -EncodedCommand (${psEnc[1].length} chars base64 → ${u16.length} chars UTF-16LE)`);
+          subs.push({start:t.indexOf(psEnc[1]),end:t.indexOf(psEnc[1])+psEnc[1].length,text:u16,how:'PowerShell -EncodedCommand',idx:finds.length});
+          await node(B(u16),`[${finds.length+1}] PowerShell -EncodedCommand`,depth+1,'Base64 → UTF-16LE',[['From Base64',{}],['Decode UTF-16LE',{}]]);
+        }
+      }catch(e){}
+    }
+    const caesarRx=/\$(\w+)\s*=\s*'([^']{8,})'\s*[\s\S]{0,200}?for\s*\(\s*\$\w+\s*=\s*0\s*;\s*\$\w+\s*-lt\s*\$\1\.Length\s*;\s*\$\w+\+\+\s*\)\s*\{[^}]*?\[char\]\s*\(\s*\+?\s*\$\1\[\s*\$\w+\s*\]\s*([+-]\s*\d+)\s*\)/gi;
+    let csm;
+    while((csm=caesarRx.exec(t))!==null){
+      const str=csm[2], shift=parseInt(csm[3].replace(/\s/g,''),10);
+      const decoded=new Uint8Array([...str].map(ch=>(ch.charCodeAt(0)+shift)&255));
+      if(printable(decoded,256)>=0.85){
+        kids++;
+        const txt=S(decoded);
+        lines.push(`${pad}   Caesar char-shift (${shift>0?'+':''}${shift}) on ${str.length}-char string`);
+        subs.push({start:csm.index,end:csm.index+csm[0].length,text:txt,how:`Caesar shift (${shift})`,idx:finds.length});
+        await node(B(txt),`[${finds.length+1}] Caesar shift (${shift>0?'+':''}${shift})`,depth+1,`char shift ${shift}`,[['Caesar shift',{offset:String(shift)}]]);
+      }
+    }
+
+    const cands=[...b64Runs(t),...otherRuns(t)].sort((a,b)=>a.start-b.start);
 
     const aesCtr=depth===0?await tryShellAesCtr(t):null;
     if(aesCtr){
