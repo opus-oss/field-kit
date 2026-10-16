@@ -2222,6 +2222,38 @@ async function deepScan(root){
       }
     }
 
+    const htRx=/\$(\w+)\[['"]([^'"]{1,6})['"]\]\s*=\s*(\d{1,3})\b/g;
+    let htm, htVar=null, htMap=new Map(), htKeyLen=0;
+    while((htm=htRx.exec(raw))!==null){
+      if(!htVar) htVar=htm[1];
+      if(htm[1]===htVar){ htMap.set(htm[2],+htm[3]); if(!htKeyLen)htKeyLen=htm[2].length }
+    }
+    if(htMap.size>=64&&htKeyLen>=2){
+      const keys=new Set(htMap.keys());
+      const strRx=new RegExp('"{1,2}([^"]{'+htKeyLen*4+',})"{1,2}','g');
+      let stm;
+      while((stm=strRx.exec(raw))!==null){
+        const enc=stm[1];
+        if(enc.length%htKeyLen!==0)continue;
+        const bytes=[]; let valid=true;
+        for(let i=0;i<enc.length;i+=htKeyLen){
+          const chunk=enc.slice(i,i+htKeyLen);
+          if(!keys.has(chunk)){valid=false;break}
+          bytes.push(htMap.get(chunk));
+        }
+        if(!valid||bytes.length<8)continue;
+        const decoded=new Uint8Array(bytes);
+        if(printable(decoded,256)>=0.8){
+          kids++;
+          const txt=S(decoded);
+          lines.push(`${pad}   custom alphabet substitution (${htMap.size} trigrams, key length ${htKeyLen}) → ${txt.length} chars`);
+          const tIdx=t.indexOf(enc);
+          if(tIdx>=0) subs.push({start:tIdx,end:tIdx+enc.length,text:txt,how:`hashtable substitution (${htKeyLen}-char keys)`,idx:finds.length});
+          await node(B(txt),`[${finds.length+1}] hashtable substitution (${enc.length} chars)`,depth+1,`${htKeyLen}-char key hashtable, ${htMap.size} entries`,[['Hashtable substitution',{keys:htKeyLen.toString()}]]);
+        }
+      }
+    }
+
     const cands=[...b64Runs(t),...otherRuns(t)].sort((a,b)=>a.start-b.start);
 
     const aesCtr=depth===0?await tryShellAesCtr(t):null;
