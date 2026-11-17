@@ -148,7 +148,9 @@ h1{font-size:2rem;margin:0 0 6px;color:var(--amber)}
 .plot .mk{position:absolute;font:600 .7rem/1 var(--mono);white-space:nowrap;pointer-events:none}
 .plot .mk.fire{color:var(--clay)}.plot .mk.top{color:var(--slate)}
 .plot .mk.r{transform:translateX(-100%)}
-.chart .lbl,.past .lbl{display:flex;justify-content:space-between;color:var(--faint);font:.75rem var(--mono);margin-top:3px}
+.axis{position:relative;height:18px;margin-top:4px;color:var(--soft);font:600 .74rem var(--mono)}
+.axis span{position:absolute;top:0;transform:translateX(-50%);white-space:nowrap}
+.axis span.half{color:var(--faint);font-weight:400}
 .past{margin-top:20px;padding-top:14px;border-top:1px dashed var(--line2)}
 .past h4{margin:0 0 8px;font:600 .78rem var(--mono);color:var(--soft);letter-spacing:.03em}
 .nopast{margin-top:10px;color:var(--faint);font-size:.82rem}
@@ -307,6 +309,12 @@ function fmtV(v, unit){
   if(unit==="pts") return (r>0?"+":"") + r;
   return String(r);
 }
+const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+function markLabel(m){
+  if(/\d{4}/.test(m.label)) return m.label;
+  const d = new Date(m.d + "T12:00:00Z");
+  return /^Fired [A-Z][a-z]{2} \d/.test(m.label) ? `${m.label}, ${d.getUTCFullYear()}` : `${m.label} ${MON[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+}
 function plot(ch, pts, marks, verdict, H, isNow){
   if(!pts || pts.length < 2) return "";
   const W=600, P=6;
@@ -344,7 +352,21 @@ function plot(ch, pts, marks, verdict, H, isNow){
     const x = X(Date.parse(m.d)), xp = x/W*100;
     const col = m.kind==="fire" ? "var(--clay)" : "var(--slate)";
     svg += `<line x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="0" y2="${H}" stroke="${col}" stroke-width="${m.kind==="fire"?2:1.5}" ${m.kind==="fire"?"":'stroke-dasharray="4 4"'} vector-effect="non-scaling-stroke"/>`;
-    area += `<span class="mk ${m.kind} ${xp>55?"r":""}" style="left:${xp.toFixed(2)}%;top:${i? 15:0}px">${esc(m.label)}</span>`;
+    area += `<span class="mk ${m.kind} ${xp>55?"r":""}" style="left:${xp.toFixed(2)}%;top:${i? 15:0}px">${esc(markLabel(m))}</span>`;
+  });
+  // year axis: faint gridline and label at each Jan 1 (every 2, 5 or 10 years on long charts)
+  const y0 = new Date(t0).getUTCFullYear(), y1 = new Date(t1).getUTCFullYear();
+  const span = (t1 - t0) / 31557600000;
+  const step = span <= 7 ? 1 : span <= 14 ? 2 : span <= 35 ? 5 : 10;
+  const ticks = [];
+  for(let y = y0 + 1; y <= y1; y++) if(y % step === 0) ticks.push([Date.UTC(y,0,1), String(y)]);
+  if(span < 2.5) for(let y = y0; y <= y1; y++) ticks.push([Date.UTC(y,6,1), "Jul"]);
+  if(span < 1.2) for(let y = y0; y <= y1; y++){ ticks.push([Date.UTC(y,3,1), "Apr"]); ticks.push([Date.UTC(y,9,1), "Oct"]); }
+  let axis = "";
+  ticks.filter(k => k[0] > t0 && k[0] < t1).forEach(([ms, txt]) => {
+    const x = X(ms), xp = x/W*100;
+    svg = `<line x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="0" y2="${H}" stroke="var(--line2)" stroke-width="1" opacity="${/^\d/.test(txt)?1:.5}" vector-effect="non-scaling-stroke"/>` + svg;
+    axis += `<span class="${/^\d/.test(txt)?"":"half"}" style="left:${xp.toFixed(2)}%">${txt}</span>`;
   });
   const d = pts.map((p,i) => (i?"L":"M") + X(t[i]).toFixed(1) + " " + Y(p[1]).toFixed(1)).join(" ");
   svg += `<path d="${d}" fill="none" stroke="var(--ink)" stroke-opacity=".85" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>`;
@@ -357,7 +379,7 @@ function plot(ch, pts, marks, verdict, H, isNow){
   const gut = tags.map(g => (g.tick ? `<span class="tick" style="top:${(g.ly+topPad).toFixed(1)}px;color:${g.tick}"></span>` : "") +
       `<span class="${g.cls}" style="top:${(g.p+topPad).toFixed(1)}px">${esc(g.text)}</span>`).join("");
   return `<div class="plot"><div class="area" style="padding-top:${topPad}px"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="height:${H}px">${svg}</svg>${area}</div>${gw?`<div class="gut" style="width:${gw}px;height:${H+topPad}px">${gut}</div>`:""}</div>
-    <div class="lbl" style="margin-right:${gw}px"><span>${fmtDate(pts[0][0])}</span><span>${fmtDate(pts[pts.length-1][0])}</span></div>`;
+    <div class="axis" style="margin-right:${gw}px">${axis}</div>`;
 }
 function chartBlock(c){
   const ch = c.chart;
