@@ -162,6 +162,18 @@ h1{font-size:2rem;margin:0 0 6px;color:var(--amber)}
 .hist b,.rule b{color:var(--ink);font-weight:600}
 .rule{margin:0;line-height:1.5;color:var(--faint);font-size:.85rem}
 .src{font-size:.8rem;margin-top:6px}
+.lines{margin:0 0 18px}
+.lines .grp{margin:14px 0 4px;font:600 .78rem var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+.lines .ln-row{display:grid;grid-template-columns:minmax(150px,1.1fr) 92px minmax(0,3fr);gap:6px 16px;align-items:start;padding:10px 0;border-top:1px solid var(--line)}
+.lines .ln-row .m{font-weight:600}
+.lines .ln-row .m small{display:block;font:400 .78rem var(--mono);color:var(--faint);margin-top:2px}
+.lines .ln-row .st{font:700 .72rem var(--mono);letter-spacing:.05em;border-radius:6px;padding:3px 6px;text-align:center;border:2px solid var(--line2);color:var(--soft)}
+.lines .ln-row .st.hit{background:var(--clay);border-color:var(--clay);color:#fff}
+.lines .ln-row .st.hitg{background:var(--teal);border-color:var(--teal);color:#fff}
+.lines .ln-row .st.near{border-color:var(--amber);color:var(--amber)}
+.lines .ln-row .d{color:var(--soft);font-size:.93rem;line-height:1.5}
+.lines .ln-row .d b{color:var(--ink);font-weight:600}
+@media (max-width:700px){.lines .ln-row{grid-template-columns:1fr auto}.lines .ln-row .d{grid-column:1/-1}}
 .hand{margin-top:14px;border:1px dashed var(--line2);border-radius:10px;padding:10px 14px}
 .hand h4{margin:0 0 4px;font:600 .8rem var(--mono);color:var(--faint);letter-spacing:.05em}
 .hand li{color:var(--soft);font-size:.92rem;margin:3px 0}
@@ -204,7 +216,7 @@ h1{font-size:2rem;margin:0 0 6px;color:var(--amber)}
 
 <div class="wrap">
   <h1>How a crash builds</h1>
-  <p class="lede">This page walks through a crash in the order things actually break, using the Fed's own data. Each sign shows where it stands today, whether it has fired, and what it did before the 2000, 2008 and 2020 crashes.</p>
+  <p class="lede">This page walks through a crash in the order things actually break, mostly using the Fed's own data. Each sign shows where it stands today, whether it has fired, and what it did before the 2000, 2008 and 2020 crashes.</p>
   <div class="stamp" id="stamp"></div>
   <div class="key">
     <span><span class="pill fired">FIRED</span> past its trip line</span>
@@ -234,6 +246,12 @@ h1{font-size:2rem;margin:0 0 6px;color:var(--amber)}
     <div class="panel" id="thesis"></div>
   </div>
 
+  <section class="panel lines" id="linesBox" hidden>
+    <h3>Lines the analysts are watching</h3>
+    <p class="rule" style="margin:0 0 6px">These are levels that Great Martis and Henrik Zeberg have drawn in their own posts, checked against the latest close. They're their calls rather than data, and each one says who drew it and when.</p>
+    <div id="lines"></div>
+  </section>
+
   <div id="chapters"></div>
 
   <div class="foot">
@@ -248,8 +266,13 @@ h1{font-size:2rem;margin:0 0 6px;color:var(--amber)}
 
 const EMBEDDED = /*__DATA__*/null;
 const DATA_URLS = ["./crash.json"];
+const LINES_URL = "./crash-lines.json";
+const EMBEDDED_LINES = /*__LINES__*/null;
+let LINES = EMBEDDED_LINES, PRICES = EMBEDDED ? EMBEDDED.prices : null;
 
 const CHAPTERS = [
+  {n:0, title:"How high prices are", map:"The backdrop",
+   story:"Before any of the chapters below, it helps to know how stretched prices are, because that sets how far they can fall once things break. These gauges don't time a crash, and they can stay high for years, but every big crash started from a high reading."},
   {n:1, title:"Money gets dear", map:"Crash map: Tightening",
    story:"It starts with the Fed raising rates while the boom is still running, and long-term borrowing costs climb along with it. Nothing breaks at this stage, but money gets more expensive for everyone who borrowed to ride the boom."},
   {n:2, title:"The leaders break", map:"Crash map: First crack",
@@ -291,6 +314,9 @@ function plot(ch, pts, marks, verdict, H, isNow){
   const ys = pts.map(p => p[1]).concat(ch.lines.map(l => l.v));
   let lo=Math.min(...ys), hi=Math.max(...ys); if(hi===lo){hi+=1;lo-=1}
   const pad=(hi-lo)*.1; lo-=pad; hi+=pad;
+  // keep the danger zone big enough to see and to hold its label
+  const fz = ch.lines.find(l=>l.kind==="fire");
+  if(fz){ const need=(hi-lo)*.22; if(ch.dir==="down" && fz.v-lo < need) lo = fz.v-need; if(ch.dir==="up" && hi-fz.v < need) hi = fz.v+need; }
   const X = ms => P + (ms-t0)*(W-2*P)/Math.max(1,(t1-t0));
   const Y = v => P + (hi-v)*(H-2*P)/(hi-lo);
   const inMarks = (marks||[]).filter(m => { const ms=Date.parse(m.d); return ms>=t0 && ms<=t1; });
@@ -342,13 +368,42 @@ function chartBlock(c){
   return `<div class="chart">${now}</div>${past}`;
 }
 
+function renderLines(L, prices){
+  const box = document.getElementById("linesBox");
+  if(!L || !L.lines || !prices){ box.hidden = true; return; }
+  const num = v => Number(v).toLocaleString("en-US", {maximumFractionDigits: Math.abs(v) < 1000 ? 2 : 0});
+  const rows = L.lines.map(l => {
+    const p = prices[l.key];
+    if(!p) return null;
+    const past = v => l.dir === "below" ? v < l.level : v >= l.level;
+    const crossed = past(p.last);
+    let run = 0; for(let i = p.closes.length - 1; i >= 0 && past(p.closes[i][1]); i--) run++;
+    const gap = Math.abs(p.last / l.level - 1) * 100;
+    const side = crossed ? (l.dir === "below" ? "under" : "over") : (l.dir === "below" ? "above" : "under");
+    let state = crossed ? (l.bear ? "hit" : "hitg") : gap <= 2 ? "near" : "";
+    let pill = crossed ? "CROSSED" : gap <= 2 ? "CLOSE" : "NOT YET";
+    let when = crossed ? (run === 1 ? "which is the first close past it" : run >= p.closes.length ? `and it has been past it for at least ${run} sessions` : `and it has been past it for ${run} sessions`) : "";
+    const d = `${esc(l.what)} The last close was <b>${num(p.last)}</b> on ${fmtDate(p.date)}, ${gap.toFixed(1)}% ${side} the line${when ? ", " + when : ""}.`;
+    return {l, crossed, state, pill, html: `<div class="ln-row"><div class="m">${esc(l.market)}<small>${l.dir === "below" ? "close under" : "close over"} ${num(l.level)}</small></div><div class="st ${state}">${pill}</div><div class="d">${d}</div></div>`};
+  }).filter(Boolean);
+  const who = [...new Set(rows.map(r => r.l.who))];
+  document.getElementById("lines").innerHTML = who.map(w => {
+    const rs = rows.filter(r => r.l.who === w).sort((a, b) => (b.crossed - a.crossed));
+    const dates = [...new Set(rs.map(r => r.l.said))].sort();
+    const n = rs.filter(r => r.crossed).length;
+    return `<div class="grp">${esc(w)}, from posts on ${dates.map(fmtDate).join(" and ")}. ${n} of ${rs.length} crossed</div>` + rs.map(r => r.html).join("");
+  }).join("");
+  box.hidden = false;
+}
+
 function render(data, liveNote){
+  PRICES = data.prices || PRICES; if(LINES) renderLines(LINES, PRICES);
   const cards = data.cards;
   const byCh = {}; cards.forEach(c => (byCh[c.chapter] ||= []).push(c));
 
   // story track
   let furthest = 0;
-  const steps = CHAPTERS.map(ch => {
+  const steps = CHAPTERS.filter(ch => ch.n > 0).map(ch => {
     const cs = (byCh[ch.n]||[]).filter(c=>c.verdict!=="nodata");
     const f = cs.filter(c=>c.verdict==="fired").length, w = cs.filter(c=>c.verdict==="warming").length;
     const cls = cs.length && f*2 >= cs.length ? "lit" : (f||w) ? "stir" : "";
@@ -403,7 +458,7 @@ function render(data, liveNote){
     const cs = byCh[ch.n]||[];
     const hand = HAND[ch.n] ? `<div class="hand"><h4>CHECKED BY HAND, NOT LIVE</h4><ul>${HAND[ch.n].map(h=>`<li>${esc(h)}</li>`).join("")}</ul></div>` : "";
     return `<section class="chapter" id="ch${ch.n}">
-      <div class="ch-head"><span class="ch-num">${ch.n}</span><h2>${esc(ch.title)}</h2><span class="ch-tag">${esc(ch.map)}</span></div>
+      <div class="ch-head"><span class="ch-num">${ch.n || "◆"}</span><h2>${esc(ch.title)}</h2><span class="ch-tag">${esc(ch.map)}</span></div>
       <p class="ch-story">${esc(ch.story)}</p>
       <div class="cards">${cs.map(c => {
         const s = c.spark||[];
@@ -430,6 +485,7 @@ function render(data, liveNote){
 const baseNote = "A GitHub server pulls the Fed's data every weekday morning and evening, and this page loads the newest copy whenever you open it, so nothing has to stay running on your end.";
 if(EMBEDDED) render(EMBEDDED, baseNote + " Until it loads, you're seeing the copy saved inside this file.");
 else document.getElementById("verdictLine").textContent = "Loading the latest readings…";
+fetch(LINES_URL + "?t=" + Date.now(), {cache:"no-store"}).then(r => r.ok ? r.json() : Promise.reject(r.status)).then(j => { LINES = j; renderLines(LINES, PRICES); }).catch(() => {});
 Promise.allSettled(DATA_URLS.map(u => fetch(u + "?t=" + Date.now(), {cache:"no-store"}).then(r => r.ok ? r.json() : Promise.reject(r.status))))
   .then(rs => {
     const got = rs.filter(r => r.status === "fulfilled").map(r => r.value).sort((a,b) => a.generated_utc < b.generated_utc ? 1 : -1);

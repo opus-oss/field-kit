@@ -1,5 +1,6 @@
 # Pulls the Fed (FRED) series and a few daily closes behind crash.html into crash.json,
 # so the page can read them same-origin. FRED sends no CORS header, so a browser can't fetch it directly.
+# Also pulls NAHB's builder index and the Shiller P/E, keeping the last good copy of each in the repo.
 # Runs weekday mornings and evenings (New York), on edits to this file or the script, or by hand.
 # The Pages deploy workflow redeploys after this one completes.
 name: Crash
@@ -34,7 +35,6 @@ jobs:
           git config user.name "field-kit-bot"
           git config user.email "field-kit-bot@users.noreply.github.com"
           git add crash.json
-          if [ "$GITHUB_REF_NAME" != "main" ]; then rm -rf rawdbg && cp -r /tmp/crash-raw rawdbg && git add rawdbg; fi
           for f in crash-hmi.csv crash-cape.csv; do if [ -f $f ]; then git add $f; fi; done
           git diff --cached --quiet && exit 0
           git commit -q -m "crash: $(date -u +%Y-%m-%d\ %H:%M) UTC"

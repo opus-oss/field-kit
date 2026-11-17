@@ -437,6 +437,12 @@ def add_charts(S, cards):
                     past=("2008-06-01", "2009-03-31", "in 2008 and 2009, when the carry trade unwound"), unit="%"),
         "builders": dict(s=S.get("HMI"), lines=[(30, "warm", "warming"), (20, "fire", "fired")], dir="down", yrs=8,
                          past=("2005-06-01", "2009-06-30", "from 2005 to 2009, when housing led the way down")),
+        "dowtheory": dict(s=dd_series(S["DJT"]) if S.get("DJT") else None, lines=[(-10, "warm", "warming"), (-20, "fire", "fired")], dir="down", yrs=2,
+                          past=("2007-01-01", "2009-03-31", "from 2007 to 2009"), unit="%"),
+        "cape": dict(s=S.get("CAPE"), lines=[(30, "warm", "warming"), (38, "fire", "fired")], dir="up", yrs=30,
+                     past=("1995-01-01", "2003-12-31", "from 1995 to 2003, through the dot-com bubble")),
+        "buffett": dict(s=S.get("BUFFETT"), lines=None, dir="up", yrs=30,
+                        past=("1995-01-01", "2003-12-31", "from 1995 to 2003, through the dot-com bubble"), unit=""),
         "jobs": dict(s=S.get("SAHMREALTIME"), lines=[(0.3, "warm", "warming"), (0.5, "fire", "fired")], dir="up", yrs=4, past=("2006-06-01", "2009-12-31", "from 2006 to 2009")),
         "cuts": dict(s=chg_series(S["DFF"], 91) if S.get("DFF") else None, lines=[(-0.2, "warm", "warming"), (-0.5, "fire", "fired")], dir="down", yrs=3,
                      past=("2007-06-01", "2009-03-31", "from 2007 to 2009"), unit="pts"),
@@ -450,6 +456,8 @@ def add_charts(S, cards):
         if not sp_ or not sp_["s"]:
             continue
         s, dir_, lines = sp_["s"], sp_["dir"], sp_["lines"]
+        if lines is None:
+            lines = [(120, "warm", "warming"), (round(c["trip"]), "fire", "fired")]
         fire = next((v for v, k, _ in lines if k == "fire"), None)
         start = s[-1][0] - dt.timedelta(days=int(365.25 * sp_["yrs"]))
         w = [(d, v) for d, v in s if d >= start]
@@ -462,7 +470,7 @@ def add_charts(S, cards):
         elif fire is not None and in_danger(w[-1][1], fire, dir_):
             xs = crossings(w, fire, dir_)
             if xs:
-                marks.append({"d": xs[-1].isoformat(), "label": f"Fired {xs[-1]:%b %-d}", "kind": "fire"})
+                marks.append({"d": xs[-1].isoformat(), "label": f"Fired {xs[-1]:%b %-d}" if (w[-1][0] - xs[-1]).days < 300 and sp_["yrs"] <= 3 else f"Fired {xs[-1]:%b %Y}", "kind": "fire"})
         now = {"pts": thin(w), "lines": [{"v": v, "kind": k, "label": l} for v, k, l in lines], "dir": dir_, "marks": marks}
         past = None
         if sp_["past"]:
@@ -626,6 +634,55 @@ def build():
             "src": [FRED_URL.format("DFII10"), FRED_URL.format("T10YIE")],
         }
 
+    # ===== Chapter 0: how stretched prices are (backdrop, not a stage) =====
+    s = S.get("CAPE")
+    if s:
+        d0, v0 = s[-1]
+        pk29 = peak(s, D("1928-01-01"), D("1930-12-31"))
+        pk00 = peak(s, D("1998-01-01"), D("2001-12-31"))
+        pk07 = peak(s, D("2006-01-01"), D("2008-06-30"))
+        pk21 = peak(s, D("2021-01-01"), D("2022-06-30"))
+        over = sorted({d.year for d, v in s if v >= 38 and d < d0 - dt.timedelta(days=400)})
+        add(card("cape", 0, "The Shiller P/E",
+            "This is the S&P 500's price divided by its average earnings over the last ten years, adjusted for inflation, which smooths out booms and busts in profits. A high number doesn't say when a crash comes, but it says how far prices can fall once one starts.",
+            v0, f"Stocks cost {v0:.1f} times their ten-year average earnings, against a long-run average of about 17", d0, grade(v0, 38, 30),
+            "It counts as fired at 38 or more, a level only the 1999-2000 bubble and the late-2021 top reached before now, and as warming at 30, about where it peaked in 1929.",
+            f"It peaked at {pk29[1]:.1f} in {mon(pk29[0])} before the 1929 crash, {pk00[1]:.1f} in {mon(pk00[0])} before the tech bust, {pk07[1]:.1f} in {mon(pk07[0])} before 2008, and {pk21[1]:.1f} in {mon(pk21[0])} before the 2022 selloff.",
+            CAPE_PAGE, "Shiller P/E from multpl.com (Robert Shiller's data), monthly", spark(s, years=30), 38, "fired line"),
+            "fires at 38")
+
+    eq, gdp = S.get("NCBEILQ027S"), S.get("GDP")
+    spx_full = S.get("GSPC") or S.get("SP500")
+    if eq and gdp:
+        ratio = []
+        for d, v in eq:
+            g = at(gdp, d)
+            if g:
+                ratio.append((d, v / (g[1] * 1000) * 100))
+        S["BUFFETT"] = ratio
+        dq, rq = ratio[-1]
+        qm = dq.month + 3
+        qend = dt.date(dq.year + (qm > 12), (qm - 1) % 12 + 1, 1) - dt.timedelta(days=1)
+        QN = {1: "first", 4: "second", 7: "third", 10: "fourth"}
+        qtr = lambda d: f"the {QN.get(d.month, 'first')} quarter of {d.year}"
+        est, d0, note = rq, qend, ""
+        if spx_full and at(spx_full, qend):
+            p0, p1 = at(spx_full, qend)[1], spx_full[-1]
+            est, d0 = rq * p1[1] / p0, p1[0]
+            S["BUFFETT"] = ratio + [(d0, est)]
+            note = f", which is the Fed's figure of {rq:.0f}% for the end of {qend:%B %Y} carried forward with the S&P 500's move since then"
+        pk00 = peak(ratio, D("1999-01-01"), D("2000-12-31"))
+        pk07 = peak(ratio, D("2007-01-01"), D("2007-12-31"))
+        pk21 = peak(ratio, D("2021-01-01"), D("2022-03-31"))
+        lo09 = peak(ratio, D("2008-06-01"), D("2009-12-31"), lo=True)
+        add(card("buffett", 0, "The Buffett indicator",
+            "This is the value of all US company stock divided by the economy's yearly output, a measure Warren Buffett once called the best single gauge of where valuations stand. Like any valuation gauge it can stay high for years, but it shows how much room there is to fall.",
+            est, f"US stocks are worth about {est:.0f}% of a year's economic output{note}", d0, grade(est, pk00[1] if pk00 else 150, 120),
+            f"It counts as fired above {pk00[1]:.0f}%, its peak in the 2000 bubble, and as warming above 120%.",
+            f"It peaked at {pk00[1]:.0f}% in {qtr(pk00[0])}, reached {pk07[1]:.0f}% in {qtr(pk07[0])} before 2008 and fell to {lo09[1]:.0f}% at the 2009 low, then hit {pk21[1]:.0f}% in {qtr(pk21[0])} before the 2022 selloff.",
+            FRED_URL.format("NCBEILQ027S"), "FRED NCBEILQ027S (company stock, Fed Z.1) over FRED GDP, quarterly, carried forward with the S&P 500", spark(ratio, years=30), pk00[1] if pk00 else 150, "fired line"),
+            f"fires above {pk00[1]:.0f}%" if pk00 else "fires above 150%")
+
     # ===== Chapter 2: leaders break =====
     ndx, spx = S.get("NASDAQ100"), S.get("SP500")
     if ndx and spx:
@@ -644,6 +701,29 @@ def build():
             "It counts as fired when the Nasdaq-100 is 15% or more below its high of the past year, and as warming at 8%.",
             h, FRED_URL.format("NASDAQ100"), "FRED NASDAQ100 and SP500, daily", spark(ndx, years=2)),
             "fires at 15% below its high")
+    djt, dji = S.get("DJT"), S.get("DJI")
+    if djt and dji:
+        dd_t, hi_t, now_t = drawdown(djt)
+        dd_d, hi_d, now_d = drawdown(dji)
+        # Dow Theory non-confirmation: the Industrials set a fresh high that the Transports don't match
+        nonconf = (hi_d[0] - hi_t[0]).days > 30 and dd_t <= -5
+        verdict = "fired" if dd_t <= -20 else "warming" if (dd_t <= -10 or nonconf) else "quiet"
+        rd = f"The Transports are {pct(dd_t)} below their {day(hi_t[0])} high, while the Dow Industrials are {pct(dd_d)} below theirs from {day(hi_d[0])}"
+        if nonconf:
+            rd += ", so the Dow's newer high hasn't been matched by the Transports"
+        parts = []
+        for y, t in TOPS.items():
+            pkd = peak(dji, t - dt.timedelta(days=200), t + dt.timedelta(days=120))
+            if pkd and covers(djt, pkd[0] - dt.timedelta(days=365)):
+                ddt, hit, _ = drawdown(djt, pkd[0])
+                parts.append(f"when the Dow peaked in {mon(pkd[0])} the Transports were already {pct(ddt)} below their {mon(hit[0])} high")
+        hist = cap(joined(parts)) + "." if parts else ""
+        add(card("dowtheory", 2, "Dow Industrials vs Transports",
+            "Dow Theory says a rally is only healthy when the companies that move goods (railroads, truckers, airlines) climb along with the big industrial names, because a booming economy has to ship things. When the Industrials make new highs and the Transports don't follow, that's called a non-confirmation, and it has shown up before several big tops.",
+            -dd_t, rd, now_t[0], verdict,
+            "It counts as fired when the Transports are 20% or more below their high of the past year, and as warming at 10% or whenever the Dow sets a new high that the Transports don't match.",
+            hist, YAHOO_URL.format("%5EDJT"), "Dow Transports and Industrials, Yahoo Finance daily closes", spark(djt, years=2)),
+            "fires at 20% below its high")
     chips, nv = S.get("SMH"), S.get("NVDA")
     if chips:
         dd_c, hi_c, now_c = drawdown(chips)
@@ -897,12 +977,19 @@ def build():
                       "as_of": ccc[-1][0].isoformat(), "fired": ccc[-1][1] > 13.56 and hy_rise > 0.25})
 
     add_charts(S, cards)
+    # latest closes for checking the analysts' lines on the page (crash-lines.json)
+    prices = {}
+    for k in list(YAHOO) + ["SP500", "NASDAQ100"]:
+        ser = S.get(k)
+        if ser:
+            prices[k] = {"last": round(ser[-1][1], 4), "date": ser[-1][0].isoformat(),
+                         "closes": [[d.isoformat(), round(v, 4)] for d, v in ser[-6:]]}
     fmt = {
         "fed": "{:.2f}%", "long": "{:.2f}%", "curve": "{:+.2f}", "loans": "{:+.1f}%",
         "leaders": "-{:.0f}%", "chips": "-{:.0f}%", "banks": "-{:.0f}%",
         "ccc": "{:.2f}", "hy": "{:.2f}", "cp": "{:.2f}", "window": "${:.1f}B", "repo": "${:.1f}B",
         "nfci": "{:+.2f}", "vix": "{:.1f}", "stress": "{:+.2f}", "yen": "{:.2f}", "jobs": "{:.2f}",
-        "cuts": "{:+.2f}", "printing": "{:+.1f}%", "builders": "{:.0f}",
+        "cuts": "{:+.2f}", "printing": "{:+.1f}%", "builders": "{:.0f}", "cape": "{:.1f}", "buffett": "{:.0f}%", "dowtheory": "-{:.0f}%",
     }
     for c in cards:
         v = c["value"]
@@ -917,6 +1004,7 @@ def build():
         "fetched_utc": log.get("fetched_utc"),
         "failed": why_missing,
         "cards": cards, "watch": watch, "thesis": thesis,
+        "prices": prices,
     }
 
 
