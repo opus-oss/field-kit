@@ -221,6 +221,172 @@ def cap(s):
 TOP_NAME = {"2000": "the 2000 top", "2008": "the 2007 top", "2020": "the 2020 top"}
 
 
+# ---------- charts: each sign drawn in the form its trip line uses ----------
+import bisect
+
+
+def dd_series(s, look=365):
+    """% below the highest close of the prior `look` days, for every day."""
+    out, dates = [], [d for d, _ in s]
+    from collections import deque
+    q = deque()  # indices with decreasing values
+    for i, (d, v) in enumerate(s):
+        while q and s[q[-1]][1] <= v:
+            q.pop()
+        q.append(i)
+        while dates[q[0]] < d - dt.timedelta(days=look):
+            q.popleft()
+        out.append((d, (v / s[q[0]][1] - 1) * 100))
+    return out
+
+
+def chg_series(s, days):
+    dates = [d for d, _ in s]
+    out = []
+    for d, v in s:
+        j = bisect.bisect_right(dates, d - dt.timedelta(days=days)) - 1
+        if j >= 0:
+            out.append((d, v - s[j][1]))
+    return out
+
+
+def pct_obs(s, k):
+    return [(s[i][0], (s[i][1] / s[i - k][1] - 1) * 100) for i in range(k, len(s)) if s[i - k][1]]
+
+
+def yen_strength(s, k=20):
+    return [(s[i][0], (s[i - k][1] / s[i][1] - 1) * 100) for i in range(k, len(s))]
+
+
+def avg_series(s, k):
+    out, acc = [], 0.0
+    for i, (d, v) in enumerate(s):
+        acc += v
+        if i >= k:
+            acc -= s[i - k][1]
+        if i >= k - 1:
+            out.append((d, acc / k))
+    return out
+
+
+def thin(w, n=180):
+    if not w:
+        return []
+    step = max(1, len(w) // n)
+    pts = w[::step]
+    if pts[-1] != w[-1]:
+        pts.append(w[-1])
+    return [[d.isoformat(), round(v, 3)] for d, v in pts]
+
+
+def in_danger(v, line, dir_):
+    return v >= line if dir_ == "up" else v <= line
+
+
+def crossings(w, line, dir_):
+    """Dates where the series moves into the danger side of `line` and stays there.
+    Daily series must stay over the line for five readings, so one-day blips don't count."""
+    if len(w) < 2:
+        return []
+    gap = (w[-1][0] - w[0][0]).days / max(1, len(w) - 1)
+    k = 5 if gap < 4 else 1
+    out = []
+    for i in range(1, len(w)):
+        if not in_danger(w[i - 1][1], line, dir_) and all(in_danger(v, line, dir_) for _, v in w[i:i + k]) and len(w[i:i + k]) == k:
+            out.append(w[i][0])
+    return out
+
+
+EXTRA_TOPS = {D("2022-01-03"): "Stocks topped"}
+
+
+def add_charts(S, cards):
+    sp = lambda a, b: diff(a, b) if a and b else None
+    ccc = S.get("BAMLH0A3HYC")
+    ccc_lo = None
+    if ccc:
+        ccc_lo = peak(ccc, ccc[-1][0] - dt.timedelta(days=365), ccc[-1][0], lo=True)[1]
+    wl = S.get("WLCFLPCL")
+    walcl = S.get("WALCL")
+    spec = {
+        "fed": dict(s=S.get("DFF"), lines=[], dir="up", yrs=3, past=("2004-01-01", "2008-12-31", "2004 to 2008: the Fed hiked into the housing boom")),
+        "long": dict(s=chg_series(S["DGS30"], 365) if S.get("DGS30") else None, lines=[(0.25, "warm", "warming"), (0.75, "fire", "fired")], dir="up", yrs=3,
+                     past=("2021-06-01", "2023-06-30", "2022: the bond rout"), unit="pts"),
+        "curve": dict(s=S.get("T10Y3M"), lines=[(0, "warm", "zero")], dir="down", yrs=4, past=("2005-06-01", "2009-03-31", "2006 to 2009"), curve=True),
+        "loans": dict(s=S.get("DRTSCILM"), lines=[(0, "warm", "warming"), (20, "fire", "fired")], dir="up", yrs=8, past=("2006-01-01", "2010-06-30", "2006 to 2010")),
+        "leaders": dict(s=dd_series(S["NASDAQ100"]) if S.get("NASDAQ100") else None, lines=[(-8, "warm", "warming"), (-15, "fire", "fired")], dir="down", yrs=2,
+                        past=("1999-06-01", "2001-06-30", "2000: the Nasdaq breaks"), unit="%"),
+        "chips": dict(s=dd_series(S["SMH"]) if S.get("SMH") else None, lines=[(-10, "warm", "warming"), (-20, "fire", "fired")], dir="down", yrs=2,
+                      past=("2007-06-01", "2009-06-30", "2007 to 2009"), unit="%"),
+        "ccc": dict(s=ccc, lines=([(round(ccc_lo + 1.5, 2), "warm", "warming"), (round(ccc_lo + 3, 2), "fire", "fired")] if ccc else []), dir="up", yrs=3, past=None),
+        "hy": dict(s=S.get("BAMLH0A0HYM2"), lines=[(4.5, "warm", "warming"), (6, "fire", "fired")], dir="up", yrs=3, past=None),
+        "cp": dict(s=avg_series(sp(S.get("DCPF3M"), S.get("DTB3")), 5) if S.get("DCPF3M") and S.get("DTB3") else None,
+                   lines=[(0.5, "warm", "warming"), (1.0, "fire", "fired")], dir="up", yrs=3, past=("2007-01-01", "2009-03-31", "2007 to 2009")),
+        "banks": dict(s=dd_series(S["BKX"]) if S.get("BKX") else None, lines=[(-10, "warm", "warming"), (-20, "fire", "fired")], dir="down", yrs=2,
+                      past=("2006-06-01", "2009-03-31", "2006 to 2009: banks led the way down"), unit="%"),
+        "window": dict(s=[(d, v / 1000) for d, v in wl] if wl else None, lines=[(10, "warm", "warming"), (22, "fire", "go-time")], dir="up", yrs=3,
+                       past=("2022-10-01", "2023-06-30", "2023: the Silicon Valley Bank run"), events={D("2023-03-10"): "SVB failed"}),
+        "sofr": dict(s=[(d, v * 100) for d, v in avg_series(sp(S.get("SOFR"), S.get("IORB")), 5)] if S.get("SOFR") and S.get("IORB") else None,
+                     lines=[(0, "warm", "warming"), (10, "fire", "fired")], dir="up", yrs=2, past=None),
+        "repo": dict(s=avg_series(S["RPONTSYD"], 5) if S.get("RPONTSYD") else None, lines=[(10, "warm", "warming"), (25, "fire", "fired")], dir="up", yrs=2,
+                     past=("2019-07-01", "2020-06-30", "2019 to 2020: the repo squeeze, then Covid")),
+        "nfci": dict(s=S.get("NFCI"), lines=[(-0.25, "warm", "warming"), (0, "fire", "fired")], dir="up", yrs=4, past=("2007-01-01", "2009-06-30", "2007 to 2009")),
+        "vix": dict(s=avg_series(S["VIXCLS"], 5) if S.get("VIXCLS") else None, lines=[(20, "warm", "warming"), (30, "fire", "fired")], dir="up", yrs=2,
+                    past=("2007-06-01", "2009-06-30", "2007 to 2009")),
+        "stress": dict(s=S.get("STLFSI4"), lines=[(0, "warm", "warming"), (1, "fire", "fired")], dir="up", yrs=4, past=("2007-01-01", "2009-06-30", "2007 to 2009")),
+        "yen": dict(s=yen_strength(S["DEXJPUS"]) if S.get("DEXJPUS") else None, lines=[(3, "warm", "warming"), (7, "fire", "fired")], dir="up", yrs=2,
+                    past=("2008-06-01", "2009-03-31", "2008: the carry trade unwinds"), unit="%"),
+        "jobs": dict(s=S.get("SAHMREALTIME"), lines=[(0.3, "warm", "warming"), (0.5, "fire", "fired")], dir="up", yrs=4, past=("2006-06-01", "2009-12-31", "2006 to 2009")),
+        "cuts": dict(s=chg_series(S["DFF"], 91) if S.get("DFF") else None, lines=[(-0.2, "warm", "warming"), (-0.5, "fire", "fired")], dir="down", yrs=3,
+                     past=("2007-06-01", "2009-03-31", "2007 to 2009"), unit="pts"),
+        "printing": dict(s=pct_obs([(d, v / 1e6) for d, v in walcl], 8) if walcl else None, lines=[(2, "warm", "warming"), (5, "fire", "fired")], dir="up", yrs=4,
+                         past=("2008-06-01", "2009-06-30", "2008 to 2009"), unit="%"),
+    }
+    tops = {t: "Stocks topped" for t in TOPS.values()}
+    tops.update(EXTRA_TOPS)
+    for c in cards:
+        sp_ = spec.get(c["id"])
+        if not sp_ or not sp_["s"]:
+            continue
+        s, dir_, lines = sp_["s"], sp_["dir"], sp_["lines"]
+        fire = next((v for v, k, _ in lines if k == "fire"), None)
+        start = s[-1][0] - dt.timedelta(days=int(365.25 * sp_["yrs"]))
+        w = [(d, v) for d, v in s if d >= start]
+        marks = []
+        if sp_.get("curve"):
+            # the danger signal is the curve coming back above zero after a long inversion
+            ups = crossings([(d, -v) for d, v in w], 0, "down")
+            if ups:
+                marks.append({"d": ups[-1].isoformat(), "label": "Back above zero", "kind": "fire"})
+        elif fire is not None and in_danger(w[-1][1], fire, dir_):
+            xs = crossings(w, fire, dir_)
+            if xs:
+                marks.append({"d": xs[-1].isoformat(), "label": f"Fired {xs[-1]:%b %-d}", "kind": "fire"})
+        now = {"pts": thin(w), "lines": [{"v": v, "kind": k, "label": l} for v, k, l in lines], "dir": dir_, "marks": marks}
+        past = None
+        if sp_["past"]:
+            a, b, label = D(sp_["past"][0]), D(sp_["past"][1]), sp_["past"][2]
+            pw = [(d, v) for d, v in s if a <= d <= b]
+            if len(pw) > 3:
+                pm = []
+                for t, lab in tops.items():
+                    if a <= t <= b:
+                        pm.append({"d": t.isoformat(), "label": lab, "kind": "top"})
+                for t, lab in (sp_.get("events") or {}).items():
+                    pm.append({"d": t.isoformat(), "label": lab, "kind": "top"})
+                if sp_.get("curve"):
+                    ups = crossings([(d, -v) for d, v in pw], 0, "down")
+                    if ups:
+                        pm.append({"d": ups[-1].isoformat(), "label": "Back above zero", "kind": "fire"})
+                elif fire is not None:
+                    xs = crossings(pw, fire, dir_)
+                    if xs:
+                        pm.append({"d": xs[0].isoformat(), "label": f"Crossed {xs[0]:%b %Y}", "kind": "fire"})
+                past = {"label": label, "pts": thin(pw, 140), "marks": pm}
+        c["chart"] = {"now": now, "past": past, "unit": sp_.get("unit", "")}
+        c["spark"] = []
+
+
 def build():
     S = {k[:-4]: load(k[:-4]) for k in os.listdir(RAW) if k.endswith(".csv")}
     log = json.load(open(os.path.join(RAW, "_fetch_log.json"))) if os.path.exists(os.path.join(RAW, "_fetch_log.json")) else {}
@@ -596,6 +762,7 @@ def build():
                       "now": f"The weakest junk is at {ccc[-1][1]:.2f}, and all junk is at {hy[-1][1]:.2f}, {'up' if hy_rise >= 0 else 'down'} {abs(hy_rise):.2f} in a month",
                       "as_of": ccc[-1][0].isoformat(), "fired": ccc[-1][1] > 13.56 and hy_rise > 0.25})
 
+    add_charts(S, cards)
     fmt = {
         "fed": "{:.2f}%", "long": "{:.2f}%", "curve": "{:+.2f}", "loans": "{:+.1f}%",
         "leaders": "-{:.0f}%", "chips": "-{:.0f}%", "banks": "-{:.0f}%",
