@@ -1,0 +1,15 @@
+{
+  "name": "Crash Watch",
+  "short_name": "Crash",
+  "description": "How a crash builds, in the order things break, from the Fed's own data.",
+  "start_url": "./crash.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#1b1e1f",
+  "theme_color": "#1b1e1f",
+  "icons": [
+    { "src": "crash-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "crash-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

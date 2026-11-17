@@ -1,0 +1,37 @@
+# Pulls the Fed (FRED) series and a few daily closes behind crash.html into crash.json,
+# so the page can read them same-origin. FRED sends no CORS header, so a browser can't fetch it directly.
+# Runs weekday mornings and evenings (New York), on edits to this file or the script, or by hand.
+# The Pages deploy workflow redeploys after this one completes.
+name: Crash
+
+on:
+  schedule:
+    - cron: "30 13 * * 1-5"
+    - cron: "30 23 * * 1-5"
+  workflow_dispatch:
+  push:
+    paths: [".github/workflows/crash.yml", "crash-fetch.py"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: "crash"
+  cancel-in-progress: false
+
+jobs:
+  crash:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch FRED and daily closes, build crash.json
+        run: python3 crash-fetch.py
+      - name: Commit crash.json
+        run: |
+          git config user.name "field-kit-bot"
+          git config user.email "field-kit-bot@users.noreply.github.com"
+          git add crash.json
+          git diff --cached --quiet && exit 0
+          git commit -q -m "crash: $(date -u +%Y-%m-%d\ %H:%M) UTC"
+          for i in 1 2 3 4; do git pull -q --rebase && git push -q && exit 0; sleep 7; done; exit 1

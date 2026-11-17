@@ -1,0 +1,381 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="darkreader-lock">
+<meta name="color-scheme" content="dark light">
+<meta name="theme-color" content="#1b1e1f" id="tc">
+<script>(function(){var t='dark';try{t=localStorage.getItem('fk_theme')||'dark'}catch(e){}if(t==='light'){document.documentElement.setAttribute('data-theme','light');document.getElementById('tc').content='#e0cfb0'}})()</script>
+<title>How a Crash Builds</title>
+<link rel="manifest" href="manifest-crash.webmanifest">
+<link rel="icon" href="crash-192.png">
+<link rel="apple-touch-icon" href="crash-180.png">
+<meta name="apple-mobile-web-app-title" content="Crash Watch">
+<style>
+/* Opus — Prima Materia */
+:root{
+  color-scheme:light;
+  --bg:#e0cfb0; --card:#e8d9bf; --chip:#d4c29e; --raised:#eee1cb;
+  --ink:#2b2114; --mut:#5f5236; --faint:#8a7c5e; --line:color-mix(in srgb,#1e160e 12%,transparent); --line2:color-mix(in srgb,#1e160e 24%,transparent);
+  --acc:#b0631f; --good:#14776a; --bad:#b23e37;
+  --h1:color-mix(in srgb,var(--acc),#000 26%); --h2:#3d6e63; --h3:#44618c; --h4:#71537f; --h5:#5c7150; --on-acc:#fffaf0;
+  --mono:"SF Mono","JetBrains Mono","Menlo",ui-monospace,"Consolas",monospace;
+}
+:root:not([data-theme="light"]){
+    --h1:color-mix(in srgb,var(--acc),#fff 16%); --h2:#7cb5a4; --h3:#8fa8c9; --h4:#ab8fc0; --h5:#97ab8a; --on-acc:#1b1e1f;
+    --bg:#1b1e1f; --card:#222627; --chip:#292e2f; --raised:#2e3334;
+    --ink:#e7e4d9; --mut:#b1afa1; --faint:#828175; --line:#353b3c; --line2:#434a4b;
+    --acc:#d98a3d; --good:#4bbfa6; --bad:#d0655c;
+  color-scheme:dark;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{background:var(--bg); color:var(--ink);
+  font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  max-width:1360px; margin:0 auto; padding:0 12px calc(24px + env(safe-area-inset-bottom))}
+/* ---- suite bar (shared across the toolkit) ---- */
+.suitebar{position:sticky; top:0; z-index:60; display:flex; align-items:center; gap:10px; background:var(--card); border-bottom:1px solid var(--line); padding:7px 12px; margin:0 0 12px; overflow:visible}
+.suitebar::-webkit-scrollbar{display:none}
+.suitebar .brand{font-family:var(--mono); font-weight:700; font-size:13px; letter-spacing:.05em; color:var(--acc); text-decoration:none; white-space:nowrap; flex-shrink:0}
+.suitebar .switch{display:flex; gap:3px}
+.suitebar .switch a{font-family:var(--mono); font-size:12.5px; padding:5px 10px; border-radius:8px; color:var(--mut); text-decoration:none; white-space:nowrap}
+.suitebar .switch a:hover{color:var(--ink)}
+.suitebar .switch a.on{background:var(--chip); color:var(--h1); box-shadow:inset 0 -2px 0 var(--acc)}
+.suitebar .grp{position:relative}
+.suitebar .gbtn{font-family:var(--mono); font-size:12.5px; padding:5px 10px; border-radius:8px; color:var(--mut); background:transparent; border:0; white-space:nowrap; display:flex; align-items:center; gap:5px}
+.suitebar .gbtn:hover{color:var(--ink)}
+.suitebar .gbtn .car{font-size:9px; opacity:.7}
+.suitebar .grp.on .gbtn{background:var(--chip); color:var(--h1); box-shadow:inset 0 -2px 0 var(--acc)}
+.suitebar .switch{align-items:center}
+.suitebar .menu{position:absolute; top:calc(100% + 6px); left:0; min-width:150px; background:var(--card); border:1px solid var(--line2); border-radius:10px; padding:5px; display:none; flex-direction:column; gap:2px; box-shadow:0 10px 24px -12px rgba(0,0,0,.5); z-index:70}
+.suitebar .grp.open .menu{display:flex}
+.suitebar .menu a{padding:6px 10px; border-radius:7px}
+.suitebar .menu a:hover{background:var(--chip); color:var(--ink)}
+.suitebar .menu a.cur{color:var(--h1); background:var(--chip)}
+@media(max-width:440px){
+  .suitebar{gap:6px; padding:7px 8px}
+  .suitebar .brand{font-size:0}
+  .suitebar .brand::before{content:'◆'; font-size:14px}
+  .suitebar .switch a,.suitebar .gbtn{padding:5px 7px; font-size:12px}
+  .suitebar .gbtn .car{display:none}
+}
+.suitebar .themebtn{margin-left:auto; position:sticky; right:0; flex-shrink:0; font-size:15px; line-height:1; padding:5px 9px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--mut); cursor:pointer; box-shadow:-10px 0 8px -2px var(--card)}
+.suitebar .themebtn:hover{color:var(--acc); border-color:var(--line2)}
+:root{--ground:var(--bg);--panel:var(--card);--panel2:var(--chip);--soft:var(--mut);--amber:var(--acc);--teal:var(--good);--clay:var(--bad);--slate:var(--h3);--sans:-apple-system,"SF Pro Text",Inter,system-ui,"Segoe UI",Roboto,sans-serif}
+body{padding:0 0 calc(24px + env(safe-area-inset-bottom))}
+.wrap{font:17px/1.6 var(--sans)}
+a{color:var(--amber)}
+.wrap{max-width:1120px;margin:0 auto;padding:16px 16px 80px}
+h1,h2,h3,.mono{font-family:var(--mono);font-weight:600;letter-spacing:.01em}
+h1{font-size:2rem;margin:0 0 6px;color:var(--amber)}
+.lede{color:var(--soft);margin:0 0 4px;max-width:62ch}
+.stamp{color:var(--faint);font-size:.85rem;font-family:var(--mono)}
+
+/* story track */
+.story{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:22px 18px 18px;margin:26px 0 18px}
+.story h2{font-size:1.1rem;margin:0 0 16px;color:var(--soft)}
+.track{display:grid;grid-template-columns:repeat(6,1fr);gap:0;position:relative}
+.step{position:relative;text-align:center;padding:0 4px;cursor:pointer;text-decoration:none;color:inherit}
+.step::before{content:"";position:absolute;top:22px;left:-50%;width:100%;height:4px;background:var(--line2);z-index:0}
+.step:first-child::before{display:none}
+.step.lit::before,.step.stir::before{background:var(--clay)}
+.step.stir::before{background:var(--amber)}
+.dot{position:relative;z-index:1;width:48px;height:48px;border-radius:50%;margin:0 auto 8px;display:grid;place-items:center;font:700 1.1rem var(--mono);background:var(--panel2);color:var(--faint);border:3px solid var(--line2)}
+.lit .dot{background:var(--clay);border-color:var(--clay);color:#fff}
+.stir .dot{background:transparent;border-color:var(--amber);color:var(--amber)}
+.step .t{font:600 .95rem/1.25 var(--mono);display:block}
+.step .s{display:block;font-size:.8rem;color:var(--faint);margin-top:2px}
+.step .c{display:block;font-size:.85rem;margin-top:4px;color:var(--soft)}
+.here{display:inline-block;margin-top:6px;font:700 .72rem var(--mono);color:var(--ground);background:var(--amber);border-radius:6px;padding:2px 7px;letter-spacing:.06em}
+.verdict-line{font-size:1.15rem;margin:18px 2px 0;max-width:70ch}
+@media (max-width:760px){
+  .track{grid-template-columns:1fr;gap:10px}
+  .step{display:grid;grid-template-columns:48px 1fr;gap:12px;text-align:left;align-items:center}
+  .step::before{top:-10px;left:22px;width:4px;height:10px}
+  .dot{margin:0}
+}
+
+/* panels */
+.row2{display:grid;grid-template-columns:1.3fr 1fr;gap:18px;margin-bottom:8px}
+@media (max-width:760px){.row2{grid-template-columns:1fr}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px}
+.panel h3{margin:0 0 10px;font-size:1rem;color:var(--soft)}
+.gt{display:flex;gap:12px;align-items:flex-start;padding:10px 0;border-top:1px solid var(--line)}
+.gt:first-of-type{border-top:0}
+.gt .lamp{flex:0 0 14px;height:14px;border-radius:50%;margin-top:6px;background:var(--line2)}
+.gt.on .lamp{background:var(--clay);box-shadow:0 0 0 4px color-mix(in srgb,var(--clay) 25%,transparent)}
+.gt b{display:block}
+.gt span{color:var(--soft);font-size:.92rem}
+.big{font:700 1.6rem var(--mono)}
+
+/* chapters */
+.chapter{margin-top:44px}
+.ch-head{display:flex;gap:16px;align-items:baseline;border-bottom:1px solid var(--line2);padding-bottom:10px;margin-bottom:6px}
+.ch-num{font:700 2.4rem var(--mono);color:var(--faint);line-height:1}
+.ch-head h2{margin:0;font-size:1.5rem}
+.ch-tag{margin-left:auto;font:600 .78rem var(--mono);color:var(--slate);white-space:nowrap}
+.ch-story{color:var(--soft);margin:8px 0 16px;max-width:68ch}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:16px}
+@media (max-width:900px){.cards{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-left:5px solid var(--line2);border-radius:12px;padding:16px 18px}
+.card.fired{border-left-color:var(--clay)}
+.card.warming{border-left-color:var(--amber)}
+.card.quiet{border-left-color:var(--teal)}
+.card-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.card h3{margin:0;font-size:1.05rem}
+.pill{font:700 .75rem var(--mono);letter-spacing:.07em;padding:3px 8px;border-radius:6px;white-space:nowrap}
+.pill.fired{background:var(--clay);color:#fff}
+.pill.warming{background:transparent;color:var(--amber);border:2px solid var(--amber)}
+.pill.quiet{background:transparent;color:var(--teal);border:2px solid var(--teal)}
+.pill.nodata{color:var(--faint);border:2px dashed var(--line2)}
+.bigv{font:700 2.3rem/1.1 var(--mono);margin:12px 0 4px}
+.card.fired .bigv{color:var(--clay)}.card.warming .bigv{color:var(--amber)}
+.reading{font-size:1rem;margin:2px 0 2px}
+.asof{color:var(--faint);font-size:.82rem;font-family:var(--mono)}
+.chart{margin:12px 0 4px}
+.chart svg{width:100%;height:96px;display:block}
+.chart .lbl{display:flex;justify-content:space-between;color:var(--faint);font:.75rem var(--mono)}
+.what{margin:10px 0 0}
+.hist{margin:8px 0 0;color:var(--soft);font-size:.93rem}
+.hist b,.rule b{color:var(--ink);font-weight:600}
+.rule{margin:8px 0 0;color:var(--faint);font-size:.85rem}
+.src{font-size:.8rem;margin-top:6px}
+.hand{margin-top:14px;border:1px dashed var(--line2);border-radius:10px;padding:10px 14px}
+.hand h4{margin:0 0 4px;font:600 .8rem var(--mono);color:var(--faint);letter-spacing:.05em}
+.hand li{color:var(--soft);font-size:.92rem;margin:3px 0}
+.hand ul{margin:0;padding-left:18px}
+.foot{margin-top:56px;color:var(--faint);font-size:.88rem;border-top:1px solid var(--line2);padding-top:16px}
+.foot h3{color:var(--soft);font-size:.95rem}
+.key{display:flex;flex-wrap:wrap;gap:14px;margin-top:10px;font-size:.85rem;color:var(--soft)}
+</style>
+</head>
+<body>
+
+<div class="suitebar">
+  <a class="brand" href="./index.html">◆&nbsp;FIELD KIT</a>
+  <div class="switch">
+    <a href="./index.html">Weather</a>
+    <a href="./radar.html">Radar</a>
+    <div class="grp"><button class="gbtn" type="button">Tech<span class="car">▼</span></button>
+      <div class="menu">
+        <a href="./intel.html">Grapevine</a>
+        <a href="./chef.html">Chef</a>
+        <a href="./ascii.html">ASCII</a>
+      </div></div>
+    <div class="grp on"><button class="gbtn" type="button">Finance<span class="car">▼</span></button>
+      <div class="menu">
+        <a href="./markets.html">Markets</a>
+        <a href="./crash.html" class="cur">Crash</a>
+        <a href="./debt.html">Debt</a>
+        <a href="./tax.html">Tax</a>
+        <a href="./mortgage.html">Mortgage</a>
+      </div></div>
+    <div class="grp"><button class="gbtn" type="button">Privacy<span class="car">▼</span></button>
+      <div class="menu">
+        <a href="./scrub.html">Scrub</a>
+        <a href="./optout.html">Opt Out</a>
+        <a href="./places.html">Places</a>
+      </div></div>
+  </div>
+  <button class="themebtn" id="themeBtn" title="Light / dark" aria-label="Toggle light or dark mode">◐</button>
+</div>
+
+<div class="wrap">
+  <h1>How a crash builds</h1>
+  <p class="lede">This page walks through a crash in the order things actually break, using the Fed's own data. Each sign shows where it stands today, whether it has fired, and what it did before the 2000, 2008 and 2020 crashes.</p>
+  <div class="stamp" id="stamp"></div>
+  <div class="key">
+    <span><span class="pill fired">FIRED</span> past its trip line</span>
+    <span><span class="pill warming">WARMING</span> moving toward it</span>
+    <span><span class="pill quiet">QUIET</span> nothing yet</span>
+  </div>
+
+  <section class="story">
+    <h2>Where we are in the story</h2>
+    <div class="track" id="track"></div>
+    <p class="verdict-line" id="verdictLine"></p>
+  </section>
+
+  <div class="row2">
+    <div class="panel">
+      <h3>The three go-time lines</h3>
+      <div id="watch"></div>
+      <p class="rule" style="margin-top:10px">If two of these three light up, the panic chapter has started. They're watch lines from the plan, not orders.</p>
+    </div>
+    <div class="panel" id="thesis"></div>
+  </div>
+
+  <div id="chapters"></div>
+
+  <div class="foot">
+    <h3>How this page stays live</h3>
+    <p id="liveNote"></p>
+    <p>Every number links to its source and carries its own date, and where a reading couldn't be pulled the card says so rather than guessing. The trip lines are watch lines I wrote for this page from the history shown, not trading rules. A few history lines are marked as coming from memory or from the project's earlier study, because the company that owns the junk-bond indexes only lets the Fed's site show three years of them.</p>
+    <p id="failed"></p>
+  </div>
+</div>
+
+<script>
+
+const EMBEDDED = /*__DATA__*/null;
+const DATA_URLS = ["./crash.json"];
+
+const CHAPTERS = [
+  {n:1, title:"Money gets dear", map:"Crash map: Tightening",
+   story:"It starts with the Fed raising rates while the boom is still running, and long-term borrowing costs climb along with it. Nothing breaks at this stage, but money gets more expensive for everyone who borrowed to ride the boom."},
+  {n:2, title:"The leaders break", map:"Crash map: First crack",
+   story:"The stocks that carried the boom start falling hard while the broad index stays close to its high, which hides the damage. In 2000 that was the Nasdaq, and this time it's the AI and chip names."},
+  {n:3, title:"Credit cracks", map:"Crash map: Early warnings",
+   story:"Next the weakest borrowers get cut off, so junk bonds and short-term company IOUs have to pay more interest, and new deals get pulled before they can sell."},
+  {n:4, title:"Banks and the money pipes", map:"Crash map: Spread",
+   story:"Then the losses reach the lenders, as bank stocks slide, banks turn to the Fed for cash and overnight funding gets tight."},
+  {n:5, title:"Panic", map:"Crash map: Trigger",
+   story:"In the panic, forced selling hits everything at once. Fear spikes, the yen jumps as borrowed money gets unwound, and jobs start to go, so by this point everyone can see it."},
+  {n:6, title:"Rescue", map:"Crash map: Rescue",
+   story:"Finally the Fed cuts rates fast and prints money, which ends the crash and usually starts the inflation that follows it."}
+];
+
+// Signs nobody publishes as a free daily number. Read by hand, dated, not live.
+const HAND = {
+  1:["Margin debt, the money investors borrow to buy stocks, was $1.48 trillion in September, just under June's record of about $1.50 trillion, and October's figure is due around Nov 18 to 20. (FINRA, read Nov 8 and Nov 14)",
+     "On Oct 1 only 47% of S&P 500 stocks were above their 200-day average, which means the average stock had already stopped rising while the index held up. (Read Nov 8)"],
+  3:["The week to Oct 23 had the biggest batch of pulled loans and bonds this year, though the picture had turned mixed by Nov 14. (Read Nov 14)",
+     "Private credit funds are still limiting withdrawals. In the third quarter, investors asked to pull about 15% of Apollo's main fund and got 5%, about $8.2 billion is still waiting across these funds, and the next round reports in early January. (Read Nov 8)",
+     "CoreWeave (CRWV), the boom's poster child, had bonds that were sold at full price in June trading at about 80 to 84 cents on the dollar by Nov 2. (Read Nov 8)"],
+  5:["No big name had failed or needed a weekend rescue as of Nov 14. (Read Nov 14)"]
+};
+
+const VERB = {fired:"FIRED", warming:"WARMING", quiet:"QUIET", nodata:"NO DATA"};
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const fmtDate = iso => { if(!iso) return "no date"; const d = new Date(iso + (iso.length===10?"T12:00:00Z":"")); return d.toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric",timeZone:"UTC"}); };
+
+function sparkSVG(pts, trip, verdict){
+  if(!pts || pts.length < 2) return "";
+  const W=600,H=100,P=6;
+  const ys = pts.map(p=>p[1]); if(trip!=null) ys.push(trip);
+  let lo=Math.min(...ys), hi=Math.max(...ys); if(hi===lo){hi+=1;lo-=1}
+  const pad=(hi-lo)*.08; lo-=pad; hi+=pad;
+  const x=i=>P+i*(W-2*P)/(pts.length-1), y=v=>H-P-(v-lo)*(H-2*P)/(hi-lo);
+  const d = pts.map((p,i)=>(i?"L":"M")+x(i).toFixed(1)+" "+y(p[1]).toFixed(1)).join(" ");
+  const col = verdict==="fired"?"var(--clay)":verdict==="warming"?"var(--amber)":verdict==="quiet"?"var(--teal)":"var(--faint)";
+  const last = pts[pts.length-1];
+  const tl = trip!=null ? `<line x1="0" x2="${W}" y1="${y(trip).toFixed(1)}" y2="${y(trip).toFixed(1)}" stroke="var(--clay)" stroke-width="1.5" stroke-dasharray="6 5" vector-effect="non-scaling-stroke" opacity=".75"/>` : "";
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">${tl}
+    <path d="${d}" fill="none" stroke="var(--soft)" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>
+    <circle cx="${x(pts.length-1)}" cy="${y(last[1])}" r="5" fill="${col}" vector-effect="non-scaling-stroke"/></svg>`;
+}
+
+function render(data, liveNote){
+  const cards = data.cards;
+  const byCh = {}; cards.forEach(c => (byCh[c.chapter] ||= []).push(c));
+
+  // story track
+  let furthest = 0;
+  const steps = CHAPTERS.map(ch => {
+    const cs = (byCh[ch.n]||[]).filter(c=>c.verdict!=="nodata");
+    const f = cs.filter(c=>c.verdict==="fired").length, w = cs.filter(c=>c.verdict==="warming").length;
+    const cls = cs.length && f*2 >= cs.length ? "lit" : (f||w) ? "stir" : "";
+    if(f) furthest = ch.n;
+    return {ch, f, w, n:cs.length, cls};
+  });
+  document.getElementById("track").innerHTML = steps.map(s =>
+    `<a class="step ${s.cls}" href="#ch${s.ch.n}"><span class="dot">${s.ch.n}</span><span>
+      <span class="t">${esc(s.ch.title)}</span>
+      <span class="c">${s.n ? `${s.f} of ${s.n} fired${s.w?`, ${s.w} warming`:""}` : "no live reading"}</span>
+      <span class="s">${esc(s.ch.map)}</span>
+      ${s.ch.n===furthest?'<span class="here">WE ARE HERE</span>':""}</span></a>`).join("");
+
+  const NOUN = {1:"the tightening",2:"the leaders breaking",3:"the credit cracks",4:"the bank and funding stage",5:"the panic",6:"the rescue"};
+  const grp = cls => steps.filter(s => s.cls === cls).map(s => NOUN[s.ch.n]);
+  const lit = grp("lit"), stir = grp("stir"), dark = grp("");
+  const list = a => a.length<=1 ? a.join("") : a.length===2 ? a.join(" and ") : a.slice(0,-1).join(", ")+", and "+a[a.length-1];
+  const verb = (a, one, many) => a.length > 1 ? many : one;
+  const bits = [];
+  if(lit.length) bits.push(`${list(lit)} ${verb(lit,"has","have")} mostly fired`);
+  if(stir.length) bits.push(`${list(stir)} ${verb(stir,"is","are")} starting to stir`);
+  if(dark.length) bits.push(`${list(dark)} ${verb(dark,"is","are")} still quiet`);
+  let line = bits.length ? bits[0][0].toUpperCase() + list(bits).slice(1) + "." : "";
+  if(steps[4].f) line += " The panic chapter has started to fire, which is the point where everyone finally sees it.";
+  const nxt = steps.find(s => s.ch.n === furthest + 1);
+  if(nxt){
+    const order = {warming:0, quiet:1, fired:2, nodata:3};
+    const cand = (byCh[nxt.ch.n]||[]).filter(c=>c.verdict!=="fired" && c.verdict!=="nodata").sort((a,b)=>order[a.verdict]-order[b.verdict])[0];
+    if(cand) line += ` The next domino to watch is ${cand.name.toLowerCase()} in chapter ${nxt.ch.n}, which reads ${cand.big} now and ${cand.trigger}.`;
+  }
+  document.getElementById("verdictLine").textContent = line;
+
+  // go-time lines
+  const on = data.watch.filter(w=>w.fired).length;
+  document.getElementById("watch").innerHTML =
+    `<div class="big" style="color:${on>=2?"var(--clay)":on?"var(--amber)":"var(--teal)"}">${on} of ${data.watch.length} lit</div>` +
+    data.watch.map(w=>`<div class="gt ${w.fired?"on":""}"><div class="lamp"></div><div><b>${esc(w.name)}</b><span>${esc(w.now)} · ${fmtDate(w.as_of)}</span></div></div>`).join("");
+
+  // thesis check
+  const t = data.thesis, th = document.getElementById("thesis");
+  if(t){
+    const met = t.f1;
+    th.innerHTML = `<h3>The real-yield check</h3>
+      <div class="big" style="color:${met?"var(--clay)":"var(--teal)"}">${met?"Line crossed":"Not crossed"}</div>
+      <p style="margin:6px 0 0">The 10-year real yield is <b>${t.real.toFixed(2)}%</b> (${fmtDate(t.real_date)}) and breakeven inflation is <b>${t.be.toFixed(2)}%</b> (${fmtDate(t.be_date)}).</p>
+      <p class="rule">The hard-asset case is in trouble if savers are paid a real return above 3.00% while the market expects inflation under 2.00%, both at once and for more than a few days. ${met?"Both of those hold today, which reads against that case.":`Right now the real yield is ${t.real>3?"above its line":(3-t.real).toFixed(2)+" points under its line"} and breakeven is ${t.be<2?"under its line":(t.be-2).toFixed(2)+" points above its line"}, so the line hasn't been crossed.`} ${t.f4?"The opposite signal is also on: a real yield under 2.00% with breakeven over 2.60% is financial repression in plain sight.":""}</p>
+      <p class="src"><a href="${t.src[0]}">FRED DFII10</a> · <a href="${t.src[1]}">FRED T10YIE</a></p>`;
+  } else th.innerHTML = `<h3>The real-yield check</h3><p class="rule">The real yield or breakeven couldn't be pulled on the last refresh, so this is left blank rather than guessed.</p>`;
+
+  // chapters
+  document.getElementById("chapters").innerHTML = CHAPTERS.map(ch => {
+    const cs = byCh[ch.n]||[];
+    const hand = HAND[ch.n] ? `<div class="hand"><h4>CHECKED BY HAND, NOT LIVE</h4><ul>${HAND[ch.n].map(h=>`<li>${esc(h)}</li>`).join("")}</ul></div>` : "";
+    return `<section class="chapter" id="ch${ch.n}">
+      <div class="ch-head"><span class="ch-num">${ch.n}</span><h2>${esc(ch.title)}</h2><span class="ch-tag">${esc(ch.map)}</span></div>
+      <p class="ch-story">${esc(ch.story)}</p>
+      <div class="cards">${cs.map(c => {
+        const s = c.spark||[];
+        return `<article class="card ${c.verdict}">
+          <div class="card-top"><h3>${esc(c.name)}</h3><span class="pill ${c.verdict}">${VERB[c.verdict]}</span></div>
+          <div class="bigv">${esc(c.big)}</div>
+          <div class="reading">${esc(c.reading.startsWith(c.big + ",") ? c.reading.slice(c.big.length + 1).trim().replace(/^./, m => m.toUpperCase()) : c.reading)}</div>
+          <div class="asof">${c.as_of?("as of "+fmtDate(c.as_of)):esc(c.note||"")}</div>
+          ${s.length>1?`<div class="chart">${sparkSVG(s,c.trip,c.verdict)}<div class="lbl"><span>${fmtDate(s[0][0])}</span>${c.trip!=null?`<span>- - ${esc(c.trip_label||"trip line")} ${c.trip}</span>`:""}<span>${fmtDate(s[s.length-1][0])}</span></div></div>`:""}
+          <p class="what">${esc(c.what)}</p>
+          ${c.history?`<p class="hist"><b>Before past crashes.</b> ${esc(c.history)}</p>`:""}
+          <p class="rule"><b>Trip line.</b> ${esc(c.rule)}</p>
+          <div class="src"><a href="${esc(c.source)}">${esc(c.source_label)}</a></div>
+        </article>`;}).join("")}</div>${hand}</section>`;
+  }).join("");
+
+  document.getElementById("stamp").textContent =
+    `Data pulled ${new Date(data.fetched_utc||data.generated_utc).toLocaleString("en-US",{dateStyle:"medium",timeStyle:"short",timeZone:"America/New_York"})} New York time. Each card shows its own reading date.`;
+  document.getElementById("liveNote").textContent = liveNote;
+  const fails = Object.keys(data.failed||{});
+  document.getElementById("failed").textContent = fails.length ? `Not pulled on the last refresh: ${fails.join(", ")}.` : "";
+}
+
+const baseNote = "A GitHub server pulls the Fed's data every weekday morning and evening, and this page loads the newest copy whenever you open it, so nothing has to stay running on your end.";
+if(EMBEDDED) render(EMBEDDED, baseNote + " Until it loads, you're seeing the copy saved inside this file.");
+else document.getElementById("verdictLine").textContent = "Loading the latest readings…";
+Promise.allSettled(DATA_URLS.map(u => fetch(u + "?t=" + Date.now(), {cache:"no-store"}).then(r => r.ok ? r.json() : Promise.reject(r.status))))
+  .then(rs => {
+    const got = rs.filter(r => r.status === "fulfilled").map(r => r.value).sort((a,b) => a.generated_utc < b.generated_utc ? 1 : -1);
+    const d = got[0];
+    if(!d){ document.getElementById(EMBEDDED ? "liveNote" : "verdictLine").textContent = EMBEDDED ? baseNote + " The online copy couldn't be reached just now, so you're seeing the one saved inside this file." : "The latest readings couldn't be loaded just now. Check your connection and reload."; return; }
+    if(!EMBEDDED || d.generated_utc > EMBEDDED.generated_utc) render(d, baseNote + (EMBEDDED ? " The newest online copy loaded just now." : ""));
+    else render(EMBEDDED, baseNote + " The copy saved inside this file is already the newest one.");
+  });
+
+
+if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('sw.js').catch(function(){})})}
+</script>
+<script>(function(){var b=document.getElementById('themeBtn');if(!b)return;b.onclick=function(){var n=document.documentElement.getAttribute('data-theme')==='light'?'dark':'light';if(n==='light')document.documentElement.setAttribute('data-theme','light');else document.documentElement.removeAttribute('data-theme');try{localStorage.setItem('fk_theme',n)}catch(e){}var m=document.getElementById('tc');if(m)m.content=n==='light'?'#e0cfb0':'#1b1e1f';if(window.onFkTheme)window.onFkTheme(n)}})()</script>
+<script>(function(){var bar=document.querySelector('.suitebar');if(!bar)return;
+var grps=[].slice.call(bar.querySelectorAll('.grp'));
+function shut(x){grps.forEach(function(g){if(g!==x)g.classList.remove('open')})}
+grps.forEach(function(g){var b=g.querySelector('.gbtn');
+  b.addEventListener('click',function(e){e.stopPropagation();var o=g.classList.contains('open');shut(null);if(!o)g.classList.add('open')})});
+document.addEventListener('click',function(){shut(null)});
+document.addEventListener('keydown',function(e){if(e.key==='Escape')shut(null)});
+})()</script>
+</body>
+</html>
