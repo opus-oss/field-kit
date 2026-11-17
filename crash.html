@@ -118,9 +118,9 @@ h1{font-size:2rem;margin:0 0 6px;color:var(--amber)}
 .ch-head h2{margin:0;font-size:1.5rem}
 .ch-tag{margin-left:auto;font:600 .78rem var(--mono);color:var(--slate);white-space:nowrap}
 .ch-story{color:var(--soft);margin:8px 0 16px;max-width:68ch}
-.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:16px}
-@media (max-width:900px){.cards{grid-template-columns:1fr}}
-.card{background:var(--panel);border:1px solid var(--line);border-left:5px solid var(--line2);border-radius:12px;padding:16px 18px}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(560px,1fr));gap:20px}
+@media (max-width:1180px){.cards{grid-template-columns:1fr}}
+.card{background:var(--panel);border:1px solid var(--line);border-left:5px solid var(--line2);border-radius:12px;padding:20px 22px}
 .card.fired{border-left-color:var(--clay)}
 .card.warming{border-left-color:var(--amber)}
 .card.quiet{border-left-color:var(--teal)}
@@ -135,29 +135,32 @@ h1{font-size:2rem;margin:0 0 6px;color:var(--amber)}
 .card.fired .bigv{color:var(--clay)}.card.warming .bigv{color:var(--amber)}
 .reading{font-size:1rem;margin:2px 0 2px}
 .asof{color:var(--faint);font-size:.82rem;font-family:var(--mono)}
-.chart{margin:14px 0 4px}
-.plot{position:relative;padding-top:18px}
+.chart{margin:20px 0 6px}
+.plot{display:flex;align-items:flex-start}
+.plot .area{position:relative;flex:1;min-width:0}
 .plot svg{width:100%;display:block;overflow:visible}
-.plot .ln{position:absolute;right:16px;transform:translateY(-110%);font:600 .72rem var(--mono);padding:0 4px;border-radius:4px;background:color-mix(in srgb,var(--panel) 80%,transparent);pointer-events:none;white-space:nowrap}
-.plot .ln.below{transform:translateY(12%)}
+.plot .gut{position:relative;flex:none}
+.plot .ln,.plot .zl{position:absolute;left:11px;transform:translateY(-50%);font:600 .68rem/1 var(--mono);white-space:nowrap;pointer-events:none}
 .plot .ln.warm{color:var(--amber)}.plot .ln.fire{color:var(--clay)}
-.plot .mk{position:absolute;top:0;font:600 .72rem var(--mono);white-space:nowrap;pointer-events:none}
+.plot .zl{letter-spacing:.05em;color:var(--clay);opacity:.9}
+.plot .zl.warm{color:var(--amber)}
+.plot .tick{position:absolute;left:2px;width:6px;border-top:2px solid;transform:translateY(-1px)}
+.plot .mk{position:absolute;font:600 .7rem/1 var(--mono);white-space:nowrap;pointer-events:none}
 .plot .mk.fire{color:var(--clay)}.plot .mk.top{color:var(--slate)}
 .plot .mk.r{transform:translateX(-100%)}
-.plot .zl{position:absolute;left:4px;font:600 .68rem var(--mono);letter-spacing:.06em;color:var(--clay);opacity:.85;pointer-events:none}
-.plot .zl.warm{color:var(--amber)}
 .chart .lbl,.past .lbl{display:flex;justify-content:space-between;color:var(--faint);font:.75rem var(--mono);margin-top:3px}
-.past{margin-top:12px;padding-top:10px;border-top:1px dashed var(--line2)}
-.past h4{margin:0;font:600 .78rem var(--mono);color:var(--soft);letter-spacing:.03em}
+.past{margin-top:20px;padding-top:14px;border-top:1px dashed var(--line2)}
+.past h4{margin:0 0 8px;font:600 .78rem var(--mono);color:var(--soft);letter-spacing:.03em}
 .nopast{margin-top:10px;color:var(--faint);font-size:.82rem}
 .ckey{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:8px;font-size:.82rem;color:var(--soft)}
 .ckey i{display:inline-block;width:22px;height:0;border-top:2px dashed;vertical-align:middle;margin-right:6px}
 .ckey i.zone{height:10px;border:0;background:color-mix(in srgb,var(--clay) 22%,transparent)}
 .ckey i.solid{border-top-style:solid}
-.what{margin:10px 0 0}
-.hist{margin:8px 0 0;color:var(--soft);font-size:.93rem}
+.what{margin:20px 0 0;line-height:1.55}
+.sub{margin:16px 0 4px;font:600 .74rem var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+.hist{margin:0;line-height:1.55;color:var(--soft);font-size:.93rem}
 .hist b,.rule b{color:var(--ink);font-weight:600}
-.rule{margin:8px 0 0;color:var(--faint);font-size:.85rem}
+.rule{margin:0;line-height:1.5;color:var(--faint);font-size:.85rem}
 .src{font-size:.8rem;margin-top:6px}
 .hand{margin-top:14px;border:1px dashed var(--line2);border-radius:10px;padding:10px 14px}
 .hand h4{margin:0 0 4px;font:600 .8rem var(--mono);color:var(--faint);letter-spacing:.05em}
@@ -283,7 +286,7 @@ function fmtV(v, unit){
 }
 function plot(ch, pts, marks, verdict, H, isNow){
   if(!pts || pts.length < 2) return "";
-  const W=600, P=4;
+  const W=600, P=6;
   const t = pts.map(p => Date.parse(p[0])), t0=t[0], t1=t[t.length-1];
   const ys = pts.map(p => p[1]).concat(ch.lines.map(l => l.v));
   let lo=Math.min(...ys), hi=Math.max(...ys); if(hi===lo){hi+=1;lo-=1}
@@ -291,46 +294,50 @@ function plot(ch, pts, marks, verdict, H, isNow){
   const X = ms => P + (ms-t0)*(W-2*P)/Math.max(1,(t1-t0));
   const Y = v => P + (hi-v)*(H-2*P)/(hi-lo);
   const inMarks = (marks||[]).filter(m => { const ms=Date.parse(m.d); return ms>=t0 && ms<=t1; });
-  const topPad = inMarks.length > 1 ? 32 : inMarks.length ? 18 : 4;
-  const py = y => (y + topPad).toFixed(1) + "px";
-  let svg = "", over = "";
+  const topPad = inMarks.length > 1 ? 34 : inMarks.length ? 19 : 0;
+  let svg = "", area = "";
+  const tags = [];   // labels that live in the right-hand margin, never on the chart
   const warm = ch.lines.find(l=>l.kind==="warm"), fire = ch.lines.find(l=>l.kind==="fire");
   const band = (a, b, col, op) => { const y1=Math.min(Y(a),Y(b)), y2=Math.max(Y(a),Y(b)); return `<rect x="0" y="${y1.toFixed(1)}" width="${W}" height="${(y2-y1).toFixed(1)}" fill="${col}" opacity="${op}"/>`; };
   const edge = ch.dir==="up" ? hi : lo;
-  const zoneTop = ch.dir==="up" ? py(Y(edge)+2) : py(Y(edge)-16);
-  const roomy = l => Math.abs(Y(l.v) - Y(edge)) >= 20;
-  if(fire){ svg += band(fire.v, edge, "var(--clay)", .18); if(roomy(fire)) over += `<span class="zl" style="top:${zoneTop}">DANGER ZONE</span>`; }
+  const zoneTag = (l, cls, text) => { const h = Math.abs(Y(l.v)-Y(edge)); if(h >= 14) tags.push({y:(Y(l.v)+Y(edge))/2, cls:"zl"+cls, text, tick:false}); };
+  if(fire){ svg += band(fire.v, edge, "var(--clay)", .18); zoneTag(fire, "", "DANGER ZONE"); }
   if(warm && fire) svg += band(warm.v, fire.v, "var(--amber)", .10);
-  if(warm && !fire){ svg += band(warm.v, edge, "var(--amber)", .12); if(roomy(warm)) over += `<span class="zl warm" style="top:${zoneTop}">${ch.dir==="down"?"BELOW ZERO":"WARNING ZONE"}</span>`; }
-  const ly = ch.lines.map(l => Y(l.v)), lmin = Math.min(...ly);
-  const tight = ly.length > 1 && Math.abs(ly[0]-ly[1]) < 18;
-  ch.lines.forEach((l, i) => {
+  if(warm && !fire){ svg += band(warm.v, edge, "var(--amber)", .12); zoneTag(warm, " warm", ch.dir==="down"?"BELOW ZERO":"WARNING ZONE"); }
+  ch.lines.forEach(l => {
     const col = l.kind==="fire" ? "var(--clay)" : "var(--amber)";
-    svg += `<line x1="0" x2="${W}" y1="${ly[i].toFixed(1)}" y2="${ly[i].toFixed(1)}" stroke="${col}" stroke-width="1.6" stroke-dasharray="7 5" vector-effect="non-scaling-stroke"/>`;
-    const below = tight && ly[i] > lmin;
-    over += `<span class="ln ${l.kind}${below?" below":""}" style="top:${py(ly[i])}">${esc(l.label)} ${fmtV(l.v, ch.unit)}</span>`;
+    svg += `<line x1="0" x2="${W}" y1="${Y(l.v).toFixed(1)}" y2="${Y(l.v).toFixed(1)}" stroke="${col}" stroke-width="1.6" stroke-dasharray="7 5" vector-effect="non-scaling-stroke"/>`;
+    tags.push({y:Y(l.v), cls:"ln "+l.kind, text:`${l.label} ${fmtV(l.v, ch.unit)}`, tick:col, ly:Y(l.v)});
   });
+  // stack the margin labels so none touch: at least 13px apart, kept inside the chart's height
+  tags.sort((a,b) => a.y-b.y);
+  const GAP = 13;
+  tags.forEach((g,i) => { g.p = Math.max(g.y, i ? tags[i-1].p + GAP : 6); });
+  for(let i=tags.length-1;i>=0;i--){ const lim = i===tags.length-1 ? H-6 : tags[i+1].p - GAP; if(tags[i].p > lim) tags[i].p = lim; }
   inMarks.forEach((m, i) => {
     const x = X(Date.parse(m.d)), xp = x/W*100;
     const col = m.kind==="fire" ? "var(--clay)" : "var(--slate)";
     svg += `<line x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="0" y2="${H}" stroke="${col}" stroke-width="${m.kind==="fire"?2:1.5}" ${m.kind==="fire"?"":'stroke-dasharray="4 4"'} vector-effect="non-scaling-stroke"/>`;
-    over += `<span class="mk ${m.kind} ${xp>55?"r":""}" style="left:${xp.toFixed(2)}%;top:${i? "15px":"0"}">${esc(m.label)}</span>`;
+    area += `<span class="mk ${m.kind} ${xp>55?"r":""}" style="left:${xp.toFixed(2)}%;top:${i? 15:0}px">${esc(m.label)}</span>`;
   });
   const d = pts.map((p,i) => (i?"L":"M") + X(t[i]).toFixed(1) + " " + Y(p[1]).toFixed(1)).join(" ");
   svg += `<path d="${d}" fill="none" stroke="var(--ink)" stroke-opacity=".85" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>`;
   if(isNow){
     const col = verdict==="fired"?"var(--clay)":verdict==="warming"?"var(--amber)":verdict==="quiet"?"var(--teal)":"var(--faint)";
     const last = pts[pts.length-1];
-    over += `<span style="position:absolute;left:calc(${(X(t1)/W*100).toFixed(2)}% - 6px);top:${(Y(last[1])+topPad-6).toFixed(1)}px;width:12px;height:12px;border-radius:50%;background:${col};box-shadow:0 0 0 3px var(--panel)"></span>`;
+    area += `<span style="position:absolute;right:0;top:${(Y(last[1])+topPad-5).toFixed(1)}px;width:10px;height:10px;border-radius:50%;background:${col};box-shadow:0 0 0 3px var(--panel)"></span>`;
   }
-  return `<div class="plot" style="padding-top:${topPad}px"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="height:${H}px">${svg}</svg>${over}</div>
-    <div class="lbl"><span>${fmtDate(pts[0][0])}</span><span>${fmtDate(pts[pts.length-1][0])}</span></div>`;
+  const gw = tags.length ? Math.ceil(Math.max(...tags.map(g => g.text.length)) * 6.6 + 14) : 0;
+  const gut = tags.map(g => (g.tick ? `<span class="tick" style="top:${(g.ly+topPad).toFixed(1)}px;color:${g.tick}"></span>` : "") +
+      `<span class="${g.cls}" style="top:${(g.p+topPad).toFixed(1)}px">${esc(g.text)}</span>`).join("");
+  return `<div class="plot"><div class="area" style="padding-top:${topPad}px"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="height:${H}px">${svg}</svg>${area}</div>${gw?`<div class="gut" style="width:${gw}px;height:${H+topPad}px">${gut}</div>`:""}</div>
+    <div class="lbl" style="margin-right:${gw}px"><span>${fmtDate(pts[0][0])}</span><span>${fmtDate(pts[pts.length-1][0])}</span></div>`;
 }
 function chartBlock(c){
   const ch = c.chart;
   if(!ch) return "";
-  const now = plot({...ch.now, unit: ch.unit}, ch.now.pts, ch.now.marks, c.verdict, 130, true);
-  const past = ch.past ? `<div class="past"><h4>Last time: ${esc(ch.past.label)}</h4>${plot({...ch.now, unit: ch.unit}, ch.past.pts, ch.past.marks, c.verdict, 96, false)}</div>`
+  const now = plot({...ch.now, unit: ch.unit}, ch.now.pts, ch.now.marks, c.verdict, 200, true);
+  const past = ch.past ? `<div class="past"><h4>The same sign ${esc(ch.past.label)}</h4>${plot({...ch.now, unit: ch.unit}, ch.past.pts, ch.past.marks, c.verdict, 150, false)}</div>`
                        : `<p class="nopast">There's no past-crash chart for this one, because the Fed's site only shows the last few years of it.</p>`;
   return `<div class="chart">${now}</div>${past}`;
 }
@@ -407,8 +414,8 @@ function render(data, liveNote){
           <div class="asof">${c.as_of?("as of "+fmtDate(c.as_of)):esc(c.note||"")}</div>
           ${chartBlock(c)}
           <p class="what">${esc(c.what)}</p>
-          ${c.history?`<p class="hist"><b>Before past crashes.</b> ${esc(c.history)}</p>`:""}
-          <p class="rule"><b>Trip line.</b> ${esc(c.rule)}</p>
+          ${c.history?`<h5 class="sub">Before past crashes</h5><p class="hist">${esc(c.history)}</p>`:""}
+          <h5 class="sub">When it counts</h5><p class="rule">${esc(c.rule)}</p>
           <div class="src"><a href="${esc(c.source)}">${esc(c.source_label)}</a></div>
         </article>`;}).join("")}</div>${hand}</section>`;
   }).join("");
