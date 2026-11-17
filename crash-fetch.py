@@ -181,7 +181,7 @@ def card(id, chapter, name, what, value, unit_text, as_of, verdict, rule, histor
          spark_pts=None, trip=None, trip_label=None, note=None, invert=False):
     return {
         "id": id, "chapter": chapter, "name": name, "what": what,
-        "value": value, "reading": unit_text, "as_of": as_of.isoformat() if as_of else None,
+        "value": value, "reading": unit_text if not unit_text or unit_text[-1] in ".!?" else unit_text + ".", "as_of": as_of.isoformat() if as_of else None,
         "verdict": verdict, "rule": rule, "history": history,
         "source": src, "source_label": src_label,
         "spark": spark_pts or [], "trip": trip, "trip_label": trip_label, "note": note,
@@ -309,38 +309,38 @@ def add_charts(S, cards):
     wl = S.get("WLCFLPCL")
     walcl = S.get("WALCL")
     spec = {
-        "fed": dict(s=S.get("DFF"), lines=[], dir="up", yrs=3, past=("2004-01-01", "2008-12-31", "2004 to 2008: the Fed hiked into the housing boom")),
+        "fed": dict(s=S.get("DFF"), lines=[], dir="up", yrs=3, past=("2004-01-01", "2008-12-31", "from 2004 to 2008, when the Fed raised rates into the housing boom")),
         "long": dict(s=chg_series(S["DGS30"], 365) if S.get("DGS30") else None, lines=[(0.25, "warm", "warming"), (0.75, "fire", "fired")], dir="up", yrs=3,
-                     past=("2021-06-01", "2023-06-30", "2022: the bond rout"), unit="pts"),
-        "curve": dict(s=S.get("T10Y3M"), lines=[(0, "warm", "zero")], dir="down", yrs=4, past=("2005-06-01", "2009-03-31", "2006 to 2009"), curve=True),
-        "loans": dict(s=S.get("DRTSCILM"), lines=[(0, "warm", "warming"), (20, "fire", "fired")], dir="up", yrs=8, past=("2006-01-01", "2010-06-30", "2006 to 2010")),
+                     past=("2021-06-01", "2023-06-30", "from 2021 to 2023, through the 2022 bond rout"), unit="pts"),
+        "curve": dict(s=S.get("T10Y3M"), lines=[(0, "warm", "zero")], dir="down", yrs=4, past=("2005-06-01", "2009-03-31", "from 2006 to 2009"), curve=True),
+        "loans": dict(s=S.get("DRTSCILM"), lines=[(0, "warm", "warming"), (20, "fire", "fired")], dir="up", yrs=8, past=("2006-01-01", "2010-06-30", "from 2006 to 2010")),
         "leaders": dict(s=dd_series(S["NASDAQ100"]) if S.get("NASDAQ100") else None, lines=[(-8, "warm", "warming"), (-15, "fire", "fired")], dir="down", yrs=2,
-                        past=("1999-06-01", "2001-06-30", "2000: the Nasdaq breaks"), unit="%"),
+                        past=("1999-06-01", "2001-06-30", "from 1999 to 2001, when the Nasdaq broke"), unit="%"),
         "chips": dict(s=dd_series(S["SMH"]) if S.get("SMH") else None, lines=[(-10, "warm", "warming"), (-20, "fire", "fired")], dir="down", yrs=2,
-                      past=("2007-06-01", "2009-06-30", "2007 to 2009"), unit="%"),
+                      past=("2007-06-01", "2009-06-30", "from 2007 to 2009"), unit="%"),
         "ccc": dict(s=ccc, lines=([(round(ccc_lo + 1.5, 2), "warm", "warming"), (round(ccc_lo + 3, 2), "fire", "fired")] if ccc else []), dir="up", yrs=3, past=None),
         "hy": dict(s=S.get("BAMLH0A0HYM2"), lines=[(4.5, "warm", "warming"), (6, "fire", "fired")], dir="up", yrs=3, past=None),
         "cp": dict(s=avg_series(sp(S.get("DCPF3M"), S.get("DTB3")), 5) if S.get("DCPF3M") and S.get("DTB3") else None,
-                   lines=[(0.5, "warm", "warming"), (1.0, "fire", "fired")], dir="up", yrs=3, past=("2007-01-01", "2009-03-31", "2007 to 2009")),
+                   lines=[(0.5, "warm", "warming"), (1.0, "fire", "fired")], dir="up", yrs=3, past=("2007-01-01", "2009-03-31", "from 2007 to 2009")),
         "banks": dict(s=dd_series(S["BKX"]) if S.get("BKX") else None, lines=[(-10, "warm", "warming"), (-20, "fire", "fired")], dir="down", yrs=2,
-                      past=("2006-06-01", "2009-03-31", "2006 to 2009: banks led the way down"), unit="%"),
+                      past=("2006-06-01", "2009-03-31", "from 2006 to 2009, when banks led the way down"), unit="%"),
         "window": dict(s=[(d, v / 1000) for d, v in wl] if wl else None, lines=[(10, "warm", "warming"), (22, "fire", "go-time")], dir="up", yrs=3,
-                       past=("2022-10-01", "2023-06-30", "2023: the Silicon Valley Bank run"), events={D("2023-03-10"): "SVB failed"}),
+                       past=("2022-10-01", "2023-06-30", "in 2022 and 2023, around the Silicon Valley Bank run"), events={D("2023-03-10"): "SVB failed"}),
         "sofr": dict(s=[(d, v * 100) for d, v in avg_series(sp(S.get("SOFR"), S.get("IORB")), 5)] if S.get("SOFR") and S.get("IORB") else None,
                      lines=[(0, "warm", "warming"), (10, "fire", "fired")], dir="up", yrs=2, past=None),
         "repo": dict(s=avg_series(S["RPONTSYD"], 5) if S.get("RPONTSYD") else None, lines=[(10, "warm", "warming"), (25, "fire", "fired")], dir="up", yrs=2,
-                     past=("2019-07-01", "2020-06-30", "2019 to 2020: the repo squeeze, then Covid")),
-        "nfci": dict(s=S.get("NFCI"), lines=[(-0.25, "warm", "warming"), (0, "fire", "fired")], dir="up", yrs=4, past=("2007-01-01", "2009-06-30", "2007 to 2009")),
+                     past=("2019-07-01", "2020-06-30", "in 2019 and 2020, through the repo squeeze and then Covid")),
+        "nfci": dict(s=S.get("NFCI"), lines=[(-0.25, "warm", "warming"), (0, "fire", "fired")], dir="up", yrs=4, past=("2007-01-01", "2009-06-30", "from 2007 to 2009")),
         "vix": dict(s=avg_series(S["VIXCLS"], 5) if S.get("VIXCLS") else None, lines=[(20, "warm", "warming"), (30, "fire", "fired")], dir="up", yrs=2,
-                    past=("2007-06-01", "2009-06-30", "2007 to 2009")),
-        "stress": dict(s=S.get("STLFSI4"), lines=[(0, "warm", "warming"), (1, "fire", "fired")], dir="up", yrs=4, past=("2007-01-01", "2009-06-30", "2007 to 2009")),
+                    past=("2007-06-01", "2009-06-30", "from 2007 to 2009")),
+        "stress": dict(s=S.get("STLFSI4"), lines=[(0, "warm", "warming"), (1, "fire", "fired")], dir="up", yrs=4, past=("2007-01-01", "2009-06-30", "from 2007 to 2009")),
         "yen": dict(s=yen_strength(S["DEXJPUS"]) if S.get("DEXJPUS") else None, lines=[(3, "warm", "warming"), (7, "fire", "fired")], dir="up", yrs=2,
-                    past=("2008-06-01", "2009-03-31", "2008: the carry trade unwinds"), unit="%"),
-        "jobs": dict(s=S.get("SAHMREALTIME"), lines=[(0.3, "warm", "warming"), (0.5, "fire", "fired")], dir="up", yrs=4, past=("2006-06-01", "2009-12-31", "2006 to 2009")),
+                    past=("2008-06-01", "2009-03-31", "in 2008 and 2009, when the carry trade unwound"), unit="%"),
+        "jobs": dict(s=S.get("SAHMREALTIME"), lines=[(0.3, "warm", "warming"), (0.5, "fire", "fired")], dir="up", yrs=4, past=("2006-06-01", "2009-12-31", "from 2006 to 2009")),
         "cuts": dict(s=chg_series(S["DFF"], 91) if S.get("DFF") else None, lines=[(-0.2, "warm", "warming"), (-0.5, "fire", "fired")], dir="down", yrs=3,
-                     past=("2007-06-01", "2009-03-31", "2007 to 2009"), unit="pts"),
+                     past=("2007-06-01", "2009-03-31", "from 2007 to 2009"), unit="pts"),
         "printing": dict(s=pct_obs([(d, v / 1e6) for d, v in walcl], 8) if walcl else None, lines=[(2, "warm", "warming"), (5, "fire", "fired")], dir="up", yrs=4,
-                         past=("2008-06-01", "2009-06-30", "2008 to 2009"), unit="%"),
+                         past=("2008-06-01", "2009-06-30", "in 2008 and 2009"), unit="%"),
     }
     tops = {t: "Stocks topped" for t in TOPS.values()}
     tops.update(EXTRA_TOPS)
@@ -412,7 +412,7 @@ def build():
         parts = [f"from {at(s, t - dt.timedelta(days=730))[1]:.2f}% to {at(s, t)[1]:.2f}% in {t.year}" for y, t in TOPS.items()]
         add(card("fed", 1, "The Fed's rate",
             "This is the overnight rate the Fed sets for banks, and most busts begin with the Fed raising it while a boom is still running.",
-            v0, f"{'Up' if v0 - v6 >= 0 else 'Down'} {abs(v0 - v6):.2f} points over the last six months", d0, verdict,
+            v0, f"The rate is {'up' if v0 - v6 >= 0 else 'down'} {abs(v0 - v6):.2f} points from six months ago", d0, verdict,
             "It counts as fired once the Fed has raised in the last six months without cutting since, and as warming if the rate is simply higher than a year ago.",
             f"In the two years before each top, the Fed's rate went {joined(parts)}.",
             FRED_URL.format("DFF"), "FRED DFF, daily", spark(s)),
@@ -426,7 +426,7 @@ def build():
         ch = v0 - at(s, d0 - dt.timedelta(days=365))[1]
         add(card("long", 1, "Long-term borrowing cost",
             "This is what the US government pays to borrow for 30 years, and when it climbs quickly, mortgages, company loans and stock prices all come under pressure.",
-            v0, f"{'Up' if ch >= 0 else 'Down'} {abs(ch):.2f} points from a year ago", d0, grade(ch, 0.75, 0.25),
+            v0, f"The 30-year yield is {'up' if ch >= 0 else 'down'} {abs(ch):.2f} points from a year ago", d0, grade(ch, 0.75, 0.25),
             "It counts as fired when the yield is up three quarters of a point in a year, and as warming at a quarter point.",
             "Before the 1987 crash it rose from about 7.5% to over 10% in seven months, and when Britain's long bonds broke in 2022, pension funds were hit with margin calls within three days. These figures come from the project's earlier crash study and are rounded.",
             FRED_URL.format("DGS30"), "FRED DGS30, daily", spark(s)),
@@ -445,9 +445,9 @@ def build():
         eps = [e for e in eps if (e[1] - e[0]).days > 60]
         last_ep = eps[-1] if eps else None
         if v0 < 0:
-            verdict, state = "warming", "Below zero right now, which means the curve is inverted"
+            verdict, state = "warming", "The curve is below zero right now, which means it's inverted"
         elif last_ep and (d0 - last_ep[1]).days <= 730:
-            verdict, state = "fired", f"Back above zero since {mon(last_ep[1])}, after {((last_ep[1] - last_ep[0]).days / 30.4):.0f} months below it"
+            verdict, state = "fired", f"The curve went back above zero in {mon(last_ep[1])}, after {((last_ep[1] - last_ep[0]).days / 30.4):.0f} months below it"
         else:
             verdict, state = "quiet", "Above zero, with no recent stretch below it"
         parts = []
@@ -475,7 +475,7 @@ def build():
                 parts.append(f"{a[1]:.0f}% at {TOP_NAME[y]} before climbing to {pk[1]:.0f}%")
         add(card("loans", 1, "Banks getting stingy",
             "Every quarter the Fed asks bank loan officers whether they're making it harder for businesses to borrow, and this number is the share saying yes minus the share saying they've eased up.",
-            v0, "Net share of banks tightening business-loan rules", d0, grade(v0, 20, 0.01),
+            v0, "That's the net share of banks tightening their rules for business loans", d0, grade(v0, 20, 0.01),
             "It counts as fired when 20% or more of banks are tightening on net, and as warming at anything above zero.",
             f"The net share tightening was {joined(parts)}. The survey comes out quarterly, and the next one is due in early February.",
             FRED_URL.format("DRTSCILM"), "FRED DRTSCILM, Fed loan officer survey", spark(s, years=8), 20, "fired line"),
@@ -539,7 +539,7 @@ def build():
         lo = peak(ccc, d0 - dt.timedelta(days=365), d0, lo=True)
         hi = peak(ccc, d0 - dt.timedelta(days=365), d0)
         rise = v0 - lo[1]
-        rd = f"Points over Treasuries, up {rise:.2f} since {lo[0]:%B} and just under the {hi[0]:%b %-d} high of {hi[1]:.2f}"
+        rd = f"That's how many points over Treasuries the weakest junk bonds pay, up {rise:.2f} since {lo[0]:%B} and just under the {hi[0]:%b %-d} high of {hi[1]:.2f}"
         if bb:
             rd += f", while the safest junk (BB) pays only {bb[-1][1]:.2f}"
         add(card("ccc", 3, "The weakest junk bonds",
@@ -556,7 +556,7 @@ def build():
         verdict = "fired" if v0 >= 6 else "warming" if (v0 >= 4.5 or rise >= 1.5) else "quiet"
         add(card("hy", 3, "All junk bonds",
             "This is the extra interest that all below-investment-grade companies pay over Treasuries, and when it widens, the whole market for risky borrowers is starting to shut.",
-            v0, f"Points of extra interest over Treasuries, up {rise:.2f} from the low of the past year", d0, verdict,
+            v0, f"That's how many points of extra interest all junk bonds pay over Treasuries, up {rise:.2f} from the low of the past year", d0, verdict,
             "It counts as fired at 6 points or more, and as warming at 4.5 or after a rise of 1.5 from its low of the past year.",
             "From memory and rounded, it sat around 2.4 at the 2007 low and reached about 22 at the December 2008 peak, went from about 3.5 to about 11 in March 2020, and rose from roughly 5 to around 9 during 2000. The Fed's site only shows three years now, so these can't be checked live.",
             FRED_URL.format("BAMLH0A0HYM2"), "FRED BAMLH0A0HYM2 (ICE BofA), daily", spark(hy), 6, "fired line"),
@@ -573,7 +573,7 @@ def build():
                 parts.append(f"{pk[1]:.2f} in {mon(pk[0])}")
         add(card("cp", 3, "Short-term company IOUs",
             "Commercial paper is how banks and large companies borrow for a few weeks at a time, and its gap over Treasury bills jumps when lenders stop trusting the borrowers. This was the first thing to break in August 2007.",
-            v0, "Points over Treasury bills, averaged over five days", d0, grade(v0, 1.0, 0.5),
+            v0, "That's how many points company IOUs pay over Treasury bills, on a five-day average", d0, grade(v0, 1.0, 0.5),
             "It counts as fired at 1 point or more, and as warming at half a point.",
             f"The gap peaked at {joined(parts)}.", FRED_URL.format("DCPF3M"), "FRED DCPF3M minus DTB3, daily", spark(sp), 1.0, "fired line"),
             "fires at 1 point")
@@ -615,7 +615,7 @@ def build():
                 parts.append(f"${pk[1]:.0f} billion in {mon(pk[0])}")
         add(card("window", 4, "Banks at the Fed's emergency window",
             "The discount window is where banks borrow from the Fed when nobody else will lend to them, so a jump in it usually means a bank is losing its funding.",
-            v0, f"Billions borrowed in the week of {day(d0)}, after ${two:.1f} billion the week before", d0, verdict,
+            v0, f"Banks borrowed that many billions in the week of {day(d0)}, after ${two:.1f} billion the week before", d0, verdict,
             "It counts as fired at $22 billion or more two weeks running, which is the project's go-time line, and as warming at $10 billion.",
             f"It peaked at {joined(parts)}, and before Silicon Valley Bank failed it had been sitting at $5 to $10 billion for 15 weeks.",
             FRED_URL.format("WLCFLPCL"), "FRED WLCFLPCL, Fed weekly balance sheet", spark(sb), 22, "go-time line"),
@@ -628,7 +628,7 @@ def build():
         pk19 = peak(so, D("2019-09-01"), D("2019-09-30"))
         add(card("sofr", 4, "Overnight lending vs the Fed's floor",
             "SOFR is the cost of borrowing cash overnight against Treasuries, and when it rises above the rate the Fed pays banks on their reserves, cash is getting scarce in the system.",
-            v0, "Basis points above the Fed's rate, averaged over five days (100 basis points is 1%)", d0, grade(v0, 0.10, 0.0),
+            v0, "Overnight cash costs that many basis points more than the Fed pays banks, on a five-day average, where 100 basis points is 1%", d0, grade(v0, 0.10, 0.0),
             "It counts as fired at 10 basis points or more above the Fed's rate, and as warming at anything above it.",
             (f"In September 2019 overnight cash jumped to {pk19[1]:.2f}% for a day, more than double the normal rate, and the Fed had to step in. " if pk19 else "") +
             "SOFR only started in 2018, so there's nothing to show for 2000 or 2008.",
@@ -641,7 +641,7 @@ def build():
         pk = peak(s, D("2019-09-01"), D("2020-06-30"))
         add(card("repo", 4, "Banks borrowing from the Fed's repo desk",
             "This is the cash the Fed lends overnight against Treasuries, and heavy use of it means private lenders are pulling back.",
-            v0, "Billions a day, averaged over five days", d0, grade(v0, 25, 10),
+            v0, "Dealers borrowed that many billions a day from the Fed, on a five-day average", d0, grade(v0, 25, 10),
             "It counts as fired at $25 billion a day or more on average, and as warming at $10 billion. Spikes at the end of a month are normal, which is why it's averaged.",
             (f"It peaked at ${pk[1]:.0f} billion in {mon(pk[0])}, and " if pk else "") + "the Fed only restarted this tool in September 2019.",
             FRED_URL.format("RPONTSYD"), "FRED RPONTSYD, daily", spark(s, years=2), 25, "fired line"),
@@ -652,7 +652,7 @@ def build():
         parts = [f"from {at(s, t)[1]:+.2f} at {TOP_NAME[y]} to a peak of {peak(s, t, LOWS[y])[1]:+.2f}" for y, t in TOPS.items()]
         add(card("nfci", 4, "Overall money conditions",
             "The Chicago Fed rolls 105 measures of credit, funding and markets into one number, where zero is average and anything above zero means money is tighter than normal.",
-            v0, "Zero is average, and above zero is tighter than normal", d0, grade(v0, 0, -0.25),
+            v0, "Zero is average, and anything above zero means money is tighter than normal", d0, grade(v0, 0, -0.25),
             "It counts as fired above zero, and as warming above minus 0.25.",
             f"It went {joined(parts)}.", FRED_URL.format("NFCI"), "FRED NFCI, weekly", spark(s, years=4), 0, "average"),
             "fires above zero")
@@ -668,7 +668,7 @@ def build():
             parts.append(f"from {at(s, t)[1]:.0f} at {TOP_NAME[y]} to a peak of {pk[1]:.0f} in {mon(pk[0])}")
         add(card("vix", 5, "The fear gauge",
             "The VIX is the price of insurance on the S&P 500. It climbs on the way down rather than before, so it confirms a panic instead of warning about one.",
-            v0, f"The five-day average is {a5:.1f}", d0, grade(a5, 30, 20),
+            v0, f"The fear gauge's five-day average is {a5:.1f}", d0, grade(a5, 30, 20),
             "It counts as fired when the five-day average reaches 30, and as warming at 20.",
             f"It went {joined(parts)}.", FRED_URL.format("VIXCLS"), "FRED VIXCLS (CBOE), daily", spark(s, years=2), 30, "fired line"),
             "fires at a five-day average of 30")
@@ -678,7 +678,7 @@ def build():
         parts = [f"from {at(s, t)[1]:+.1f} at {TOP_NAME[y]} to a peak of {peak(s, t, LOWS[y])[1]:+.1f}" for y, t in TOPS.items() if covers(s, t)]
         add(card("stress", 5, "Financial stress index",
             "This is the St. Louis Fed's stress gauge, built from 18 market measures, where zero is normal and anything above it means stress.",
-            v0, "Zero is normal, and above zero means stress", d0, grade(v0, 1, 0),
+            v0, "Zero is normal, and anything above zero means stress", d0, grade(v0, 1, 0),
             "It counts as fired above 1, and as warming above zero.",
             f"It went {joined(parts)}.", FRED_URL.format("STLFSI4"), "FRED STLFSI4, weekly", spark(s, years=4), 0, "normal"),
             "fires above 1")
@@ -695,7 +695,7 @@ def build():
                 parts.append(f"{best:.0f}% in {label}")
         add(card("yen", 5, "The yen jumps",
             "Traders borrow cheap yen to buy everything else, and when they're forced to sell, they have to buy the yen back, which makes it spike. A stronger yen shows up as fewer yen per dollar.",
-            v0, f"Yen per dollar, with the yen {'stronger' if stronger >= 0 else 'weaker'} by {abs(stronger):.1f}% over the last 20 trading days", d0,
+            v0, f"That's how many yen buy a dollar, and the yen is {'stronger' if stronger >= 0 else 'weaker'} by {abs(stronger):.1f}% over the last 20 trading days", d0,
             grade(stronger, 7, 3),
             "It counts as fired when the yen is 7% stronger over 20 trading days, and as warming at 3%.",
             f"The yen gained as much as {joined(parts)}, each within about a month. The Fed posts this series weekly, so it can trail the market by a few days.",
@@ -712,7 +712,7 @@ def build():
                 parts.append(f"in {mon(hit)}, {abs(m)} month{'s' if abs(m) != 1 else ''} {'after' if m >= 0 else 'before'} {TOP_NAME[y]}")
         add(card("jobs", 5, "The job market cracks",
             "The Sahm rule says a recession has started once the three-month average jobless rate is half a point above its low of the past year. It confirms a downturn late rather than warning early.",
-            v0, "Points above the low of the past year", d0, grade(v0, 0.5, 0.3),
+            v0, "The three-month average jobless rate is that many points above its low of the past year", d0, grade(v0, 0.5, 0.3),
             "It counts as fired at 0.5 or more, and as warming at 0.3.",
             f"It crossed 0.5 {joined(parts)}.", FRED_URL.format("SAHMREALTIME"), "FRED SAHMREALTIME, monthly", spark(s, years=4), 0.5, "fired line"),
             "fires at 0.5")
@@ -724,7 +724,7 @@ def build():
         ch3 = v0 - at(s, d0 - dt.timedelta(days=91))[1]
         add(card("cuts", 6, "The Fed cuts fast",
             "This tracks emergency or rapid rate cuts, which come after the panic and never before it.",
-            ch3, f"Change in the Fed's rate over the last three months, {'down' if ch3 < 0 else 'up'} {abs(ch3):.2f} points", d0, grade(ch3, -0.5, -0.2, higher_is_worse=False),
+            ch3, f"The Fed's rate has moved {'down' if ch3 < 0 else 'up'} {abs(ch3):.2f} points over the last three months", d0, grade(ch3, -0.5, -0.2, higher_is_worse=False),
             "It counts as fired after cuts of half a point or more in three months, and as warming after a fifth of a point.",
             "The Fed made a surprise cut in January 2001, an emergency three-quarter-point cut on Jan 22, 2008, and two emergency cuts to zero on March 3 and 15, 2020.",
             FRED_URL.format("DFF"), "FRED DFF, daily", spark(s, years=2)),
@@ -738,7 +738,7 @@ def build():
         h20 = (at(sb, D("2020-06-10"))[1] / at(sb, D("2020-03-11"))[1] - 1) * 100
         add(card("printing", 6, "The Fed's balance sheet jumps",
             "When the Fed buys bonds or lends on a huge scale its balance sheet balloons, and that money-printing turn is usually where the inflation after a crash begins.",
-            ch, f"Change over the last eight weeks, with the balance sheet at ${v0:.2f} trillion", d0, grade(ch, 5, 2),
+            ch, f"That's how much the Fed's balance sheet changed over the last eight weeks, and it now stands at ${v0:.2f} trillion", d0, grade(ch, 5, 2),
             "It counts as fired when the balance sheet grows 5% or more in eight weeks, and as warming at 2%.",
             f"It grew {h08:.0f}% from September to December 2008 and {h20:.0f}% from March to June 2020.",
             FRED_URL.format("WALCL"), "FRED WALCL, weekly", spark(sb, years=4)),
@@ -754,7 +754,7 @@ def build():
                       "fired": sb[-1][1] >= 22 and sb[-2][1] >= 22})
     c = next((x for x in cards if x["id"] == "yen"), None)
     if c:
-        watch.append({"name": "The yen strengthens fast while stocks fall", "now": f"The yen is at {c['value']:.2f} per dollar and " + c["reading"].split("with the yen ", 1)[-1],
+        watch.append({"name": "The yen strengthens fast while stocks fall", "now": f"The yen is at {c['value']:.2f} per dollar and " + c["reading"].split("and the yen is ", 1)[-1].rstrip("."),
                       "as_of": c["as_of"], "fired": c["verdict"] == "fired"})
     if ccc and hy:
         hy_rise = hy[-1][1] - hy[-21][1]
