@@ -25,6 +25,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+      - name: Install the Excel reader for NAHB's builder index
+        run: pip install -q xlrd==2.0.1
       - name: Fetch FRED and daily closes, build crash.json
         run: python3 crash-fetch.py
       - name: Commit crash.json
@@ -32,6 +34,7 @@ jobs:
           git config user.name "field-kit-bot"
           git config user.email "field-kit-bot@users.noreply.github.com"
           git add crash.json
+          if [ -f crash-hmi.csv ]; then git add crash-hmi.csv; fi
           git diff --cached --quiet && exit 0
           git commit -q -m "crash: $(date -u +%Y-%m-%d\ %H:%M) UTC"
           for i in 1 2 3 4; do git pull -q --rebase && git push -q && exit 0; sleep 7; done; exit 1

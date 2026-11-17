@@ -56,13 +56,75 @@ def yahoo(sym):
     return [(dt.datetime.utcfromtimestamp(t).date().isoformat(), round(c, 4)) for t, c in zip(ts, cl) if c is not None]
 
 
+HMI_PAGE = "https://www.nahb.org/news-and-economics/housing-economics/indices/housing-market-index"
+HMI_SAVED = os.path.join(os.path.dirname(os.path.abspath(__file__)), "crash-hmi.csv")
+
+
+def hmi():
+    """NAHB/Wells Fargo builder index, national, seasonally adjusted (Table 2 on NAHB's HMI page).
+    The file name changes every month, so the link is read off the page each time."""
+    import html, re, xlrd
+    page, _ = get(HMI_PAGE)
+    m = re.search(r'href="([^"]*t2-national-hmi-history[^"]*?\.xlsx?[^"]*)"', page, re.I)
+    if not m:
+        raise ValueError("no Table 2 link on the HMI page")
+    url = html.unescape(m.group(1))
+    if url.startswith("/"):
+        url = "https://www.nahb.org" + url
+    req = urllib.request.Request(url, headers=UA)
+    with urllib.request.urlopen(req, timeout=30) as r:
+        data = r.read()
+    book = xlrd.open_workbook(file_contents=data)
+    rows = {}
+    for sh in book.sheets():
+        for i in range(sh.nrows):
+            row = sh.row(i)
+            if i < 8:
+                print("HMI sheet", sh.name, i, [c.value for c in row[:14]], flush=True)
+            if not row:
+                continue
+            c0 = row[0]
+            yr = None
+            if c0.ctype == xlrd.XL_CELL_NUMBER and 1985 <= c0.value <= 2100 and float(c0.value).is_integer():
+                yr = int(c0.value)
+            elif c0.ctype == xlrd.XL_CELL_TEXT and c0.value.strip().isdigit() and 1985 <= int(c0.value.strip()) <= 2100:
+                yr = int(c0.value.strip())
+            if yr:
+                vals = [c.value for c in row[1:13]]
+                for k, v in enumerate(vals):
+                    if isinstance(v, (int, float)) and v != "" and 0 <= v <= 100:
+                        rows[f"{yr}-{k + 1:02d}-01"] = float(v)
+                continue
+            if c0.ctype == xlrd.XL_CELL_DATE:
+                d0 = xlrd.xldate_as_datetime(c0.value, book.datemode).date()
+                nums = [c.value for c in row[1:] if c.ctype == xlrd.XL_CELL_NUMBER]
+                if nums and 0 <= nums[0] <= 100:
+                    rows[d0.replace(day=1).isoformat()] = float(nums[0])
+    out = sorted(rows.items())
+    if len(out) < 300:
+        raise ValueError(f"only {len(out)} months parsed")
+    with open(HMI_SAVED, "w", newline="") as f:
+        w = csv.writer(f); w.writerow(["date", "value"]); w.writerows(out)
+    return out
+
+
 def fetch_all():
     os.makedirs(RAW, exist_ok=True)
     log = {"fetched_utc": dt.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"), "ok": {}, "failed": {}}
-    jobs = [(s, "fred", s) for s in FRED] + [(k, "yahoo", v) for k, v in YAHOO.items()]
+    jobs = [(s, "fred", s) for s in FRED] + [(k, "yahoo", v) for k, v in YAHOO.items()] + [("HMI", "nahb", None)]
     for key, kind, sym in jobs:
         try:
-            rows = fred(sym) if kind == "fred" else yahoo(sym)
+            if kind == "nahb":
+                try:
+                    rows = hmi()
+                except Exception as e:
+                    # keep the last good copy in the repo rather than going blank
+                    print("HMI live fetch failed, using saved copy:", e, flush=True)
+                    with open(HMI_SAVED) as f:
+                        rows = [(r[0], float(r[1])) for r in list(csv.reader(f))[1:]]
+                    kind = "nahb (saved copy)"
+            else:
+                rows = fred(sym) if kind == "fred" else yahoo(sym)
             if not rows:
                 raise ValueError("no rows")
             with open(os.path.join(RAW, f"{key}.csv"), "w", newline="") as f:
