@@ -1,5 +1,6 @@
 # Pulls the Fed (FRED) series and a few daily closes behind crash.html into crash.json,
 # so the page can read them same-origin. FRED sends no CORS header, so a browser can't fetch it directly.
+# Also pulls NAHB's builder index and the Shiller P/E, keeping the last good copy of each in the repo.
 # Runs weekday mornings and evenings (New York), on edits to this file or the script, or by hand.
 # The Pages deploy workflow redeploys after this one completes.
 name: Crash
@@ -25,6 +26,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+      - name: Install the Excel reader for NAHB's builder index
+        run: pip install -q xlrd==2.0.1
       - name: Fetch FRED and daily closes, build crash.json
         run: python3 crash-fetch.py
       - name: Commit crash.json
@@ -32,6 +35,7 @@ jobs:
           git config user.name "field-kit-bot"
           git config user.email "field-kit-bot@users.noreply.github.com"
           git add crash.json
+          for f in crash-hmi.csv crash-cape.csv; do if [ -f $f ]; then git add $f; fi; done
           git diff --cached --quiet && exit 0
           git commit -q -m "crash: $(date -u +%Y-%m-%d\ %H:%M) UTC"
           for i in 1 2 3 4; do git pull -q --rebase && git push -q && exit 0; sleep 7; done; exit 1
