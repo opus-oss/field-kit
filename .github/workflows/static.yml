@@ -8,7 +8,7 @@ on:
 
   # Redeploy after the data crons commit (their bot pushes cannot trigger a push event)
   workflow_run:
-    workflows: ["Pollen", "Intel"]
+    workflows: ["Pollen", "Intel", "Crash"]
     types: [completed]
 
   # Allows you to run this workflow manually from the Actions tab
