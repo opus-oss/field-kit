@@ -141,7 +141,7 @@ h1{font-size:2rem;margin:0 0 6px;color:var(--amber)}
 .plot svg{width:100%;display:block;overflow:visible}
 .plot .gut{position:relative;flex:none}
 .plot .ln,.plot .zl{position:absolute;left:11px;transform:translateY(-50%);font:600 .68rem/1 var(--mono);white-space:nowrap;pointer-events:none}
-.plot .ln.warm{color:var(--amber)}.plot .ln.fire{color:var(--clay)}
+.plot .ln.warm{color:var(--amber)}.plot .ln.fire{color:var(--clay)}.plot .ln.ref{color:var(--slate)}
 .plot .zl{letter-spacing:.05em;color:var(--clay);opacity:.9}
 .plot .zl.warm{color:var(--amber)}
 .plot .tick{position:absolute;left:2px;width:6px;border-top:2px solid;transform:translateY(-1px)}
@@ -230,7 +230,7 @@ h1{font-size:2rem;margin:0 0 6px;color:var(--amber)}
     <span><i style="color:var(--clay)"></i>fired line</span>
     <span><i class="zone"></i>danger zone</span>
     <span><i class="solid" style="color:var(--clay)"></i>where it crossed</span>
-    <span><i style="color:var(--slate)"></i>when stocks topped</span>
+    <span><i style="color:var(--slate)"></i>when stocks topped, or this year's high</span>
   </div>
 
   <section class="story">
@@ -339,7 +339,7 @@ function plot(ch, pts, marks, verdict, H, isNow){
   if(warm && fire) svg += band(warm.v, fire.v, "var(--amber)", .10);
   if(warm && !fire){ svg += band(warm.v, edge, "var(--amber)", .12); zoneTag(warm, " warm", ch.dir==="down"?"BELOW ZERO":"WARNING ZONE"); }
   ch.lines.forEach(l => {
-    const col = l.kind==="fire" ? "var(--clay)" : "var(--amber)";
+    const col = l.kind==="fire" ? "var(--clay)" : l.kind==="ref" ? "var(--slate)" : "var(--amber)";
     svg += `<line x1="0" x2="${W}" y1="${Y(l.v).toFixed(1)}" y2="${Y(l.v).toFixed(1)}" stroke="${col}" stroke-width="1.6" stroke-dasharray="7 5" vector-effect="non-scaling-stroke"/>`;
     tags.push({y:Y(l.v), cls:"ln "+l.kind, text:`${l.label} ${fmtV(l.v, ch.unit)}`, tick:col, ly:Y(l.v)});
   });

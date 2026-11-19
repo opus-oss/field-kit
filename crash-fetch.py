@@ -17,7 +17,7 @@ YAHOO_URL = "https://finance.yahoo.com/quote/{}/history"
 FRED = [
     "DFF", "DGS10", "DGS30", "DFII10", "T10YIE", "T10Y3M", "DRTSCILM",
     "SP500", "NASDAQ100",
-    "BAMLH0A3HYC", "BAMLH0A0HYM2", "BAMLH0A1HYBB", "BAMLC0A0CM",
+    "BAMLH0A3HYC", "BAMLH0A0HYM2", "BAMLH0A0HYM2EY", "BAMLH0A1HYBB", "BAMLC0A0CM",
     "DCPF3M", "DTB3",
     "WLCFLPCL", "SOFR", "IORB", "RPONTSYD", "WRESBAL", "NFCI",
     "VIXCLS", "STLFSI4", "DEXJPUS", "ICSA", "SAHMREALTIME", "WALCL",
@@ -472,6 +472,8 @@ def add_charts(S, cards):
             if xs:
                 marks.append({"d": xs[-1].isoformat(), "label": f"Fired {xs[-1]:%b %-d}" if (w[-1][0] - xs[-1]).days < 300 and sp_["yrs"] <= 3 else f"Fired {xs[-1]:%b %Y}", "kind": "fire"})
         now = {"pts": thin(w), "lines": [{"v": v, "kind": k, "label": l} for v, k, l in lines], "dir": dir_, "marks": marks}
+        if c.get("ref"):
+            now["lines"].append({"v": c["ref"][0], "kind": "ref", "label": c["ref"][1]})
         past = None
         if sp_["past"]:
             a, b, label = D(sp_["past"][0]), D(sp_["past"][1]), sp_["past"][2]
@@ -767,14 +769,28 @@ def build():
         d0, v0 = hy[-1]
         lo = peak(hy, d0 - dt.timedelta(days=365), d0, lo=True)
         rise = v0 - lo[1]
-        verdict = "fired" if v0 >= 6 else "warming" if (v0 >= 4.5 or rise >= 1.5) else "quiet"
-        add(card("hy", 3, "All junk bonds",
-            "This is the extra interest that all below-investment-grade companies pay over Treasuries, and when it widens, the whole market for risky borrowers is starting to shut.",
-            v0, f"That's how many points of extra interest all junk bonds pay over Treasuries, up {rise:.2f} from the low of the past year", d0, verdict,
-            "It counts as fired at 6 points or more, and as warming at 4.5 or after a rise of 1.5 from its low of the past year.",
+        # this year's high before the latest reading, the desk's panic line
+        yr = [(d, v) for d, v in hy[:-1] if d.year == d0.year]
+        yhi = max(yr, key=lambda x: x[1]) if yr else None
+        new_hi = bool(yhi) and v0 > yhi[1]
+        verdict = "fired" if v0 >= 6 else "warming" if (v0 >= 4.5 or rise >= 1.5 or new_hi) else "quiet"
+        rd = f"Junk bonds pay {v0:.2f} points more interest than Treasuries of the same length"
+        if yhi:
+            rd += (f", which is above this year's previous high of {yhi[1]:.2f} from {day(yhi[0])}" if new_hi
+                   else f", {yhi[1] - v0:.2f} under this year's high of {yhi[1]:.2f} from {day(yhi[0])}")
+        ey, t10 = S.get("BAMLH0A0HYM2EY"), S.get("DGS10")
+        if ey and t10 and at(t10, ey[-1][0]):
+            e1, t1 = ey[-1][1], at(t10, ey[-1][0])[1]
+            rd += f". Measured against the 10-year Treasury instead, junk yields {e1:.2f}% against {t1:.2f}%, a gap of {e1 - t1:.2f} points"
+        c = card("hy", 3, "Junk bonds vs Treasuries",
+            "This is the extra interest that companies rated below investment grade have to pay over the US government to borrow, and when that gap widens, lenders are demanding more to take risk and the market for weaker borrowers starts to shut. The big number is the standard measure, which compares each junk bond with a Treasury of the same length, and the line under it also shows the simpler junk yield minus the 10-year yield.",
+            v0, rd, d0, verdict,
+            "It counts as fired at 6 points or more, and as warming at 4.5, after a rise of 1.5 from its low of the past year, or when it closes above this year's high, which the desk treats as the panic line.",
             "From memory and rounded, it sat around 2.4 at the 2007 low and reached about 22 at the December 2008 peak, went from about 3.5 to about 11 in March 2020, and rose from roughly 5 to around 9 during 2000. The Fed's site only shows three years now, so these can't be checked live.",
-            FRED_URL.format("BAMLH0A0HYM2"), "FRED BAMLH0A0HYM2 (ICE BofA), daily", spark(hy), 6, "fired line"),
-            "fires at 6 points")
+            FRED_URL.format("BAMLH0A0HYM2"), "FRED BAMLH0A0HYM2 and BAMLH0A0HYM2EY (ICE BofA) and DGS10, daily", spark(hy), 6, "fired line")
+        if yhi:
+            c["ref"] = [round(yhi[1], 2), f"{d0.year} high"]
+        add(c, "fires at 6 points")
     cp, tb = S.get("DCPF3M"), S.get("DTB3")
     if cp and tb:
         sp = diff(cp, tb)
