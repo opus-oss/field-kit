@@ -1,0 +1,14 @@
+{
+  "name": "Pivot",
+  "short_name": "Pivot",
+  "description": "Who hosts it, who carries them, where it can be cut off.",
+  "start_url": "./pivot.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#1b1e1f",
+  "theme_color": "#1b1e1f",
+  "icons": [
+    {"src": "pivot-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable"},
+    {"src": "pivot-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"}
+  ]
+}

@@ -1,0 +1,630 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="referrer" content="no-referrer">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="darkreader-lock">
+<meta name="color-scheme" content="dark light">
+<meta name="theme-color" content="#1b1e1f" id="tc">
+<script>(function(){var t='dark';try{t=localStorage.getItem('fk_theme')||'dark'}catch(e){}if(t==='light'){document.documentElement.setAttribute('data-theme','light');document.getElementById('tc').content='#e0cfb0'}})()</script>
+<title>Pivot</title>
+<link rel="manifest" href="manifest-pivot.webmanifest">
+<link rel="icon" href="pivot-192.png">
+<link rel="apple-touch-icon" href="pivot-180.png">
+<meta name="apple-mobile-web-app-title" content="Pivot">
+<style>
+/* Opus — Prima Materia : cold slate ground · monospace metadata · serif headlines · tempered-amber accent */
+:root{
+  color-scheme:light;
+  --bg:#e0cfb0; --card:#e8d9bf; --chip:#d4c29e; --raised:#eee1cb;
+  --ink:#2b2114; --mut:#5f5236; --faint:#8a7c5e; --line:color-mix(in srgb,#1e160e 12%,transparent); --line2:color-mix(in srgb,#1e160e 24%,transparent);
+  --acc:#b0631f; --good:#14776a; --warn:#8a6410; --bad:#b23e37; --blue:#3f6a94; --vio:#6d5a9c;
+  --h1:color-mix(in srgb,var(--acc),#000 26%); --h2:#3d6e63; --h3:#44618c; --h4:#71537f; --h5:#5c7150; --on-acc:#fffaf0;
+  --mono:"SF Mono","JetBrains Mono","Menlo",ui-monospace,"Consolas",monospace;
+  --codechip:#f6efe0; --codeink:color-mix(in srgb,var(--acc) 38%,var(--ink));
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+}
+:root:not([data-theme="light"]){
+    --codechip:#101314; --codeink:color-mix(in srgb,var(--acc) 62%,var(--ink));
+    --h1:color-mix(in srgb,var(--acc),#fff 16%); --h2:#7cb5a4; --h3:#8fa8c9; --h4:#ab8fc0; --h5:#97ab8a; --on-acc:#1b1e1f;
+    --bg:#1b1e1f; --card:#222627; --chip:#292e2f; --raised:#2e3334;
+    --ink:#e7e4d9; --mut:#b1afa1; --faint:#828175; --line:#353b3c; --line2:#434a4b;
+    --acc:#d98a3d; --good:#4bbfa6; --warn:#c8971f; --bad:#d0655c; --blue:#7fa6cc; --vio:#a896d6;
+  color-scheme:dark;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%; scroll-padding-top:110px}
+body{background:var(--bg); color:var(--ink); font:16px/1.55 var(--sans); min-height:100vh}
+::selection{background:color-mix(in srgb,var(--acc) 35%,transparent)}
+button{font:inherit; color:inherit; cursor:pointer; background:none; border:none}
+a{color:inherit; text-decoration:none}
+
+/* ---- suite bar (shared across the toolkit) ---- */
+.suitebar{position:sticky; top:0; z-index:60; display:flex; align-items:center; gap:10px; background:var(--card); border-bottom:1px solid var(--line); padding:7px 12px; overflow:visible; height:42px}
+.suitebar::-webkit-scrollbar{display:none}
+.suitebar .brand{font-family:var(--mono); font-weight:700; font-size:13px; letter-spacing:.05em; color:var(--acc); white-space:nowrap; flex-shrink:0}
+.suitebar .switch{display:flex; gap:3px}
+.suitebar .switch a{font-family:var(--mono); font-size:12.5px; padding:5px 10px; border-radius:8px; color:var(--mut); white-space:nowrap}
+.suitebar .switch a:hover{color:var(--ink)}
+.suitebar .switch a.on{background:var(--chip); color:var(--h1); box-shadow:inset 0 -2px 0 var(--acc)}
+.suitebar .grp{position:relative}
+.suitebar .gbtn{font-family:var(--mono); font-size:12.5px; padding:5px 10px; border-radius:8px; color:var(--mut); background:transparent; border:0; white-space:nowrap; display:flex; align-items:center; gap:5px}
+.suitebar .gbtn:hover{color:var(--ink)}
+.suitebar .gbtn .car{font-size:9px; opacity:.7}
+.suitebar .grp.on .gbtn{background:var(--chip); color:var(--h1); box-shadow:inset 0 -2px 0 var(--acc)}
+.suitebar .switch{align-items:center}
+.suitebar .menu{position:absolute; top:calc(100% + 6px); left:0; min-width:150px; background:var(--card); border:1px solid var(--line2); border-radius:10px; padding:5px; display:none; flex-direction:column; gap:2px; box-shadow:0 10px 24px -12px rgba(0,0,0,.5); z-index:70}
+.suitebar .grp.open .menu{display:flex}
+.suitebar .menu a{padding:6px 10px; border-radius:7px}
+.suitebar .menu a:hover{background:var(--chip); color:var(--ink)}
+.suitebar .menu a.cur{color:var(--h1); background:var(--chip)}
+@media(max-width:440px){
+  .suitebar{gap:6px; padding:7px 8px}
+  .suitebar .brand{font-size:0}
+  .suitebar .brand::before{content:'◆'; font-size:14px}
+  .suitebar .switch a,.suitebar .gbtn{padding:5px 7px; font-size:12px}
+  .suitebar .gbtn .car{display:none}
+}
+.suitebar .themebtn{margin-left:auto; position:sticky; right:0; flex-shrink:0; font-size:15px; line-height:1; padding:5px 9px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--mut); cursor:pointer; box-shadow:-10px 0 8px -2px var(--card)}
+.suitebar .themebtn:hover{color:var(--acc); border-color:var(--line2)}
+
+.wrap{max-width:1180px; margin:0 auto; padding:0 18px 60px}
+.mast{padding:24px 0 6px}
+.mast h1{font-family:var(--mono); font-size:2rem; font-weight:700; letter-spacing:-.02em; color:var(--h1)}
+.mast p{color:var(--mut); font-size:14.5px; margin-top:4px}
+.search{display:flex; gap:8px; margin:16px 0 10px}
+.search input{flex:1; min-width:0; font:15px var(--mono); padding:11px 13px; border-radius:10px; border:1px solid var(--line2); background:var(--card); color:var(--ink)}
+.search input:focus{outline:none; border-color:var(--acc)}
+.search button{font-family:var(--mono); font-weight:700; font-size:14px; padding:0 18px; border-radius:10px; background:var(--acc); color:var(--on-acc)}
+.eg{font:12.5px var(--mono); color:var(--faint)}
+.eg a{color:var(--mut); border-bottom:1px dotted var(--line2); cursor:pointer; margin-right:10px}
+.ticks{display:flex; flex-wrap:wrap; gap:6px; margin:12px 0 0; font:12px var(--mono); color:var(--faint)}
+.ticks span{padding:3px 8px; border-radius:7px; background:var(--chip)}
+.ticks .ok{color:var(--good)} .ticks .bad{color:var(--bad)}
+.helper{font:12.5px var(--mono); color:var(--faint); margin-top:8px}
+.helper b{color:var(--mut)} .helper code{color:var(--codeink); background:var(--codechip); padding:1px 5px; border-radius:5px}
+.summary{font-size:17px; line-height:1.6; margin:20px 0 6px; max-width:900px}
+.summary b{color:var(--h1); font-weight:600}
+h2{font-family:var(--mono); font-size:13px; letter-spacing:.08em; text-transform:uppercase; color:var(--h2); margin:26px 0 10px}
+.flowbox{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:10px; overflow-x:auto}
+.flowbox svg{display:block; min-width:820px; width:100%; height:auto}
+.n-box{fill:var(--raised); stroke:var(--line2); stroke-width:1}
+.n-box.hot{stroke:var(--acc); stroke-width:1.6}
+.n-k{font:600 10.5px var(--mono); fill:var(--faint); letter-spacing:.08em; text-transform:uppercase}
+.n-v{font:700 15px var(--mono); fill:var(--ink)}
+.n-d{font:12px var(--sans); fill:var(--mut)}
+.e{fill:none; stroke:var(--line2)} .e.hot{stroke:var(--acc)}
+.cut-b{fill:color-mix(in srgb,var(--bad) 16%,var(--card)); stroke:var(--bad); stroke-width:1}
+.cut-t{font:600 11px var(--mono); fill:var(--bad)}
+.grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(330px,1fr)); gap:12px}
+.card{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:14px 16px}
+.card h3{font-family:var(--mono); font-size:12px; letter-spacing:.08em; text-transform:uppercase; color:var(--h3); margin-bottom:8px}
+.kv{display:grid; grid-template-columns:118px 1fr; gap:4px 10px; font-size:14px}
+.kv dt{color:var(--faint); font:12.5px var(--mono); padding-top:2px}
+.kv dd{word-break:break-word}
+.mono{font-family:var(--mono); font-size:13px}
+.pill{display:inline-block; font:12px var(--mono); padding:1px 7px; border-radius:6px; background:var(--chip); margin:1px 3px 1px 0}
+.pill.bad{color:var(--bad)} .pill.good{color:var(--good)} .pill.warn{color:var(--warn)}
+.note{color:var(--mut); font-size:13.5px; margin-top:8px}
+.cuts{display:grid; gap:10px}
+.cut{display:grid; grid-template-columns:34px 1fr; gap:10px; background:var(--card); border:1px solid var(--line); border-left:3px solid var(--bad); border-radius:12px; padding:12px 14px}
+.cut .num{font:700 18px var(--mono); color:var(--bad)}
+.cut b{font-weight:600}
+.cut p{color:var(--mut); font-size:14px; margin-top:3px}
+table{width:100%; border-collapse:collapse; font-size:13px}
+td,th{text-align:left; padding:4px 6px; border-bottom:1px solid var(--line); vertical-align:top}
+th{font:600 11px var(--mono); color:var(--faint); text-transform:uppercase; letter-spacing:.06em}
+td.mono{font-size:12.5px}
+.tl text{font:11.5px var(--mono); fill:var(--mut)}
+.tl .ax{font-size:10.5px; fill:var(--faint)}
+.tl .bar{fill:var(--line2)} .tl .bar.cur{fill:var(--acc)}
+.links a{display:inline-block; font:12.5px var(--mono); padding:4px 9px; margin:2px 4px 2px 0; border-radius:7px; background:var(--chip); color:var(--mut)}
+.links a:hover{color:var(--acc)}
+.q{display:flex; gap:6px; align-items:flex-start; margin:4px 0}
+.q code{flex:1; font:12px var(--mono); background:var(--codechip); color:var(--codeink); padding:5px 7px; border-radius:6px; word-break:break-all}
+.q button{font:11px var(--mono); padding:4px 8px; border-radius:6px; background:var(--chip); color:var(--mut)}
+.err{color:var(--bad); font:13px var(--mono)}
+.muted{color:var(--faint)}
+.go{cursor:pointer; border-bottom:1px dotted var(--line2)}
+.go:hover{color:var(--acc)}
+@media(max-width:600px){.summary{font-size:15.5px} .kv{grid-template-columns:96px 1fr}}
+</style>
+</head>
+<body>
+
+<div class="suitebar">
+  <a class="brand" href="./index.html">◆&nbsp;FIELD KIT</a>
+  <div class="switch">
+    <a href="./index.html">Weather</a>
+    <a href="./radar.html">Radar</a>
+    <div class="grp on"><button class="gbtn" type="button">Tech<span class="car">▼</span></button>
+      <div class="menu">
+        <a href="./intel.html">Grapevine</a>
+        <a href="./pivot.html" class="cur">Pivot</a>
+        <a href="./chef.html">Chef</a>
+        <a href="./ascii.html">ASCII</a>
+      </div></div>
+    <div class="grp"><button class="gbtn" type="button">Finance<span class="car">▼</span></button>
+      <div class="menu">
+        <a href="./markets.html">Markets</a>
+        <a href="./crash.html">Crash</a>
+        <a href="./debt.html">Debt</a>
+        <a href="./tax.html">Tax</a>
+        <a href="./mortgage.html">Mortgage</a>
+      </div></div>
+    <div class="grp"><button class="gbtn" type="button">Privacy<span class="car">▼</span></button>
+      <div class="menu">
+        <a href="./scrub.html">Scrub</a>
+        <a href="./optout.html">Opt Out</a>
+        <a href="./places.html">Places</a>
+      </div></div>
+  </div>
+  <button class="themebtn" id="themeBtn" title="Light / dark" aria-label="Toggle light or dark mode">◐</button>
+</div>
+
+
+<div class="wrap">
+  <div class="mast">
+    <h1>Pivot</h1>
+    <p>Who hosts it, who carries them, where it can be cut off.</p>
+  </div>
+  <form class="search" id="f" autocomplete="off">
+    <input id="q" placeholder="IP, domain, or ASN (defanged is fine)" spellcheck="false" autocapitalize="off">
+    <button type="submit">Pivot</button>
+  </form>
+  <div class="eg">try <a data-q="176.120.22.127">176.120.22[.]127</a><a data-q="AS198953">AS198953</a><a data-q="AS210644">AS210644</a></div>
+  <div class="helper" id="helper"></div>
+  <div class="ticks" id="ticks"></div>
+  <div id="out"></div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const defang = s => String(s ?? '').replace(/\.(?=[^.]*$)/, '[.]');
+const fmt = n => Number(n).toLocaleString();
+const today = new Date().toISOString().slice(0,10);
+
+/* ---------- fetch helpers ---------- */
+async function getJSON(url, ms = 20000) {
+  const c = new AbortController(); const t = setTimeout(() => c.abort(), ms);
+  try { const r = await fetch(url, {signal: c.signal}); if (!r.ok) throw new Error('HTTP ' + r.status); return await r.json(); }
+  finally { clearTimeout(t); }
+}
+const ripe = (call, p, ms = 30000) => getJSON(`https://stat.ripe.net/data/${call}/data.json?${new URLSearchParams({...p, sourceapp: 'fieldkit-pivot'})}`, ms).then(j => j.data);
+const TYPES = {A:1, NS:2, PTR:12, MX:15, TXT:16, AAAA:28};
+async function doh(name, type) {
+  const j = await getJSON(`https://dns.google/resolve?name=${encodeURIComponent(name)}&type=${type}`, 10000);
+  return (j.Answer || []).filter(a => a.type === TYPES[type]).map(a => a.data.replace(/^"|"$/g, '').replace(/\.$/, ''));
+}
+
+let tickBox;
+function tick(name, p) {
+  const s = document.createElement('span'); s.textContent = name + ' …'; tickBox.appendChild(s);
+  return p.then(v => { s.textContent = name + ' ✓'; s.className = 'ok'; return v; },
+                e => { s.textContent = name + ' ✗'; s.className = 'bad'; s.title = e.message; return {error: e.message}; });
+}
+const bad = x => !x || x.error;
+
+/* ---------- local helper (keys stay on the Mac) ---------- */
+const HELPER = (/^(127\.0\.0\.1|localhost)$/.test(location.hostname) && location.protocol === 'http:') ? '' :
+  (localStorage.getItem('fk_pivot_helper') || 'http://127.0.0.1:8787');
+let helperOn = false;
+async function pingHelper() {
+  try { const j = await getJSON(HELPER + '/api/ping', 1500); helperOn = !!j.ok;
+    $('#helper').innerHTML = `<b>Local helper on.</b> VirusTotal, abuse.ch, passive DNS and certificates included${j.keys.length ? '' : ' (no keys found in ~/.config/threatintel.env)'}.`;
+  } catch (e) {
+    $('#helper').innerHTML = `<b>Local helper off.</b> Routing and hosting data still work. For VirusTotal, abuse.ch, passive DNS and certificates, run <code>python3 ~/tools/intel/pivot.py --serve</code> on your Mac and reload.`;
+  }
+}
+
+/* ---------- sources ---------- */
+function v4int(ip) { return ip.split('.').reduce((a, o) => a * 256 + +o, 0); }
+function inPrefix(ip, pfx) {
+  if (ip.includes(':') || pfx.includes(':')) return pfx.includes(':') === ip.includes(':');
+  const [net, len] = pfx.split('/'); const size = 2 ** (32 - +len);
+  return Math.floor(v4int(ip) / size) === Math.floor(v4int(net) / size);
+}
+async function cymruIP(ip) {
+  if (!ip.includes(':')) {
+    const [r] = await doh(ip.split('.').reverse().join('.') + '.origin.asn.cymru.com', 'TXT');
+    if (r) { const [a, prefix, cc, reg, alloc] = r.split('|').map(s => s.trim());
+      return {asn: a.split(' ')[0], prefix, cc, reg, alloc, src: 'Team Cymru'}; }
+  }
+  const d = await ripe('prefix-overview', {resource: ip});
+  if (!d.asns || !d.asns.length) throw new Error('not announced');
+  return {asn: String(d.asns[0].asn), prefix: d.resource, src: 'RIPEstat'};
+}
+const nameCache = {};
+async function asName(n) {
+  if (nameCache[n]) return nameCache[n];
+  let r = null;
+  try { const [t] = await doh(`AS${n}.asn.cymru.com`, 'TXT');
+    if (t) { const p = t.split('|').map(s => s.trim()); r = {name: p[4], cc: p[1], reg: p[2], alloc: p[3]}; } } catch (e) {}
+  if (!r) { try { r = {name: (await ripe('as-overview', {resource: 'AS' + n})).holder}; } catch (e) { r = {name: ''}; } }
+  return nameCache[n] = r;
+}
+const shortName = s => (s || '').replace(/^[A-Za-z0-9_.-]+ - /, '').replace(/,\s*[A-Z]{2}$/, '').slice(0, 30);
+
+function mergeSpans(tl) {
+  const ts = tl.map(t => [t.starttime.slice(0,10), t.endtime.slice(0,10)]).sort();
+  const out = [];
+  for (const [s, e] of ts) {
+    const last = out[out.length - 1];
+    if (last && (new Date(s) - new Date(last[1])) / 864e5 <= 3) last[1] = e > last[1] ? e : last[1]; else out.push([s, e]);
+  }
+  return out;
+}
+async function prefixHistory(ip) {
+  const d = await ripe('routing-history', {resource: ip});
+  const rows = [];
+  for (const o of d.by_origin || []) for (const p of o.prefixes) {
+    if (+p.prefix.split('/')[1] < 12 || !inPrefix(ip, p.prefix)) continue;
+    for (const [s, e] of mergeSpans(p.timelines)) rows.push({origin: String(o.origin), prefix: p.prefix, first: s, last: e});
+  }
+  return rows.sort((a, b) => a.first < b.first ? -1 : 1);
+}
+async function upstreams(asn, top = 6) {
+  const d = await ripe('asn-neighbours', {resource: 'AS' + asn});
+  const left = d.neighbours.filter(n => n.type === 'left').sort((a, b) => b.power - a.power);
+  const total = left.reduce((a, n) => a + n.power, 0) || 1;
+  const ups = await Promise.all(left.slice(0, top).map(async n => ({asn: String(n.asn), power: n.power, share: n.power / total, name: (await asName(n.asn)).name})));
+  return {ups, nLeft: left.length, nRight: d.neighbours.filter(n => n.type === 'right').length};
+}
+async function footprint(asn) {
+  const d = await ripe('announced-prefixes', {resource: 'AS' + asn});
+  const v4 = d.prefixes.filter(p => !p.prefix.includes(':'));
+  return {v4: v4.length, addrs: v4.reduce((a, p) => a + 2 ** (32 - +p.prefix.split('/')[1]), 0), v6: d.prefixes.length - v4.length,
+          list: d.prefixes.map(p => ({prefix: p.prefix, since: (p.timelines[0] || {}).starttime?.slice(0,10)}))};
+}
+async function rpki(asn, prefix) { const d = await ripe('rpki-validation', {resource: 'AS' + asn, prefix}, 12000);
+  return {status: d.status, roas: (d.validating_roas || []).map(r => `AS${r.origin} ${r.prefix} max /${r.max_length}`)}; }
+const abuse = res => ripe('abuse-contact-finder', {resource: res}).then(d => d.abuse_contacts || []);
+function vcard(e, f) { const v = (e.vcardArray || [null, []])[1].find(x => x[0] === f); return v ? v[3] : ''; }
+async function rdapIP(ip) {
+  const d = await getJSON('https://rdap.org/ip/' + ip);
+  const ents = (d.entities || []).map(e => ({roles: e.roles || [], name: vcard(e, 'fn') || e.handle}));
+  const org = (ents.find(e => e.roles.includes('registrant')) || ents[0] || {}).name;
+  return {netname: d.name, range: d.startAddress ? `${d.startAddress} – ${d.endAddress}` : d.handle, country: d.country, org, ents};
+}
+async function rdapDomain(dom) {
+  const d = await getJSON('https://rdap.org/domain/' + dom);
+  const ev = Object.fromEntries((d.events || []).map(e => [e.eventAction, e.eventDate.slice(0,10)]));
+  const reg = (d.entities || []).find(e => (e.roles || []).includes('registrar')) || {};
+  const ab = (reg.entities || []).find(e => (e.roles || []).includes('abuse'));
+  return {registrar: vcard(reg, 'fn') || reg.handle, abuse: ab ? vcard(ab, 'email') : '', created: ev.registration,
+          updated: ev['last changed'], expires: ev.expiration, ns: (d.nameservers || []).map(n => n.ldhName.toLowerCase()), status: d.status || []};
+}
+async function internetdb(ip) {
+  try { return await getJSON('https://internetdb.shodan.io/' + ip, 10000); }
+  catch (e) { if (/404/.test(e.message)) return {none: true}; throw e; }
+}
+async function ptr(ip) {
+  if (ip.includes(':')) return '';
+  const [p] = await doh(ip.split('.').reverse().join('.') + '.in-addr.arpa', 'PTR'); return p || '';
+}
+async function extra(q) {
+  if (!helperOn) return null;
+  return getJSON(HELPER + '/api/extra?q=' + encodeURIComponent(q), 70000);
+}
+
+/* ---------- pipelines ---------- */
+async function workIP(ip, light = false) {
+  const r = {ip};
+  const [cy, rd, ab, hist, ports, rev, ex] = await Promise.all([
+    tick('Team Cymru', cymruIP(ip)), tick('RDAP', rdapIP(ip)), tick('abuse desk', abuse(ip)),
+    tick('routing history', prefixHistory(ip)), tick('Shodan', internetdb(ip)), tick('PTR', ptr(ip)),
+    light || !helperOn ? null : tick('VT + abuse.ch', extra(ip))]);
+  Object.assign(r, {cy, rd, ab, hist, ports, rev, ex});
+  if (!bad(cy)) {
+    const [name, up, fp, rp] = await Promise.all([asName(cy.asn), tick('upstreams', upstreams(cy.asn)),
+      tick('footprint', footprint(cy.asn)), tick('RPKI', rpki(cy.asn, cy.prefix))]);
+    Object.assign(r, {name, up, fp, rp});
+  }
+  return r;
+}
+async function workDomain(dom) {
+  const [A, AAAA, NS, rd, ex] = await Promise.all([tick('DNS', doh(dom, 'A')), doh(dom, 'AAAA').catch(() => []),
+    doh(dom, 'NS').catch(() => []), tick('RDAP', rdapDomain(dom)), helperOn ? tick('VT + abuse.ch + crt.sh', extra(dom)) : null]);
+  let ips = Array.isArray(A) ? A.filter(x => /^\d+\.\d+\.\d+\.\d+$/.test(x)) : [];
+  let fromPdns = false;
+  if (!ips.length && ex && ex.vt && ex.vt.resolutions) { ips = [...new Set(ex.vt.resolutions.map(x => x.ip))]; fromPdns = true; }
+  const main = ips.length ? await workIP(ips[0], true) : null;
+  return {dom, A: ips, AAAA, NS, rd, ex, main, fromPdns};
+}
+async function workASN(asn) {
+  const [name, up, fp, ab, hist] = await Promise.all([asName(asn), tick('upstreams', upstreams(asn, 10)), tick('footprint', footprint(asn)),
+    tick('abuse desk', abuse('AS' + asn)), tick('routing history', ripe('routing-history', {resource: 'AS' + asn}))]);
+  return {asn, name, up, fp, ab, hist};
+}
+
+/* ---------- flow visual ---------- */
+function svgFlow(cols, cutsAt) {
+  // cols: [{key, k, v, d:[..], hot, cut}] or {stack:[...]} for upstreams
+  const colW = 178, W = Math.max(1120, cols.length * colW + (cols.length - 1) * 34 + 40), gap = (W - 40 - cols.length * colW) / Math.max(cols.length - 1, 1);
+  const nodeH = 92, stackH = 66, pad = 14;
+  const maxStack = Math.max(1, ...cols.map(c => c.stack ? c.stack.length : 1));
+  const H = Math.max(240, maxStack * (stackH + 10) + 110);
+  const midY = H / 2 + 6;
+  let s = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Hosting and routing chain">
+    <defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="context-stroke"/></marker></defs>`;
+  const boxes = [];
+  cols.forEach((c, i) => {
+    const x = 20 + i * (colW + gap);
+    if (c.stack) {
+      const tot = c.stack.length * (stackH + 10) - 10; let y0 = midY - tot / 2;
+      boxes.push(c.stack.map((n, j) => ({x, y: y0 + j * (stackH + 10), h: stackH, n, stacked: true})));
+    } else boxes.push([{x, y: midY - nodeH / 2, h: nodeH, n: c}]);
+  });
+  // edges first
+  for (let i = 0; i < boxes.length - 1; i++) {
+    const A = boxes[i], B = boxes[i + 1];
+    for (const a of A) for (const b of B) {
+      if (A.length > 1 && B.length > 1) continue;
+      const share = (B.length > 1 ? b.n.share : A.length > 1 ? a.n.share : 1) ?? 1;
+      const hot = (B.length > 1 ? b.n.hot : A.length > 1 ? a.n.hot : true);
+      const x1 = a.x + colW, y1 = a.y + a.h / 2, x2 = b.x - 4, y2 = b.y + b.h / 2, mx = (x1 + x2) / 2;
+      const w = Math.max(1.2, Math.min(7, 1.2 + share * 7));
+      s += `<path class="e${hot ? ' hot' : ''}" stroke-width="${w.toFixed(1)}" marker-end="url(#ar)" d="M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}"/>`;
+    }
+  }
+  for (const col of boxes) for (const {x, y, h, n, stacked} of col) {
+    s += `<g><rect class="n-box${n.hot ? ' hot' : ''}" x="${x}" y="${y}" width="${colW}" height="${h}" rx="11"/>`;
+    s += `<text class="n-k" x="${x + pad}" y="${y + 19}">${esc(n.k)}</text>`;
+    s += `<text class="n-v" x="${x + pad}" y="${y + 38}">${esc(String(n.v).length > 19 ? String(n.v).slice(0, 18) + '…' : n.v)}<title>${esc(n.v)}</title></text>`;
+    (n.d || []).slice(0, h > 80 ? 3 : 1).forEach((t, j) => s += `<text class="n-d" x="${x + pad}" y="${y + 56 + j * 15}">${esc(String(t).slice(0, 25))}</text>`);
+    s += `</g>`;
+    if (n.cut) {
+      const tw = n.cut.length * 6.9 + 30, cx = x + colW / 2 - tw / 2, cy = stacked ? y - 30 : y + h + 8;
+      s += `<g><rect class="cut-b" x="${cx}" y="${cy}" width="${tw}" height="22" rx="11"/><text class="cut-t" x="${cx + 11}" y="${cy + 15}">✂ ${esc(n.cut)}</text></g>`;
+    }
+  }
+  return s + '</svg>';
+}
+
+/* ---------- timeline ---------- */
+function svgTimeline(rows, curAsn) {
+  if (!rows.length) return '<p class="muted">No announcements on record.</p>';
+  const groups = {};
+  for (const r of rows) (groups[r.origin + ' ' + r.prefix] ||= []).push(r);
+  const keys = Object.keys(groups).slice(-12);
+  const t0 = new Date(rows.reduce((a, r) => r.first < a ? r.first : a, today)).getTime(), t1 = Date.now();
+  const W = 1120, L = 250, R = 20, rowH = 22, H = keys.length * rowH + 30;
+  const X = d => L + (new Date(d).getTime() - t0) / (t1 - t0) * (W - L - R);
+  let s = `<svg class="tl" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">`;
+  const y0 = new Date(t0).getFullYear(), y1 = new Date().getFullYear(), step = Math.max(1, Math.ceil((y1 - y0) / 10));
+  for (let y = y0 + 1; y <= y1; y += step) { const x = X(`${y}-01-01`); s += `<line x1="${x}" x2="${x}" y1="0" y2="${H - 18}" stroke="var(--line)"/><text class="ax" x="${x - 14}" y="${H - 4}">${y}</text>`; }
+  keys.forEach((k, i) => {
+    const y = i * rowH + 4; const [o, p] = k.split(' ');
+    s += `<text x="0" y="${y + 13}">AS${esc(o)}  ${esc(p)}</text>`;
+    for (const r of groups[k]) s += `<rect class="bar${o === curAsn ? ' cur' : ''}" x="${X(r.first)}" y="${y + 3}" width="${Math.max(2, X(r.last) - X(r.first))}" height="13" rx="3"><title>AS${o} ${p}: ${r.first} to ${r.last}</title></rect>`;
+  });
+  return s + '</svg>';
+}
+
+/* ---------- render pieces ---------- */
+const kv = pairs => '<dl class="kv">' + pairs.filter(p => p[1] !== undefined && p[1] !== null && p[1] !== '').map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('') + '</dl>';
+const card = (t, body) => `<div class="card"><h3>${t}</h3>${body}</div>`;
+const err = x => `<p class="err">${esc(x && x.error || 'no data')}</p>`;
+const go = q => `<span class="go mono" data-q="${esc(q)}">${esc(defang(q))}</span>`;
+function copyQ(label, q) { return `<div class="q"><code>${esc(q)}</code><button data-copy="${esc(q)}">copy</button></div>`; }
+
+function mainUp(up) { return up && !bad(up) && up.ups.length ? up.ups[0] : null; }
+
+function ipFlowCols(r, dom) {
+  const cols = [];
+  if (dom) cols.push({k: 'Domain', v: defang(dom.dom), d: [dom.rd && !bad(dom.rd) ? dom.rd.registrar : '', dom.rd && dom.rd.created ? 'created ' + dom.rd.created : ''].filter(Boolean), cut: 'Registrar'});
+  const p = r.ports && !bad(r.ports) && !r.ports.none ? r.ports.ports : null;
+  cols.push({k: 'Server', v: defang(r.ip), d: [p ? 'ports ' + p.slice(0, 6).join(' ') : 'no port data', r.rev ? defang(r.rev) : ''].filter(Boolean)});
+  if (!bad(r.cy)) {
+    const live = (r.hist && !bad(r.hist)) ? r.hist.filter(h => h.origin === r.cy.asn && h.prefix === r.cy.prefix).map(h => h.first).sort()[0] : null;
+    cols.push({k: 'IP block', v: r.cy.prefix, d: [live ? 'on this AS since ' + live : '', r.rd && !bad(r.rd) ? 'paper: ' + r.rd.netname : ''].filter(Boolean)});
+    cols.push({k: 'Hosting network', v: 'AS' + r.cy.asn, hot: true, d: [shortName(r.name && r.name.name), r.fp && !bad(r.fp) ? `${r.fp.v4} blocks${r.cy.cc ? ', ' + r.cy.cc : ''}` : ''].filter(Boolean), cut: 'Host abuse desk'});
+    if (r.up && !bad(r.up) && r.up.ups.length) {
+      const stack = r.up.ups.slice(0, 5).map((u, i) => ({k: `${i === 0 ? 'Main upstream' : 'Upstream'} · ${Math.round(u.share * 100)}%`, v: 'AS' + u.asn, share: u.share, hot: i === 0 && u.share >= .4,
+        d: [shortName(u.name)], cut: i === 0 && u.share >= .4 ? 'Transit cut' : ''}));
+      cols.push({stack});
+    }
+    cols.push({k: 'Internet', v: '75k networks', d: ['global routing table']});
+  }
+  return cols;
+}
+
+function cutsHTML(r, dom) {
+  const out = [];
+  if (dom) {
+    const rd = dom.rd || {};
+    out.push(['Registrar', `${esc(rd.registrar || 'unknown registrar')}${rd.abuse ? ' · ' + esc(rd.abuse) : ''}`,
+      'Suspending the domain kills this name only. The server keeps running and new domains can point at it within the hour.']);
+  }
+  if (!bad(r.cy)) {
+    const ab = Array.isArray(r.ab) && r.ab.length ? r.ab.join(', ') : 'no abuse contact on file';
+    out.push(['Hosting provider', `AS${r.cy.asn} ${esc(shortName(r.name && r.name.name))} · ${esc(ab)}`,
+      'The host can pull this one server. A bulletproof host usually ignores the notice, and the operator rebuilds elsewhere.']);
+    const m = mainUp(r.up);
+    if (m) {
+      const rest = r.up.ups.slice(1, 4).map(u => 'AS' + u.asn).join(', ');
+      const size = r.fp && !bad(r.fp) ? `all ${r.fp.v4} blocks (${fmt(r.fp.addrs)} addresses)` : 'the whole network';
+      out.push(['Upstream transit', `AS${m.asn} ${esc(shortName(m.name))} · carries about ${Math.round(m.share * 100)}% of the visible routes`,
+        m.share >= .4 ? `If AS${m.asn} stops carrying AS${r.cy.asn}, ${size} lose their main path at once. This is the lever that works on hosts that ignore abuse mail.${rest ? ` The remaining paths run through ${rest}, so they'd need the same pressure.` : ''}`
+                      : `No single upstream dominates, so cutting one leaves ${rest || 'others'} carrying the traffic.`]);
+    }
+  }
+  return out.map(([t, who, why], i) => `<div class="cut"><div class="num">${i + 1}</div><div><b>${t}</b> <span class="mono muted">${who}</span><p>${why}</p></div></div>`).join('');
+}
+
+function summaryIP(r, dom) {
+  if (bad(r.cy)) return `<b>${esc(defang(r.ip))}</b> isn't in the global routing table right now, so nobody announces it.`;
+  const nm = shortName(r.name && r.name.name) || 'an unnamed network';
+  let s = dom ? `<b>${esc(defang(dom.dom))}</b> ${dom.fromPdns ? 'last pointed to' : 'points to'} <b>${esc(defang(r.ip))}</b>, which` : `<b>${esc(defang(r.ip))}</b>`;
+  s += ` sits on <b>${esc(nm)}</b> (AS${r.cy.asn}${r.cy.cc ? ', ' + r.cy.cc : ''})`;
+  if (r.fp && !bad(r.fp)) s += r.fp.v4 <= 10 ? `, a small network announcing only ${r.fp.v4} IPv4 block${r.fp.v4 > 1 ? 's' : ''}` : `, which announces ${fmt(r.fp.v4)} IPv4 blocks`;
+  s += '. ';
+  const live = r.hist && !bad(r.hist) ? r.hist.filter(h => h.origin === r.cy.asn && h.prefix === r.cy.prefix).map(h => h.first).sort()[0] : null;
+  if (live) s += `Its block ${r.cy.prefix} has been announced by this network since ${live}. `;
+  const m = mainUp(r.up);
+  if (m) s += m.share >= .4 ? `One upstream, <b>${esc(shortName(m.name))}</b> (AS${m.asn}), carries about ${Math.round(m.share * 100)}% of its visible routes, so that's the chokepoint.`
+                            : `Its traffic is spread across ${r.up.ups.length} upstreams with no single chokepoint.`;
+  const ex = r.ex || (dom && dom.ex);
+  if (ex && ex.threatfox && Array.isArray(ex.threatfox) && ex.threatfox.length) { const t = ex.threatfox[0]; s += ` ThreatFox lists it as <b>${esc(t.malware)}</b> ${esc(t.type)} (first seen ${esc(t.first)}).`; }
+  return s;
+}
+
+function intelCards(ex, isIP) {
+  if (!ex) return card('Threat intel', `<p class="note">Needs the local helper (see the note under the search box).</p>`);
+  let h = '';
+  const v = ex.vt;
+  if (v && !bad(v) && !v.note) {
+    const mal = v.malicious || 0;
+    h += card('VirusTotal', kv([['verdicts', `<span class="pill ${mal ? 'bad' : 'good'}">${mal} malicious</span><span class="pill warn">${v.suspicious || 0} suspicious</span>`],
+      ['tags', (v.tags || []).map(t => `<span class="pill">${esc(t)}</span>`).join('') || '<span class="muted">none</span>']]) +
+      (v.communicating_files && v.communicating_files.length ? '<table><tr><th>talks to this IP</th><th>label</th><th>mal</th></tr>' +
+        v.communicating_files.slice(0, 8).map(f => `<tr><td class="mono">${esc(f.sha256.slice(0, 16))}…</td><td>${esc(f.label || f.name || '')}</td><td>${f.mal}</td></tr>`).join('') + '</table>' : ''));
+    if (v.cert_sha256 || v.jarm) {
+      const subj = v.cert_subject ? Object.entries(v.cert_subject).map(([k, x]) => `${k}=${x}`).join(', ') : '';
+      const iss = v.cert_issuer ? Object.entries(v.cert_issuer).map(([k, x]) => `${k}=${x}`).join(', ') : '';
+      const self = subj && subj === iss;
+      const cn = v.cert_subject && v.cert_subject.CN;
+      h += card('Certificate and TLS', kv([['subject', `<span class="mono">${esc(subj)}</span>`], ['issuer', self ? '<span class="pill warn">self-signed</span> same as subject' : `<span class="mono">${esc(iss)}</span>`],
+        ['sha256', `<span class="mono">${esc(v.cert_sha256 || '')}</span>`], ['JARM', `<span class="mono">${esc(v.jarm || '')}</span>`]]) +
+        `<p class="note">${self ? 'Self-signed certificates never reach CT logs, so find its twins in scan data. A matching fingerprint on another IP usually means a cloned server.' : 'CA-issued, so crt.sh will show its sibling names.'} JARM alone is weak; pair it with the certificate.</p>` +
+        (v.cert_sha256 ? copyQ('censys', `services.tls.certificates.leaf_data.fingerprint: ${v.cert_sha256}`) + copyQ('shodan', `ssl.cert.fingerprint:${v.cert_sha256}`) : '') +
+        (self && cn ? copyQ('shodan', `ssl.cert.subject.cn:"${cn}"`) : '') + (v.jarm ? copyQ('shodan', `ssl.jarm:${v.jarm}`) : ''));
+    }
+  } else if (v) h += card('VirusTotal', err(v.error ? v : {error: v.note}));
+  const tf = ex.threatfox, uh = ex.urlhaus;
+  h += card('abuse.ch', kv([
+    ['ThreatFox', Array.isArray(tf) ? (tf.length ? tf.slice(0, 6).map(t => `<div><span class="pill bad">${esc(t.malware)}</span> ${esc(t.type)} · ${esc(t.first)} · conf ${t.conf}<br><span class="mono muted">${esc(defang(t.ioc))}</span></div>`).join('') : '<span class="muted">no hits</span>') : esc((tf && (tf.error || tf.note)) || '')],
+    ['URLhaus', uh && !bad(uh) && !uh.note ? (uh.count ? `${uh.count} URLs, first ${esc(uh.first)}` + (uh.urls || []).slice(0, 4).map(u => `<div class="mono muted">${esc(u.added)} ${esc(u.status)} ${esc(defang(u.url))}</div>`).join('') : '<span class="muted">no URLs</span>') : esc((uh && (uh.error || uh.note)) || '')]]));
+  const res = [];
+  if (v && v.resolutions) for (const x of v.resolutions) res.push({first: x.date, last: '', host: x.host, ip: x.ip, src: 'VT'});
+  if (ex.pdns && ex.pdns.rows) for (const x of ex.pdns.rows) if (x.type === 'a' || x.type === 'aaaa') res.push({first: x.first, last: x.last, host: x.q, ip: x.a, src: 'mnemonic'});
+  h += card(`Passive DNS (${res.length})`, res.length ? '<table><tr><th>seen</th><th>domain</th><th>IP</th></tr>' +
+    res.sort((a, b) => a.first < b.first ? 1 : -1).slice(0, 25).map(x => `<tr><td class="mono">${esc(x.first)}${x.last && x.last !== x.first ? '<br>' + esc(x.last) : ''}</td><td>${go(x.host)}</td><td>${go(x.ip)}</td></tr>`).join('') + '</table>'
+    : `<p class="note">${isIP ? 'No domain has been seen pointing here. A bare-IP C2 is common, and it means the certificate is the anchor.' : 'No resolutions on record.'}</p>`);
+  if (ex.crtsh) h += card('crt.sh', bad(ex.crtsh) ? err(ex.crtsh) : kv([['certs', ex.crtsh.certs], ['issuers', ex.crtsh.issuers.map(([i, n]) => `<span class="pill">${esc(i)} ${n}</span>`).join('')]]) +
+    '<table><tr><th>first cert</th><th>name</th></tr>' + ex.crtsh.names.slice(0, 25).map(([n, d]) => `<tr><td class="mono">${esc(d)}</td><td>${go(n)}</td></tr>`).join('') + '</table>');
+  return h;
+}
+
+function ipCards(r) {
+  let h = '';
+  h += card('Hosting', bad(r.cy) ? err(r.cy) : kv([['network', `AS${r.cy.asn} ${esc(r.name && r.name.name || '')}`], ['block', `<span class="mono">${esc(r.cy.prefix)}</span>`],
+    ['country', esc(r.cy.cc)], ['registry', esc(r.cy.reg)], ['allocated', esc(r.cy.alloc)],
+    ['size', r.fp && !bad(r.fp) ? `${fmt(r.fp.v4)} IPv4 blocks · ${fmt(r.fp.addrs)} addresses · ${r.fp.v6} IPv6` : ''], ['PTR', r.rev ? esc(defang(r.rev)) : '<span class="muted">none</span>'],
+    ['lookup', `<span class="muted">${esc(r.cy.src)}</span>`]]));
+  if (!bad(r.rd)) {
+    const announcer = (r.name && r.name.name || '').toLowerCase(), owner = `${r.rd.netname || ''} ${r.rd.org || ''}`.toLowerCase();
+    const match = announcer.split(/[^a-z0-9]+/).some(w => w.length >= 4 && owner.includes(w));
+    h += card('Owner on paper', kv([['netname', `<span class="mono">${esc(r.rd.netname)}</span>`], ['range', `<span class="mono">${esc(r.rd.range)}</span>`], ['country', esc(r.rd.country)],
+      ['org', esc(r.rd.org)], ['vs announcer', match ? '<span class="pill good">matches</span> own space' : '<span class="pill warn">differs</span> possibly leased or brokered space']]) +
+      (match ? '' : '<p class="note">The registered owner and the network announcing the block don’t look the same. Leased space is common; it also means the block can move to another host quickly.</p>'));
+  } else h += card('Owner on paper', err(r.rd));
+  h += card('RPKI', !r.rp || bad(r.rp) ? err(r.rp) : kv([['status', `<span class="pill ${r.rp.status === 'valid' ? 'good' : r.rp.status === 'invalid' ? 'bad' : 'warn'}">${esc(r.rp.status)}</span>`],
+    ['ROAs', r.rp.roas.map(x => `<div class="mono">${esc(x)}</div>`).join('') || '<span class="muted">none</span>']]) +
+    `<p class="note">${r.rp.status === 'valid' ? 'The owner signed off on this network announcing it.' : r.rp.status === 'invalid' ? 'The announcement breaks the owner’s signed statement. That is one sign of a hijack.' : 'No signed statement exists for this block. That is common for small hosts and weak evidence by itself.'}</p>`);
+  const p = r.ports;
+  h += card('Exposure (Shodan InternetDB)', bad(p) ? err(p) : p.none ? '<p class="note">No record. Shodan hasn’t seen open ports here recently.</p>' :
+    kv([['ports', (p.ports || []).map(x => `<span class="pill">${x}</span>`).join('')], ['tags', (p.tags || []).map(x => `<span class="pill warn">${esc(x)}</span>`).join('')],
+      ['hostnames', (p.hostnames || []).slice(0, 6).map(x => go(x)).join('<br>')], ['software', (p.cpes || []).slice(0, 6).map(x => `<div class="mono">${esc(x)}</div>`).join('')], ['CVEs', (p.vulns || []).length || '']]));
+  return h;
+}
+
+function linksIP(ip, asn) {
+  const L = [[`https://bgp.tools/prefix/${ip}`, 'bgp.tools'], [`https://bgp.he.net/ip/${ip}`, 'bgp.he.net'], [`https://www.virustotal.com/gui/ip-address/${ip}`, 'VirusTotal'],
+    [`https://www.shodan.io/host/${ip}`, 'Shodan'], [`https://search.censys.io/hosts/${ip}`, 'Censys'], [`https://threatfox.abuse.ch/browse.php?search=ioc%3A${ip}`, 'ThreatFox'],
+    [`https://app.validin.com/detail?find=${ip}&type=ip4`, 'Validin']];
+  if (asn) L.push([`https://bgp.tools/as/${asn}`, `bgp.tools AS${asn}`]);
+  return `<div class="links">${L.map(([u, t]) => `<a href="${u}" target="_blank" rel="noopener noreferrer">${t} ↗</a>`).join('')}</div>`;
+}
+
+function renderIP(r, dom) {
+  let h = `<p class="summary">${summaryIP(r, dom)}</p>`;
+  h += `<h2>How it reaches the internet</h2><div class="flowbox">${svgFlow(ipFlowCols(r, dom))}</div>`;
+  if (!bad(r.cy)) h += `<p class="note">Line thickness shows how many route collectors see each upstream link. Red tags mark where the chain can be cut.</p>`;
+  h += `<h2>Where it can be cut off</h2><div class="cuts">${cutsHTML(r, dom)}</div>`;
+  if (dom) h += `<h2>Domain</h2><div class="grid">${card('Registration', bad(dom.rd) ? err(dom.rd) : kv([['registrar', esc(dom.rd.registrar)], ['abuse', esc(dom.rd.abuse)], ['created', esc(dom.rd.created)], ['updated', esc(dom.rd.updated)], ['expires', esc(dom.rd.expires)],
+    ['nameservers', dom.rd.ns.map(n => go(n)).join('<br>')], ['status', dom.rd.status.map(x => `<span class="pill">${esc(x)}</span>`).join('')]]))}
+    ${card('Resolves to', kv([['A', dom.A.map(go).join('<br>') || '<span class="muted">none live</span>'], ['AAAA', (dom.AAAA || []).map(go).join('<br>')], ['NS', (dom.NS || []).map(go).join('<br>')]]) +
+      (dom.fromPdns ? '<p class="note">No live A record, so the chain above uses the last IP from passive DNS.</p>' : '') + (dom.A.length > 1 ? '<p class="note">The chain above follows the first IP. Click another to pivot on it.</p>' : ''))}</div>`;
+  h += `<h2>Details</h2><div class="grid">${ipCards(r)}</div>`;
+  h += `<h2>Routing history for this address</h2><div class="flowbox">${bad(r.hist) ? err(r.hist) : svgTimeline(r.hist, r.cy && r.cy.asn)}</div>`;
+  h += `<p class="note">Each row is one network announcing a block that covers this IP. Highlighted bars are the current host. A block that recently moved to a small host is worth noting.</p>`;
+  h += `<h2>Threat intel</h2><div class="grid">${intelCards(dom ? dom.ex : r.ex, !dom)}</div>`;
+  h += `<h2>Open elsewhere</h2>${linksIP(r.ip, !bad(r.cy) && r.cy.asn)}`;
+  return h;
+}
+
+function renderASN(r) {
+  const nm = r.name && r.name.name || '';
+  const m = mainUp(r.up);
+  let h = `<p class="summary"><b>AS${r.asn}</b> is <b>${esc(shortName(nm) || 'unnamed')}</b>${r.name.cc ? ` (${esc(r.name.cc)}, ${esc(r.name.reg)}, registered ${esc(r.name.alloc)})` : ''}. `;
+  if (!bad(r.fp)) h += r.fp.v4 ? `It announces ${fmt(r.fp.v4)} IPv4 blocks covering ${fmt(r.fp.addrs)} addresses. ` : `It announces nothing right now, so it's dark. Run <span class="mono">rehome.py ${r.asn}</span> to see where its last blocks went. `;
+  if (m) h += m.share >= .4 ? `<b>${esc(shortName(m.name))}</b> (AS${m.asn}) carries about ${Math.round(m.share * 100)}% of its visible routes, so that's the chokepoint.` : `Its routes are spread across ${r.up.ups.length}+ upstreams.`;
+  h += '</p>';
+  if (!bad(r.up) && r.up.ups.length) {
+    const cols = [{k: 'Network', v: 'AS' + r.asn, hot: true, d: [shortName(nm), !bad(r.fp) ? `${r.fp.v4} IPv4 blocks` : '', `${r.up.nRight} customer networks`].filter(Boolean), cut: 'Abuse desk'},
+      {stack: r.up.ups.slice(0, 6).map((u, i) => ({k: `${i ? 'Upstream' : 'Main upstream'} · ${Math.round(u.share * 100)}%`, v: 'AS' + u.asn, share: u.share, hot: !i && u.share >= .4, d: [shortName(u.name)], cut: !i && u.share >= .4 ? 'Transit cut' : ''}))},
+      {k: 'Internet', v: '75k networks', d: ['global routing table']}];
+    h += `<h2>How it reaches the internet</h2><div class="flowbox">${svgFlow(cols)}</div>`;
+  }
+  h += `<h2>Details</h2><div class="grid">`;
+  h += card('Upstreams and peers', bad(r.up) ? err(r.up) : '<table><tr><th>network</th><th>name</th><th>share</th></tr>' + r.up.ups.map(u => `<tr><td>${go('AS' + u.asn)}</td><td>${esc(u.name)}</td><td class="mono">${Math.round(u.share * 100)}%</td></tr>`).join('') + '</table>' +
+    `<p class="note">Share is the slice of route-collector sightings on each link. ${r.up.nLeft} upstream or peer links seen in total.</p>`);
+  h += card('Abuse desk', bad(r.ab) ? err(r.ab) : (r.ab.length ? r.ab.map(esc).join('<br>') : '<span class="muted">none on file</span>'));
+  if (!bad(r.fp)) h += card(`Announced blocks (${r.fp.list.length})`, '<table><tr><th>block</th><th>since</th></tr>' + r.fp.list.slice(0, 40).map(p => `<tr><td>${go(p.prefix.split('/')[0])} <span class="mono muted">/${p.prefix.split('/')[1]}</span></td><td class="mono">${esc(p.since || '')}</td></tr>`).join('') + '</table>');
+  h += '</div>';
+  if (!bad(r.hist)) {
+    const rows = []; for (const o of r.hist.by_origin || []) for (const p of o.prefixes) for (const [s, e] of mergeSpans(p.timelines)) rows.push({origin: String(o.origin), prefix: p.prefix, first: s, last: e});
+    const latest = rows.sort((a, b) => a.last < b.last ? 1 : -1).slice(0, 12).sort((a, b) => a.first < b.first ? -1 : 1);
+    h += `<h2>Routing history (latest 12 blocks)</h2><div class="flowbox">${svgTimeline(latest, r.asn)}</div>`;
+  }
+  h += `<h2>Open elsewhere</h2><div class="links"><a href="https://bgp.tools/as/${r.asn}" target="_blank" rel="noopener noreferrer">bgp.tools ↗</a><a href="https://bgp.he.net/AS${r.asn}" target="_blank" rel="noopener noreferrer">bgp.he.net ↗</a><a href="https://stat.ripe.net/AS${r.asn}" target="_blank" rel="noopener noreferrer">RIPEstat ↗</a><a href="https://www.peeringdb.com/asn/${r.asn}" target="_blank" rel="noopener noreferrer">PeeringDB ↗</a></div>`;
+  return h;
+}
+
+/* ---------- main ---------- */
+function norm(q) { return q.trim().replace(/\[\.\]/g, '.').replace(/^hxxps?/i, 'http').replace(/^https?:\/\//i, '').split('/')[0].toLowerCase(); }
+function kindOf(q) {
+  if (/^\d+\.\d+\.\d+\.\d+$/.test(q) || (q.includes(':') && /^[0-9a-f:]+$/.test(q))) return 'ip';
+  if (/^(as)?\d+$/.test(q)) return 'asn';
+  if (/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(q)) return 'domain';
+  return null;
+}
+let runId = 0;
+async function pivot(raw) {
+  const q = norm(raw); const k = kindOf(q); const id = ++runId;
+  $('#q').value = defang(q);
+  if (!k) { $('#out').innerHTML = '<p class="err">Enter an IP, a domain, or an ASN like AS13335.</p>'; return; }
+  history.replaceState(null, '', '#' + encodeURIComponent(q));
+  tickBox = $('#ticks'); tickBox.innerHTML = ''; $('#out').innerHTML = '<p class="note">Working…</p>';
+  try {
+    let h;
+    if (k === 'ip') h = renderIP(await workIP(q));
+    else if (k === 'asn') h = renderASN(await workASN(q.replace(/^as/, '')));
+    else { const d = await workDomain(q); h = d.main ? renderIP(d.main, d) : `<p class="summary"><b>${esc(defang(q))}</b> doesn't resolve and no past IPs are on record.</p><div class="grid">${card('Registration', bad(d.rd) ? err(d.rd) : kv([['registrar', esc(d.rd.registrar)], ['created', esc(d.rd.created)], ['expires', esc(d.rd.expires)]]))}${intelCards(d.ex, false)}</div>`; }
+    if (id === runId) $('#out').innerHTML = h;
+  } catch (e) { if (id === runId) $('#out').innerHTML = `<p class="err">${esc(e.message)}</p>`; }
+}
+document.addEventListener('click', e => {
+  const t = e.target.closest('[data-q]'); if (t) { e.preventDefault(); pivot(t.dataset.q); window.scrollTo({top: 0, behavior: 'smooth'}); return; }
+  const c = e.target.closest('[data-copy]'); if (c) { navigator.clipboard.writeText(c.dataset.copy).then(() => { c.textContent = 'copied'; setTimeout(() => c.textContent = 'copy', 1200); }); }
+});
+$('#f').addEventListener('submit', e => { e.preventDefault(); pivot($('#q').value); });
+pingHelper().then(() => { const h = decodeURIComponent(location.hash.slice(1)); if (h) pivot(h); });
+</script>
+
+<script>(function(){var b=document.getElementById('themeBtn');if(!b)return;b.onclick=function(){var n=document.documentElement.getAttribute('data-theme')==='light'?'dark':'light';if(n==='light')document.documentElement.setAttribute('data-theme','light');else document.documentElement.removeAttribute('data-theme');try{localStorage.setItem('fk_theme',n)}catch(e){}var m=document.getElementById('tc');if(m)m.content=n==='light'?'#e0cfb0':'#1b1e1f';if(window.onFkTheme)window.onFkTheme(n)}})()</script>
+<script>(function(){var bar=document.querySelector('.suitebar');if(!bar)return;
+var grps=[].slice.call(bar.querySelectorAll('.grp'));
+function shut(x){grps.forEach(function(g){if(g!==x)g.classList.remove('open')})}
+grps.forEach(function(g){var b=g.querySelector('.gbtn');
+  b.addEventListener('click',function(e){e.stopPropagation();var o=g.classList.contains('open');shut(null);if(!o)g.classList.add('open')})});
+document.addEventListener('click',function(){shut(null)});
+document.addEventListener('keydown',function(e){if(e.key==='Escape')shut(null)});
+})()</script>
+</body>
+</html>
