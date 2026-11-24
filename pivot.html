@@ -80,10 +80,10 @@ a{color:inherit; text-decoration:none}
 .search input:focus{outline:none; border-color:var(--acc)}
 .search button{font-family:var(--mono); font-weight:700; font-size:14px; padding:0 18px; border-radius:10px; background:var(--acc); color:var(--on-acc)}
 .eg{font:12.5px var(--mono); color:var(--faint)}
-.eg a{color:var(--mut); border-bottom:1px dotted var(--line2); cursor:pointer; margin-right:10px}
-.ticks{display:flex; flex-wrap:wrap; gap:6px; margin:12px 0 0; font:12px var(--mono); color:var(--faint)}
-.ticks span{padding:3px 8px; border-radius:7px; background:var(--chip)}
-.ticks .ok{color:var(--good)} .ticks .bad{color:var(--bad)}
+.eg a{color:var(--mut); border-bottom:1px dotted var(--line2); cursor:pointer; margin-left:14px}
+.ticks{display:flex; flex-wrap:wrap; align-items:center; gap:4px 12px; margin:12px 0 0; font:12px var(--mono); color:var(--faint)}
+.ticks:not(:empty)::before{content:'Sources checked'; color:var(--mut); font-weight:600}
+.ticks .ok{color:var(--mut)} .ticks .bad{color:var(--bad)}
 .helper{font:12.5px var(--mono); color:var(--faint); margin-top:8px}
 .helper b{color:var(--mut)} .helper code{color:var(--codeink); background:var(--codechip); padding:1px 5px; border-radius:5px}
 .summary{font-size:17px; line-height:1.6; margin:20px 0 6px; max-width:900px}
@@ -169,7 +169,6 @@ td.mono{font-size:12.5px}
 <div class="wrap">
   <div class="mast">
     <h1>Pivot</h1>
-    <p>Who hosts it, who carries them, where it can be cut off.</p>
   </div>
   <form class="search" id="f" autocomplete="off">
     <input id="q" placeholder="IP, domain, or ASN (defanged is fine)" spellcheck="false" autocapitalize="off">
@@ -204,8 +203,8 @@ async function doh(name, type) {
 let tickBox;
 function tick(name, p) {
   const s = document.createElement('span'); s.textContent = name + ' …'; tickBox.appendChild(s);
-  return p.then(v => { s.textContent = name + ' ✓'; s.className = 'ok'; return v; },
-                e => { s.textContent = name + ' ✗'; s.className = 'bad'; s.title = e.message; return {error: e.message}; });
+  return p.then(v => { s.textContent = name; s.className = 'ok'; return v; },
+                e => { s.textContent = name + ' (unavailable)'; s.className = 'bad'; s.title = e.message; return {error: e.message}; });
 }
 const bad = x => !x || x.error;
 
@@ -216,9 +215,7 @@ let helperOn = false;
 async function pingHelper() {
   try { const j = await getJSON(HELPER + '/api/ping', 1500); helperOn = !!j.ok;
     $('#helper').innerHTML = `<b>Local helper on.</b> VirusTotal, abuse.ch, passive DNS and certificates included${j.keys.length ? '' : ' (no API keys configured)'}.`;
-  } catch (e) {
-    $('#helper').innerHTML = `<b>Local helper off.</b> Routing and hosting data still work. For VirusTotal, abuse.ch, passive DNS and certificates, run the local helper (<code>pivot.py --serve</code>) and reload.`;
-  }
+  } catch (e) { $('#helper').innerHTML = ''; }
 }
 
 /* ---------- sources ---------- */
@@ -315,20 +312,20 @@ async function extra(q) {
 async function workIP(ip, light = false) {
   const r = {ip};
   const [cy, rd, ab, hist, ports, rev, ex] = await Promise.all([
-    tick('Team Cymru', cymruIP(ip)), tick('RDAP', rdapIP(ip)), tick('abuse desk', abuse(ip)),
-    tick('routing history', prefixHistory(ip)), tick('Shodan', internetdb(ip)), tick('PTR', ptr(ip)),
-    light || !helperOn ? null : tick('VT + abuse.ch', extra(ip))]);
+    tick('routing (Team Cymru)', cymruIP(ip)), tick('registration', rdapIP(ip)), tick('abuse desk', abuse(ip)),
+    tick('routing history', prefixHistory(ip)), tick('open ports', internetdb(ip)), tick('reverse DNS', ptr(ip)),
+    light || !helperOn ? null : tick('threat intel', extra(ip))]);
   Object.assign(r, {cy, rd, ab, hist, ports, rev, ex});
   if (!bad(cy)) {
     const [name, up, fp, rp] = await Promise.all([asName(cy.asn), tick('upstreams', upstreams(cy.asn)),
-      tick('footprint', footprint(cy.asn)), tick('RPKI', rpki(cy.asn, cy.prefix))]);
+      tick('network size', footprint(cy.asn)), tick('route signing', rpki(cy.asn, cy.prefix))]);
     Object.assign(r, {name, up, fp, rp});
   }
   return r;
 }
 async function workDomain(dom) {
-  const [A, AAAA, NS, rd, ex] = await Promise.all([tick('DNS', doh(dom, 'A')), doh(dom, 'AAAA').catch(() => []),
-    doh(dom, 'NS').catch(() => []), tick('RDAP', rdapDomain(dom)), helperOn ? tick('VT + abuse.ch + crt.sh', extra(dom)) : null]);
+  const [A, AAAA, NS, rd, ex] = await Promise.all([tick('DNS records', doh(dom, 'A')), doh(dom, 'AAAA').catch(() => []),
+    doh(dom, 'NS').catch(() => []), tick('registration', rdapDomain(dom)), helperOn ? tick('threat intel', extra(dom)) : null]);
   let ips = Array.isArray(A) ? A.filter(x => /^\d+\.\d+\.\d+\.\d+$/.test(x)) : [];
   let fromPdns = false;
   if (!ips.length && ex && ex.vt && ex.vt.resolutions) { ips = [...new Set(ex.vt.resolutions.map(x => x.ip))]; fromPdns = true; }
@@ -336,7 +333,7 @@ async function workDomain(dom) {
   return {dom, A: ips, AAAA, NS, rd, ex, main, fromPdns};
 }
 async function workASN(asn) {
-  const [name, up, fp, ab, hist] = await Promise.all([asName(asn), tick('upstreams', upstreams(asn, 10)), tick('footprint', footprint(asn)),
+  const [name, up, fp, ab, hist] = await Promise.all([asName(asn), tick('upstreams', upstreams(asn, 10)), tick('network size', footprint(asn)),
     tick('abuse desk', abuse('AS' + asn)), tick('routing history', ripe('routing-history', {resource: 'AS' + asn}))]);
   return {asn, name, up, fp, ab, hist};
 }
@@ -371,26 +368,31 @@ function layoutNode(n, colW, pad) {
 function svgFlow(cols) {
   // cols: [{k, v, d:[..], hot, cut}] or {stack:[...]} for upstreams
   const colW = 196, pad = 13, vgap = 12;
-  const W = Math.max(1120, cols.length * colW + (cols.length - 1) * 34 + 40), gap = (W - 40 - cols.length * colW) / Math.max(cols.length - 1, 1);
+  const W = Math.max(1120, cols.length * colW + (cols.length - 1) * 64 + 40), gap = (W - 40 - cols.length * colW) / Math.max(cols.length - 1, 1);
   const laid = cols.map(c => (c.stack || [c]).map(n => ({n, L: layoutNode(n, colW, pad)})));
   const colH = laid.map(col => col.reduce((a, b) => a + b.L.h, 0) + (col.length - 1) * vgap);
   const H = Math.max(240, Math.max(...colH) + 96);
   const midY = H / 2 + 6;
   let s = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Hosting and routing chain">
-    <defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="context-stroke"/></marker></defs>`;
+    <defs><marker id="ar" viewBox="0 0 10 10" refX="10" refY="5" markerUnits="userSpaceOnUse" markerWidth="9" markerHeight="9" orient="auto"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--line2)"/></marker><marker id="arh" viewBox="0 0 10 10" refX="10" refY="5" markerUnits="userSpaceOnUse" markerWidth="9" markerHeight="9" orient="auto"><path d="M0,0 L10,5 L0,10 z" style="fill:var(--acc)"/></marker></defs>`;
   const boxes = laid.map((col, i) => {
     const x = 20 + i * (colW + gap); let y = midY - colH[i] / 2;
     return col.map(({n, L}) => { const b = {x, y, h: L.h, n, L, stacked: !!cols[i].stack}; y += L.h + vgap; return b; });
   });
+  // connectors: fan-outs leave from points spread along the source edge and fan-ins land spread
+  // along the target edge, every curve leaves and enters horizontally so arrowheads sit square on the edge
+  const spread = (box, k, n) => n < 2 ? box.y + box.h / 2 : box.y + box.h * (0.2 + 0.6 * k / (n - 1));
   for (let i = 0; i < boxes.length - 1; i++) {
     const A = boxes[i], B = boxes[i + 1];
-    for (const a of A) for (const b of B) {
-      if (A.length > 1 && B.length > 1) continue;
-      const share = (B.length > 1 ? b.n.share : A.length > 1 ? a.n.share : 1) ?? 1;
-      const hot = (B.length > 1 ? b.n.hot : A.length > 1 ? a.n.hot : true);
-      const x1 = a.x + colW, y1 = a.y + a.h / 2, x2 = b.x - 4, y2 = b.y + b.h / 2, mx = (x1 + x2) / 2;
-      const w = Math.max(1.2, Math.min(7, 1.2 + share * 7));
-      s += `<path class="e${hot ? ' hot' : ''}" stroke-width="${w.toFixed(1)}" marker-end="url(#ar)" d="M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}"/>`;
+    if (A.length > 1 && B.length > 1) continue;
+    const pairs = A.length > 1 ? A.map((a, k) => [a, B[0], k, A.length, 'in']) : B.map((b, k) => [A[0], b, k, B.length, 'out']);
+    for (const [a, b, k, n, dir] of pairs) {
+      const hot = n > 1 ? (dir === 'out' ? b.n.hot : a.n.hot) : true;
+      const x1 = a.x + colW, x2 = b.x;
+      const y1 = dir === 'out' ? spread(a, k, n) : a.y + a.h / 2;
+      const y2 = dir === 'in' ? spread(b, k, n) : b.y + b.h / 2;
+      const mx = (x1 + x2) / 2;
+      s += `<path class="e${hot ? ' hot' : ''}" stroke-width="${hot ? 2 : 1.4}" marker-end="url(#${hot ? 'arh' : 'ar'})" d="M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}"/>`;
     }
   }
   for (const col of boxes) for (const {x, y, h, n, L, stacked} of col) {
@@ -499,7 +501,7 @@ function summaryIP(r, dom) {
 }
 
 function intelCards(ex, isIP) {
-  if (!ex) return card('Threat intel', `<p class="note">Needs the local helper (see the note under the search box).</p>`);
+  if (!ex) return '';
   let h = '';
   const v = ex.vt;
   if (v && !bad(v) && !v.note) {
@@ -569,7 +571,7 @@ function linksIP(ip, asn) {
 function renderIP(r, dom) {
   let h = `<p class="summary">${summaryIP(r, dom)}</p>`;
   h += `<h2>How it reaches the internet</h2><div class="flowbox">${svgFlow(ipFlowCols(r, dom))}</div>`;
-  if (!bad(r.cy)) h += `<p class="note">Line thickness shows how many route collectors see each upstream link. Red tags mark where the chain can be cut.</p>`;
+  if (!bad(r.cy)) h += `<p class="note">Percentages are each upstream's share of the routes seen by public route collectors. The highlighted path is the main one, and red tags mark where the chain can be cut.</p>`;
   h += `<h2>Where it can be cut off</h2><div class="cuts">${cutsHTML(r, dom)}</div>`;
   if (dom) h += `<h2>Domain</h2><div class="grid">${card('Registration', bad(dom.rd) ? err(dom.rd) : kv([['registrar', esc(dom.rd.registrar)], ['abuse', esc(dom.rd.abuse)], ['created', esc(dom.rd.created)], ['updated', esc(dom.rd.updated)], ['expires', esc(dom.rd.expires)],
     ['nameservers', dom.rd.ns.map(n => go(n)).join('<br>')], ['status', dom.rd.status.map(x => `<span class="pill">${esc(x)}</span>`).join('')]]))}
@@ -578,7 +580,7 @@ function renderIP(r, dom) {
   h += `<h2>Details</h2><div class="grid">${ipCards(r)}</div>`;
   h += `<h2>Routing history for this address</h2><div class="flowbox">${bad(r.hist) ? err(r.hist) : svgTimeline(r.hist, r.cy && r.cy.asn)}</div>`;
   h += `<p class="note">Each row is one network announcing a block that covers this IP. Highlighted bars are the current host. A block that recently moved to a small host is worth noting.</p>`;
-  h += `<h2>Threat intel</h2><div class="grid">${intelCards(dom ? dom.ex : r.ex, !dom)}</div>`;
+  const ic = intelCards(dom ? dom.ex : r.ex, !dom); if (ic) h += `<h2>Threat intel</h2><div class="grid">${ic}</div>`;
   h += `<h2>Open elsewhere</h2>${linksIP(r.ip, !bad(r.cy) && r.cy.asn)}`;
   return h;
 }
