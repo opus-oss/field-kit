@@ -247,7 +247,7 @@ async function asName(n) {
   if (!r) { try { r = {name: (await ripe('as-overview', {resource: 'AS' + n})).holder}; } catch (e) { r = {name: ''}; } }
   return nameCache[n] = r;
 }
-const shortName = s => (s || '').replace(/^[A-Za-z0-9_.-]+ - /, '').replace(/,\s*[A-Z]{2}$/, '').slice(0, 30);
+const shortName = s => (s || '').replace(/^[A-Za-z0-9_.-]+ - /, '').replace(/,\s*[A-Z]{2}$/, '');
 
 function mergeSpans(tl) {
   const ts = tl.map(t => [t.starttime.slice(0,10), t.endtime.slice(0,10)]).sort();
@@ -342,24 +342,46 @@ async function workASN(asn) {
 }
 
 /* ---------- flow visual ---------- */
-function svgFlow(cols, cutsAt) {
-  // cols: [{key, k, v, d:[..], hot, cut}] or {stack:[...]} for upstreams
-  const colW = 178, W = Math.max(1120, cols.length * colW + (cols.length - 1) * 34 + 40), gap = (W - 40 - cols.length * colW) / Math.max(cols.length - 1, 1);
-  const nodeH = 92, stackH = 66, pad = 14;
-  const maxStack = Math.max(1, ...cols.map(c => c.stack ? c.stack.length : 1));
-  const H = Math.max(240, maxStack * (stackH + 10) + 110);
+const _cv = document.createElement('canvas').getContext('2d');
+function wrapText(t, font, maxW, maxLines = 4) {
+  _cv.font = font; const out = []; let line = '';
+  const fits = x => _cv.measureText(x).width <= maxW;
+  for (let w of String(t).split(/\s+/).filter(Boolean)) {
+    while (!fits(w)) {  // hard-break a token wider than the box (long netnames, hashes)
+      let i = w.length; while (i > 1 && !fits((line ? line + ' ' : '') + w.slice(0, i))) i--;
+      if (i <= 1 && line) { out.push(line); line = ''; continue; }
+      out.push((line ? line + ' ' : '') + w.slice(0, i)); line = ''; w = w.slice(i);
+    }
+    const tryL = line ? line + ' ' + w : w;
+    if (fits(tryL)) line = tryL; else { out.push(line); line = w; }
+  }
+  if (line) out.push(line);
+  if (out.length > maxLines) { out.length = maxLines; out[maxLines - 1] = out[maxLines - 1].replace(/.{0,2}$/, '…'); }
+  return out;
+}
+const SANS = getComputedStyle(document.body).fontFamily, MONO = getComputedStyle(document.documentElement).getPropertyValue('--mono');
+function layoutNode(n, colW, pad) {
+  const inner = colW - pad * 2;
+  const k = wrapText(n.k, `600 10.5px ${MONO}`, inner, 2);
+  const v = wrapText(n.v, `700 15px ${MONO}`, inner, 2);
+  const d = (n.d || []).flatMap(t => wrapText(t, `12px ${SANS}`, inner, 3)).slice(0, 5);
+  const h = 14 + k.length * 13 + 6 + v.length * 18 + (d.length ? 4 + d.length * 15 : 0) + 10;
+  return {k, v, d, h};
+}
+function svgFlow(cols) {
+  // cols: [{k, v, d:[..], hot, cut}] or {stack:[...]} for upstreams
+  const colW = 196, pad = 13, vgap = 12;
+  const W = Math.max(1120, cols.length * colW + (cols.length - 1) * 34 + 40), gap = (W - 40 - cols.length * colW) / Math.max(cols.length - 1, 1);
+  const laid = cols.map(c => (c.stack || [c]).map(n => ({n, L: layoutNode(n, colW, pad)})));
+  const colH = laid.map(col => col.reduce((a, b) => a + b.L.h, 0) + (col.length - 1) * vgap);
+  const H = Math.max(240, Math.max(...colH) + 96);
   const midY = H / 2 + 6;
   let s = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Hosting and routing chain">
     <defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="context-stroke"/></marker></defs>`;
-  const boxes = [];
-  cols.forEach((c, i) => {
-    const x = 20 + i * (colW + gap);
-    if (c.stack) {
-      const tot = c.stack.length * (stackH + 10) - 10; let y0 = midY - tot / 2;
-      boxes.push(c.stack.map((n, j) => ({x, y: y0 + j * (stackH + 10), h: stackH, n, stacked: true})));
-    } else boxes.push([{x, y: midY - nodeH / 2, h: nodeH, n: c}]);
+  const boxes = laid.map((col, i) => {
+    const x = 20 + i * (colW + gap); let y = midY - colH[i] / 2;
+    return col.map(({n, L}) => { const b = {x, y, h: L.h, n, L, stacked: !!cols[i].stack}; y += L.h + vgap; return b; });
   });
-  // edges first
   for (let i = 0; i < boxes.length - 1; i++) {
     const A = boxes[i], B = boxes[i + 1];
     for (const a of A) for (const b of B) {
@@ -371,11 +393,14 @@ function svgFlow(cols, cutsAt) {
       s += `<path class="e${hot ? ' hot' : ''}" stroke-width="${w.toFixed(1)}" marker-end="url(#ar)" d="M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}"/>`;
     }
   }
-  for (const col of boxes) for (const {x, y, h, n, stacked} of col) {
-    s += `<g><rect class="n-box${n.hot ? ' hot' : ''}" x="${x}" y="${y}" width="${colW}" height="${h}" rx="11"/>`;
-    s += `<text class="n-k" x="${x + pad}" y="${y + 19}">${esc(n.k)}</text>`;
-    s += `<text class="n-v" x="${x + pad}" y="${y + 38}">${esc(String(n.v).length > 19 ? String(n.v).slice(0, 18) + '…' : n.v)}<title>${esc(n.v)}</title></text>`;
-    (n.d || []).slice(0, h > 80 ? 3 : 1).forEach((t, j) => s += `<text class="n-d" x="${x + pad}" y="${y + 56 + j * 15}">${esc(String(t).slice(0, 25))}</text>`);
+  for (const col of boxes) for (const {x, y, h, n, L, stacked} of col) {
+    s += `<g><title>${esc([n.k, n.v, ...(n.d || [])].join('\n'))}</title><rect class="n-box${n.hot ? ' hot' : ''}" x="${x}" y="${y}" width="${colW}" height="${h}" rx="11"/>`;
+    let ty = y + 14;
+    for (const t of L.k) { ty += 13; s += `<text class="n-k" x="${x + pad}" y="${ty - 3}">${esc(t)}</text>`; }
+    ty += 6;
+    for (const t of L.v) { ty += 18; s += `<text class="n-v" x="${x + pad}" y="${ty - 4}">${esc(t)}</text>`; }
+    if (L.d.length) ty += 4;
+    for (const t of L.d) { ty += 15; s += `<text class="n-d" x="${x + pad}" y="${ty - 3}">${esc(t)}</text>`; }
     s += `</g>`;
     if (n.cut) {
       const tw = n.cut.length * 6.9 + 30, cx = x + colW / 2 - tw / 2, cy = stacked ? y - 30 : y + h + 8;
