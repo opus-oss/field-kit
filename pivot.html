@@ -175,7 +175,7 @@ td.mono{font-size:12.5px}
     <input id="q" placeholder="IP, domain, or ASN (defanged is fine)" spellcheck="false" autocapitalize="off">
     <button type="submit">Pivot</button>
   </form>
-  <div class="eg">try <a data-q="176.120.22.127">176.120.22[.]127</a><a data-q="AS198953">AS198953</a><a data-q="AS210644">AS210644</a></div>
+  <div class="eg">try <a data-q="1.1.1.1">1.1.1[.]1</a><a data-q="AS13335">AS13335</a><a data-q="example.com">example[.]com</a></div>
   <div class="helper" id="helper"></div>
   <div class="ticks" id="ticks"></div>
   <div id="out"></div>
@@ -215,9 +215,9 @@ const HELPER = (/^(127\.0\.0\.1|localhost)$/.test(location.hostname) && location
 let helperOn = false;
 async function pingHelper() {
   try { const j = await getJSON(HELPER + '/api/ping', 1500); helperOn = !!j.ok;
-    $('#helper').innerHTML = `<b>Local helper on.</b> VirusTotal, abuse.ch, passive DNS and certificates included${j.keys.length ? '' : ' (no keys found in ~/.config/threatintel.env)'}.`;
+    $('#helper').innerHTML = `<b>Local helper on.</b> VirusTotal, abuse.ch, passive DNS and certificates included${j.keys.length ? '' : ' (no API keys configured)'}.`;
   } catch (e) {
-    $('#helper').innerHTML = `<b>Local helper off.</b> Routing and hosting data still work. For VirusTotal, abuse.ch, passive DNS and certificates, run <code>python3 ~/tools/intel/pivot.py --serve</code> on your Mac and reload.`;
+    $('#helper').innerHTML = `<b>Local helper off.</b> Routing and hosting data still work. For VirusTotal, abuse.ch, passive DNS and certificates, run the local helper (<code>pivot.py --serve</code>) and reload.`;
   }
 }
 
