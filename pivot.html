@@ -81,9 +81,10 @@ a{color:inherit; text-decoration:none}
 .search button{font-family:var(--mono); font-weight:700; font-size:14px; padding:0 18px; border-radius:10px; background:var(--acc); color:var(--on-acc)}
 .eg{font:12.5px var(--mono); color:var(--faint)}
 .eg a{color:var(--mut); border-bottom:1px dotted var(--line2); cursor:pointer; margin-left:14px}
-.ticks{display:flex; flex-wrap:wrap; align-items:center; gap:4px 12px; margin:12px 0 0; font:12px var(--mono); color:var(--faint)}
-.ticks:not(:empty)::before{content:'Sources checked'; color:var(--mut); font-weight:600}
-.ticks .ok{color:var(--mut)} .ticks .bad{color:var(--bad)}
+.ticks{display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin:12px 0 0; font:12px var(--mono); color:var(--faint)}
+.ticks:not(:empty)::before{content:'Sources checked'; color:var(--mut); font-weight:600; margin-right:4px}
+.ticks span{padding:3px 8px; border-radius:7px; background:var(--chip)}
+.ticks .ok{color:var(--good)} .ticks .bad{color:var(--bad)}
 .helper{font:12.5px var(--mono); color:var(--faint); margin-top:8px}
 .helper b{color:var(--mut)} .helper code{color:var(--codeink); background:var(--codechip); padding:1px 5px; border-radius:5px}
 .summary{font-size:17px; line-height:1.6; margin:20px 0 6px; max-width:900px}
@@ -203,7 +204,7 @@ async function doh(name, type) {
 let tickBox;
 function tick(name, p) {
   const s = document.createElement('span'); s.textContent = name + ' …'; tickBox.appendChild(s);
-  return p.then(v => { s.textContent = name; s.className = 'ok'; return v; },
+  return p.then(v => { s.textContent = name + ' ✓'; s.className = 'ok'; return v; },
                 e => { s.textContent = name + ' (unavailable)'; s.className = 'bad'; s.title = e.message; return {error: e.message}; });
 }
 const bad = x => !x || x.error;
