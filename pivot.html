@@ -94,6 +94,9 @@ h2{font-family:var(--mono); font-size:13px; letter-spacing:.08em; text-transform
 .flowbox svg{display:block; min-width:820px; width:100%; height:auto}
 .n-box{fill:var(--raised); stroke:var(--line2); stroke-width:1}
 .n-box.hot{stroke:var(--acc); stroke-width:1.6}
+.n-g[data-q]{cursor:pointer}
+.n-g[data-q]:hover .n-box,.n-g[data-q]:focus .n-box{stroke:var(--acc); stroke-width:2; fill:var(--chip)}
+.n-g[data-q]:focus{outline:none}
 .n-k{font:600 10.5px var(--mono); fill:var(--faint); letter-spacing:.08em; text-transform:uppercase}
 .n-v{font:700 15px var(--mono); fill:var(--ink)}
 .n-d{font:12px var(--sans); fill:var(--mut)}
@@ -431,7 +434,7 @@ function svgFlow(cols) {
     }
   }
   for (const col of boxes) for (const {x, y, h, n, L, stacked} of col) {
-    s += `<g><title>${esc([n.k, n.v, ...(n.d || [])].join('\n'))}</title><rect class="n-box${n.hot ? ' hot' : ''}" x="${x}" y="${y}" width="${colW}" height="${h}" rx="11"/>`;
+    s += `<g class="n-g"${n.q ? ` data-q="${esc(n.q)}" role="button" tabindex="0"` : ''}><title>${esc([n.k, n.v, ...(n.d || [])].join('\n'))}${n.q ? '\nClick to pivot on ' + esc(defang(n.q)) : ''}</title><rect class="n-box${n.hot ? ' hot' : ''}" x="${x}" y="${y}" width="${colW}" height="${h}" rx="11"/>`;
     let ty = y + 14;
     for (const t of L.k) { ty += 13; s += `<text class="n-k" x="${x + pad}" y="${ty - 3}">${esc(t)}</text>`; }
     ty += 6;
@@ -616,15 +619,15 @@ function mainUp(up) { return up && !bad(up) && up.ups.length ? up.ups[0] : null;
 
 function ipFlowCols(r, dom) {
   const cols = [];
-  if (dom) cols.push({k: 'Domain', v: defang(dom.dom), d: [dom.rd && !bad(dom.rd) ? dom.rd.registrar : '', dom.rd && dom.rd.created ? 'created ' + dom.rd.created : ''].filter(Boolean), cut: 'Registrar'});
+  if (dom) cols.push({k: 'Domain', v: defang(dom.dom), q: dom.dom, d: [dom.rd && !bad(dom.rd) ? dom.rd.registrar : '', dom.rd && dom.rd.created ? 'created ' + dom.rd.created : ''].filter(Boolean), cut: 'Registrar'});
   const p = r.ports && !bad(r.ports) && !r.ports.none ? r.ports.ports : null;
-  cols.push({k: 'Server', v: defang(r.ip), d: [p ? 'ports ' + p.slice(0, 6).join(' ') : 'no port data', r.rev ? defang(r.rev) : ''].filter(Boolean)});
+  cols.push({k: 'Server', v: defang(r.ip), q: dom ? r.ip : null, d: [p ? 'ports ' + p.slice(0, 6).join(' ') : 'no port data', r.rev ? defang(r.rev) : ''].filter(Boolean)});
   if (!bad(r.cy)) {
     const live = (r.hist && !bad(r.hist)) ? r.hist.filter(h => h.origin === r.cy.asn && h.prefix === r.cy.prefix).map(h => h.first).sort()[0] : null;
-    cols.push({k: 'IP block', v: r.cy.prefix, d: [live ? 'Announced here since ' + live : '', r.rd && !bad(r.rd) ? (r.rd.org ? 'Registered to ' + r.rd.org : r.rd.netname ? 'Registered as ' + r.rd.netname : '') : ''].filter(Boolean)});
-    cols.push({k: 'Hosting network', v: 'AS' + r.cy.asn, hot: true, d: [shortName(r.name && r.name.name), r.fp && !bad(r.fp) ? `${r.fp.v4} blocks${r.cy.cc ? ', ' + r.cy.cc : ''}` : ''].filter(Boolean), cut: 'Host abuse desk'});
+    cols.push({k: 'IP block', v: r.cy.prefix, q: 'AS' + r.cy.asn, d: [live ? 'Announced here since ' + live : '', r.rd && !bad(r.rd) ? (r.rd.org ? 'Registered to ' + r.rd.org : r.rd.netname ? 'Registered as ' + r.rd.netname : '') : ''].filter(Boolean)});
+    cols.push({k: 'Hosting network', v: 'AS' + r.cy.asn, q: 'AS' + r.cy.asn, hot: true, d: [shortName(r.name && r.name.name), r.fp && !bad(r.fp) ? `${r.fp.v4} blocks${r.cy.cc ? ', ' + r.cy.cc : ''}` : ''].filter(Boolean), cut: 'Host abuse desk'});
     if (r.up && !bad(r.up) && r.up.ups.length) {
-      const stack = r.up.ups.slice(0, 5).map((u, i) => ({k: `${i === 0 ? 'Main upstream' : 'Upstream'} · ${Math.round(u.share * 100)}%`, v: 'AS' + u.asn, share: u.share, hot: i === 0 && u.share >= .4,
+      const stack = r.up.ups.slice(0, 5).map((u, i) => ({k: `${i === 0 ? 'Main upstream' : 'Upstream'} · ${Math.round(u.share * 100)}%`, v: 'AS' + u.asn, q: 'AS' + u.asn, share: u.share, hot: i === 0 && u.share >= .4,
         d: [shortName(u.name)], cut: i === 0 && u.share >= .4 ? 'Transit cut' : ''}));
       cols.push({stack});
     }
@@ -810,7 +813,7 @@ function renderASN(r) {
   h += '</p>';
   if (!bad(r.up) && r.up.ups.length) {
     const cols = [{k: 'Network', v: 'AS' + r.asn, hot: true, d: [shortName(nm), !bad(r.fp) ? `${r.fp.v4} IPv4 blocks` : '', `${r.up.nRight} customer networks`].filter(Boolean), cut: 'Abuse desk'},
-      {stack: r.up.ups.slice(0, 6).map((u, i) => ({k: `${i ? 'Upstream' : 'Main upstream'} · ${Math.round(u.share * 100)}%`, v: 'AS' + u.asn, share: u.share, hot: !i && u.share >= .4, d: [shortName(u.name)], cut: !i && u.share >= .4 ? 'Transit cut' : ''}))},
+      {stack: r.up.ups.slice(0, 6).map((u, i) => ({k: `${i ? 'Upstream' : 'Main upstream'} · ${Math.round(u.share * 100)}%`, v: 'AS' + u.asn, q: 'AS' + u.asn, share: u.share, hot: !i && u.share >= .4, d: [shortName(u.name)], cut: !i && u.share >= .4 ? 'Transit cut' : ''}))},
       {k: 'Internet', v: '75k networks', d: ['global routing table']}];
     h += `<h2>How it reaches the internet</h2><div class="flowbox">${svgFlow(cols)}</div>`;
   }
@@ -839,11 +842,11 @@ function kindOf(q) {
   return null;
 }
 let runId = 0;
-async function pivot(raw) {
+async function pivot(raw, fromHistory = false) {
   const q = norm(raw); const k = kindOf(q); const id = ++runId;
   $('#q').value = defang(q);
   if (!k) { $('#out').innerHTML = '<p class="err">Enter an IP, a domain, or an ASN like AS13335.</p>'; return; }
-  history.replaceState(null, '', '#' + encodeURIComponent(q));
+  if (decodeURIComponent(location.hash.slice(1)) !== q) history[fromHistory ? 'replaceState' : 'pushState'](null, '', '#' + encodeURIComponent(q));
   tickBox = $('#ticks'); tickBox.innerHTML = ''; $('#out').innerHTML = '<p class="note">Working…</p>';
   try {
     let h;
@@ -858,6 +861,8 @@ document.addEventListener('click', e => {
   const rt = e.target.closest('[data-crt]'); if (rt) { rt.textContent = 'asking…'; getJSON(HELPER + '/api/crtsh?q=' + encodeURIComponent(rt.dataset.crt), 130000).then(x => { const el = document.getElementById('crtline'); el.outerHTML = bad(x) ? `<p class="quiet" id="crtline">crt.sh still isn’t answering. <button class="cp" data-crt="${esc(rt.dataset.crt)}">try again</button></p>` : `<div class="card"><h3>crt.sh</h3>${kv([['certs', x.certs]])}<table class="tight">${x.names.slice(0, 25).map(([n, d]) => `<tr><td class="mono">${esc(d)}</td><td>${go(n)}</td></tr>`).join('')}</table></div>`; }).catch(() => rt.textContent = 'try again'); return; }
   const c = e.target.closest('[data-copy]'); if (c) { navigator.clipboard.writeText(c.dataset.copy).then(() => { c.textContent = 'copied'; setTimeout(() => c.textContent = 'copy', 1200); }); }
 });
+window.addEventListener('popstate', () => { const h = decodeURIComponent(location.hash.slice(1)); if (h) pivot(h, true); });
+document.addEventListener('keydown', e => { const g = e.target.closest && e.target.closest('.n-g[data-q]'); if (g && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); pivot(g.dataset.q); window.scrollTo({top: 0, behavior: 'smooth'}); } });
 $('#f').addEventListener('submit', e => { e.preventDefault(); pivot($('#q').value); });
 pingHelper().then(() => { const h = decodeURIComponent(location.hash.slice(1)); if (h) pivot(h); });
 </script>
