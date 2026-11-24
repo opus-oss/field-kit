@@ -1,12 +1,12 @@
 /* Field Kit suite — offline service worker.
    HTML is network-first (always loads the latest when online, falls back to cache offline),
    static assets are cache-first. Bump CACHE on any change so clients refresh. */
-const CACHE = 'fieldkit-v104';
+const CACHE = 'fieldkit-v105';
 const ASSETS = [
   './',
-  './index.html', './scrub.html', './markets.html', './tax.html', './places.html', './mortgage.html', './optout.html', './intel.html', './radar.html', './debt.html', './ascii.html', './chef.html', './crash.html',
+  './index.html', './scrub.html', './markets.html', './tax.html', './places.html', './mortgage.html', './optout.html', './intel.html', './radar.html', './debt.html', './ascii.html', './chef.html', './pivot.html', './crash.html',
   './leaflet.js', './leaflet.css', './nowcast.js',
-  './manifest-field.webmanifest', './manifest-scrub.webmanifest', './manifest-markets.webmanifest', './manifest-tax.webmanifest', './manifest-places.webmanifest', './manifest-mortgage.webmanifest', './manifest-optout.webmanifest', './manifest-intel.webmanifest', './manifest-radar.webmanifest', './manifest-debt.webmanifest', './manifest-ascii.webmanifest', './manifest-chef.webmanifest', './manifest-crash.webmanifest',
+  './manifest-field.webmanifest', './manifest-scrub.webmanifest', './manifest-markets.webmanifest', './manifest-tax.webmanifest', './manifest-places.webmanifest', './manifest-mortgage.webmanifest', './manifest-optout.webmanifest', './manifest-intel.webmanifest', './manifest-radar.webmanifest', './manifest-debt.webmanifest', './manifest-ascii.webmanifest', './manifest-chef.webmanifest', './manifest-pivot.webmanifest', './manifest-crash.webmanifest',
   './field-192.png', './field-512.png', './field-180.png',
   './scrub-192.png', './scrub-512.png', './scrub-180.png',
   './tax-192.png', './tax-512.png', './tax-180.png',
@@ -19,6 +19,7 @@ const ASSETS = [
   './debt-192.png', './debt-512.png', './debt-180.png',
   './ascii-192.png', './ascii-512.png', './ascii-180.png',
   './chef-192.png', './chef-512.png', './chef-180.png',
+  './pivot-192.png', './pivot-512.png', './pivot-180.png',
   './crash-192.png', './crash-512.png', './crash-180.png'
 ];
 
