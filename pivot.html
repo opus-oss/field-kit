@@ -527,7 +527,7 @@ function intelCards(ex, isIP, q) {
   if (v && v.communicating_files) for (const f of v.communicating_files) if (f.family && f.mal && !GENERIC.test(f.family)) fam.set(f.family, (fam.get(f.family) || 0) + 1);
   for (const b of ex.bazaar || []) if (b.signature) fam.set(b.signature, (fam.get(b.signature) || 0) + 1);
   if (Array.isArray(ex.threatfox)) for (const t of ex.threatfox) if (t.malware) fam.set(t.malware, (fam.get(t.malware) || 0) + 1);
-  if (fam.size) h += card('What it is', `<div>${[...fam].sort((a, b) => b[1] - a[1]).map(([n, c]) => `<span class="fam">${esc(n)}</span> <span class="muted mono">×${c}</span>`).join('&nbsp;&nbsp; ')}</div><p class="note">Families named by VirusTotal's classification of files that contact this ${isIP ? 'IP' : 'domain'}, MalwareBazaar signatures, and ThreatFox.</p>`);
+  if (fam.size) h += card('Malware classification', `<div>${[...fam].sort((a, b) => b[1] - a[1]).map(([n, c]) => `<span class="fam">${esc(n)}</span> <span class="muted mono">×${c}</span>`).join('&nbsp;&nbsp; ')}</div><p class="note">Families named by VirusTotal's classification of files that contact this ${isIP ? 'IP' : 'domain'}, MalwareBazaar signatures, and ThreatFox.</p>`);
   if (v && !bad(v) && !v.note) {
     const fl = v.flagged || [];
     h += card('VirusTotal verdicts', kv([
