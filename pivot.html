@@ -482,22 +482,29 @@ function ipFlowCols(r, dom) {
 
 function cutsHTML(r, dom) {
   const out = [];
+  const ip = esc(defang(r.ip));
   if (dom) {
-    const rd = dom.rd || {};
-    out.push(['Registrar', `${esc(rd.registrar || 'unknown registrar')}${rd.abuse ? ' · ' + esc(rd.abuse) : ''}`,
-      'Suspending the domain kills this name only. The server keeps running and new domains can point at it within the hour.']);
+    const rd = dom.rd || {}, d = esc(defang(dom.dom));
+    const ips = (dom.A && dom.A.length ? dom.A : [r.ip]).map(x => esc(defang(x))).join(', ');
+    out.push(['Registrar', `${esc(rd.registrar || 'registrar unknown')}${rd.abuse ? ' · ' + esc(rd.abuse) : ''}`,
+      `The registrar can suspend ${d}. The name stops resolving, but the machine${dom.A && dom.A.length > 1 ? 's' : ''} at ${ips} stay${dom.A && dom.A.length > 1 ? '' : 's'} online and the operator can point a new domain at ${dom.A && dom.A.length > 1 ? 'them' : 'it'}.`]);
   }
   if (!bad(r.cy)) {
     const ab = Array.isArray(r.ab) && r.ab.length ? r.ab.join(', ') : 'no abuse contact on file';
-    out.push(['Hosting provider', `AS${r.cy.asn} ${esc(shortName(r.name && r.name.name))} · ${esc(ab)}`,
-      'The host can pull this one server. A bulletproof host usually ignores the notice, and the operator rebuilds elsewhere.']);
+    const addrs = r.fp && !bad(r.fp) ? r.fp.addrs : null;
+    const nm = esc(shortName(r.name && r.name.name) || 'AS' + r.cy.asn);
+    // host-size note: only claim what the size supports
+    const hostNote = addrs == null ? '' : addrs >= 65536 ? ` ${nm} is a large provider and generally acts on abuse reports.`
+      : addrs <= 4096 ? ` ${nm} is a small network (${fmt(addrs)} addresses). Small hosts that serve abuse often ignore reports, which is when the upstream below matters.` : '';
+    out.push(['Hosting provider', `AS${r.cy.asn} ${nm} · ${esc(ab)}`,
+      `${nm} can shut down the machine at ${ip}. That address goes offline${dom ? (dom.A && dom.A.length > 1 ? `, though ${esc(defang(dom.dom))} still answers from its other address${dom.A.length > 2 ? 'es' : ''},` : `, ${esc(defang(dom.dom))} stops working until it is repointed,`) : ''} and the operator can rebuild on a new address.${hostNote}`]);
     const m = mainUp(r.up);
     if (m) {
       const rest = r.up.ups.slice(1, 4).map(u => 'AS' + u.asn).join(', ');
-      const size = r.fp && !bad(r.fp) ? `all ${r.fp.v4} blocks (${fmt(r.fp.addrs)} addresses)` : 'the whole network';
-      out.push(['Upstream transit', `AS${m.asn} ${esc(shortName(m.name))} · carries about ${Math.round(m.share * 100)}% of the visible routes`,
-        m.share >= .4 ? `If AS${m.asn} stops carrying AS${r.cy.asn}, ${size} lose their main path at once. This is the lever that works on hosts that ignore abuse mail.${rest ? ` The remaining paths run through ${rest}, so they'd need the same pressure.` : ''}`
-                      : `No single upstream dominates, so cutting one leaves ${rest || 'others'} carrying the traffic.`]);
+      const size = r.fp && !bad(r.fp) ? `all ${fmt(r.fp.v4)} of its address blocks (${fmt(r.fp.addrs)} addresses)` : 'its whole network';
+      out.push(['Upstream carrier', `AS${m.asn} ${esc(shortName(m.name))} · about ${Math.round(m.share * 100)}% of visible routes`,
+        m.share >= .4 ? `AS${m.asn} can stop carrying traffic for AS${r.cy.asn}. That takes ${size} off its main path at once, including ${ip}.${rest ? ` Traffic would still reach it through ${rest}, so those carriers would need to act too.` : ''}`
+                      : `No single carrier handles most of AS${r.cy.asn}'s traffic. If AS${m.asn} stopped carrying it, ${rest || 'the other carriers'} would keep ${ip} reachable.`]);
     }
   }
   return out.map(([t, who, why], i) => `<div class="cut"><div class="num">${i + 1}</div><div><b>${t}</b> <span class="mono muted">${who}</span><p>${why}</p></div></div>`).join('');
