@@ -104,7 +104,7 @@ h2{font-family:var(--mono); font-size:13px; letter-spacing:.08em; text-transform
 .card.wide{grid-column:1/-1}
 .grid > .quiet{grid-column:1/-1}
 .quiet{font:13px var(--mono); color:var(--faint); margin:4px 0}
-.qlabel{font:600 11px var(--mono); color:var(--faint); min-width:62px; padding-top:6px}
+.qlabel{font:600 11px var(--mono); color:var(--faint)}
 .q a{font:11px var(--mono); padding:4px 8px; border-radius:6px; background:var(--chip); color:var(--mut)}
 .fam{font:700 15px var(--mono); color:var(--bad)}
 table.tight td{padding:3px 6px}
@@ -125,14 +125,23 @@ table.tight td{padding:3px 6px}
 table{width:100%; border-collapse:collapse; font-size:13px}
 td,th{text-align:left; padding:4px 6px; border-bottom:1px solid var(--line); vertical-align:top}
 th{font:600 11px var(--mono); color:var(--faint); text-transform:uppercase; letter-spacing:.06em}
-td.mono{font-size:12.5px}
+td.mono{font-size:12.5px; white-space:nowrap}
+td.url{font:12.5px var(--mono); word-break:break-all}
+.nw{white-space:nowrap}
+.intel{display:flex; flex-direction:column; gap:12px}
+.intel .card{margin:0; min-width:0; overflow-x:auto}
+.grid > *{min-width:0}
+.flow2{columns:2 420px; column-gap:12px}
+.flow2 > .card{break-inside:avoid; margin:0 0 12px; display:inline-block; width:100%}
+.verdict{display:flex; flex-wrap:wrap; gap:14px 48px; align-items:flex-start}
+.intel .quiet{margin:0}
+.q{display:grid; grid-template-columns:64px minmax(0,1fr) auto auto; gap:6px; align-items:center; margin:5px 0}
+.q code{min-width:0; font:12px var(--mono); background:var(--codechip); color:var(--codeink); padding:5px 7px; border-radius:6px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
 .tl text{font:11.5px var(--mono); fill:var(--mut)}
 .tl .ax{font-size:10.5px; fill:var(--faint)}
 .tl .bar{fill:var(--line2)} .tl .bar.cur{fill:var(--acc)}
 .links a{display:inline-block; font:12.5px var(--mono); padding:4px 9px; margin:2px 4px 2px 0; border-radius:7px; background:var(--chip); color:var(--mut)}
 .links a:hover{color:var(--acc)}
-.q{display:flex; gap:6px; align-items:flex-start; margin:4px 0}
-.q code{flex:1; font:12px var(--mono); background:var(--codechip); color:var(--codeink); padding:5px 7px; border-radius:6px; word-break:break-all}
 .cp{font:11px var(--mono); padding:2px 6px; border-radius:5px; background:var(--chip); color:var(--mut)}
 .q button{font:11px var(--mono); padding:4px 8px; border-radius:6px; background:var(--chip); color:var(--mut)}
 .err{color:var(--bad); font:13px var(--mono)}
@@ -519,67 +528,68 @@ const vtLink = (kind, id) => `https://www.virustotal.com/gui/${kind}/${encodeURI
 
 function intelCards(ex, isIP, q) {
   if (!ex) return '';
-  let h = '';
-  const v = ex.vt;
-  // family verdict first: VT file classifications, Bazaar signatures, ThreatFox
-  const fam = new Map();
+  // three bands: a full-width verdict strip, a two-column flow of detail cards, full-width tables, then quiet notes
+  const top = [], cols = [], wide = [], quiet = [];
+  const v = ex.vt && !bad(ex.vt) && !ex.vt.note ? ex.vt : null;
   const GENERIC = /^(powershell|javascript|js|vbs|html|batch|bat|cmd|msil|generic|python|script|win32|w32|w64|shell|zip|lnk|doc|pdf)$/i;
+  const fam = new Map();
   if (v && v.communicating_files) for (const f of v.communicating_files) if (f.family && f.mal && !GENERIC.test(f.family)) fam.set(f.family, (fam.get(f.family) || 0) + 1);
   for (const b of ex.bazaar || []) if (b.signature) fam.set(b.signature, (fam.get(b.signature) || 0) + 1);
   if (Array.isArray(ex.threatfox)) for (const t of ex.threatfox) if (t.malware) fam.set(t.malware, (fam.get(t.malware) || 0) + 1);
-  if (fam.size) h += card('Malware classification', `<div>${[...fam].sort((a, b) => b[1] - a[1]).map(([n, c]) => `<span class="fam">${esc(n)}</span> <span class="muted mono">×${c}</span>`).join('&nbsp;&nbsp; ')}</div><p class="note">Families named by VirusTotal's classification of files that contact this ${isIP ? 'IP' : 'domain'}, MalwareBazaar signatures, and ThreatFox.</p>`);
-  if (v && !bad(v) && !v.note) {
+  if (fam.size || v) top.push(`<div class="card verdict"><div><h3>Malware classification</h3>${fam.size ? [...fam].sort((a, b) => b[1] - a[1]).map(([n, c]) => `<span class="fam">${esc(n)}</span><span class="muted mono"> ×${c}</span>`).join('&nbsp;&nbsp; ') : '<span class="muted">no family named</span>'}</div>` +
+    (v ? `<div><h3>VirusTotal score</h3><span class="pill ${v.malicious ? 'bad' : 'good'}">${v.malicious || 0} malicious</span><span class="pill warn">${v.suspicious || 0} suspicious</span><span class="pill">${v.harmless || 0} clean</span></div>` : '') + `</div>`);
+  if (v) {
     const fl = v.flagged || [];
-    h += card('VirusTotal verdicts', kv([
-      ['score', `<span class="pill ${v.malicious ? 'bad' : 'good'}">${v.malicious || 0} malicious</span><span class="pill warn">${v.suspicious || 0} suspicious</span><span class="pill">${v.harmless || 0} clean</span>`],
+    cols.push(card('VirusTotal detail', kv([
+      ['flagged by', fl.map(e => `<span class="pill ${e.category === 'malicious' ? 'bad' : 'warn'}">${esc(e.engine)}: ${esc(e.result || e.category)}</span>`).join('') || '<span class="muted">no engines</span>'],
       ['categories', (v.categories || []).map(c => `<span class="pill">${esc(c)}</span>`).join('')],
       ['tags', (v.tags || []).map(t => `<span class="pill">${esc(t)}</span>`).join('')],
-      ['last scanned', esc(v.last_analysis || '')], ['created', esc(v.created || '')], ['registrar', esc(v.registrar || '')],
-      ['community', v.votes ? `${v.votes.malicious} malicious / ${v.votes.harmless} harmless votes` : '']]) +
-      (fl.length ? '<table class="tight"><tr><th>engine</th><th>verdict</th></tr>' + fl.map(e => `<tr><td>${esc(e.engine)}</td><td class="${e.category === 'malicious' ? 'err' : ''}">${esc(e.result || e.category)}</td></tr>`).join('') + '</table>' : '') +
-      `<div class="links" style="margin-top:8px"><a href="${vtLink(isIP ? 'ip-address' : 'domain', q)}" target="_blank" rel="noopener noreferrer">open in VirusTotal ↗</a></div>`);
-    if (v.communicating_files && v.communicating_files.length) h += card(`Files that contact it (${v.communicating_files.length})`,
-      '<table class="tight"><tr><th>sha256</th><th>family / label</th><th>type</th><th>det</th><th>first</th></tr>' +
-      v.communicating_files.map(f => `<tr><td style="white-space:nowrap">${hashCell(f.sha256)}</td><td>${f.label ? `<span class="${f.mal ? 'err' : ''}">${esc(f.label)}</span>` : '<span class="muted">unlabeled</span>'}${f.name ? `<br><span class="muted mono">${esc(f.name.slice(0, 40))}</span>` : ''}</td><td>${esc(f.type || '')}</td><td class="mono">${f.mal ?? ''}</td><td class="mono">${esc(f.first)}</td></tr>`).join('') + '</table>' +
-      ((ex.bazaar || []).length ? '<p class="note">MalwareBazaar: ' + ex.bazaar.map(b => `${esc(b.signature || 'unsigned')} (${esc(b.first)}${b.tags.length ? ', ' + b.tags.slice(0, 4).map(esc).join(', ') : ''})`).join('; ') + '</p>' : ''), 'wide');
-    if (v.urls && v.urls.length) h += card(`URLs seen (${v.urls.length})`, '<table class="tight"><tr><th>url</th><th>det</th><th>scanned</th></tr>' +
-      v.urls.map(u => `<tr><td class="mono">${esc(defang(u.url))}</td><td class="mono">${u.mal ?? ''}</td><td class="mono">${esc(u.seen)}</td></tr>`).join('') + '</table>');
+      ['last scanned', `<span class="nw">${esc(v.last_analysis || '')}</span>`], ['created', esc(v.created || '')], ['registrar', esc(v.registrar || '')],
+      ['votes', v.votes ? `${v.votes.malicious} malicious, ${v.votes.harmless} harmless` : '']]) +
+      `<div class="links" style="margin-top:8px"><a href="${vtLink(isIP ? 'ip-address' : 'domain', q)}" target="_blank" rel="noopener noreferrer">open in VirusTotal ↗</a></div>`));
     if (v.cert_sha256 || v.jarm) {
       const subj = v.cert_subject ? Object.entries(v.cert_subject).map(([k, x]) => `${k}=${x}`).join(', ') : '';
       const iss = v.cert_issuer ? Object.entries(v.cert_issuer).map(([k, x]) => `${k}=${x}`).join(', ') : '';
       const self = subj && subj === iss, cn = v.cert_subject && v.cert_subject.CN;
       const cq = v.cert_sha256 && `services.tls.certificates.leaf_data.fingerprint: ${v.cert_sha256}`;
-      h += card('Certificate and TLS', kv([['subject', `<span class="mono">${esc(subj)}</span>`], ['issuer', self ? '<span class="pill warn">self-signed</span> same as subject' : `<span class="mono">${esc(iss)}</span>`],
-        ['valid', v.cert_validity ? `${esc(v.cert_validity.not_before.slice(0, 10))} to ${esc(v.cert_validity.not_after.slice(0, 10))}` : ''],
+      cols.push(card('Certificate and TLS', kv([['subject', `<span class="mono">${esc(subj)}</span>`], ['issuer', self ? '<span class="pill warn">self-signed</span>' : `<span class="mono">${esc(iss)}</span>`],
+        ['valid', v.cert_validity ? `<span class="nw">${esc(v.cert_validity.not_before.slice(0, 10))} to ${esc(v.cert_validity.not_after.slice(0, 10))}</span>` : ''],
         ['names', (v.cert_sans || []).map(n => go(n)).join('<br>')], ['sha256', v.cert_sha256 ? hashCell(v.cert_sha256) : ''], ['JARM', v.jarm ? hashCell(v.jarm) : '']]) +
         `<p class="note">${self ? 'Self-signed, so it never reached CT logs. Another server with the same fingerprint is usually a cloned build.' : 'CA-issued, so CT logs show its sibling names.'} JARM alone is weak; pair it with the certificate.</p>` +
         (cq ? qrow('Censys', cq, `https://search.censys.io/search?resource=hosts&q=${encodeURIComponent(cq)}`) : '') +
         (!self && v.cert_sha256 ? qrow('crt.sh', v.cert_sha256, `https://crt.sh/?q=${v.cert_sha256}`) : '') +
         (self && cn ? qrow('Shodan', `ssl.cert.subject.cn:"${cn}"`, `https://www.shodan.io/search?query=${encodeURIComponent(`ssl.cert.subject.cn:"${cn}"`)}`) : '') +
         (v.jarm ? qrow('Shodan', `ssl.jarm:${v.jarm}`, `https://www.shodan.io/search?query=${encodeURIComponent('ssl.jarm:' + v.jarm)}`) : '') +
-        '<p class="note">Searching VirusTotal by certificate needs a paid key, so it isn’t listed.</p>');
+        '<p class="note">Searching VirusTotal by certificate needs a paid key.</p>'));
     }
-    if (v.skipped) h += `<p class="quiet">VirusTotal rate limit hit, skipped: ${esc(v.skipped.join(', '))}</p>`;
-  } else if (v && (v.error || v.note)) h += `<p class="quiet">VirusTotal: ${esc(v.error || v.note)}</p>`;
-  // abuse.ch: detail when there are hits, one quiet line when not
+    if (v.urls && v.urls.length) cols.push(card(`URLs seen (${v.urls.length})`, '<table class="tight"><tr><th>url</th><th>det</th><th>scanned</th></tr>' +
+      v.urls.map(u => `<tr><td class="url">${esc(defang(u.url))}</td><td class="mono">${u.mal ?? ''}</td><td class="mono">${esc(u.seen)}</td></tr>`).join('') + '</table>'));
+    if (v.communicating_files && v.communicating_files.length) wide.push(card(`Files that contact it (${v.communicating_files.length})`,
+      '<table class="tight"><tr><th>sha256</th><th>family / label</th><th>name</th><th>type</th><th>det</th><th>first seen</th></tr>' +
+      v.communicating_files.map(f => `<tr><td class="nw">${hashCell(f.sha256)}</td><td>${f.label ? `<span class="${f.mal ? 'err' : ''}">${esc(f.label)}</span>` : '<span class="muted">unlabeled</span>'}</td><td class="url muted">${esc((f.name || '').slice(0, 60))}</td><td>${esc(f.type || '')}</td><td class="mono">${f.mal ?? ''}</td><td class="mono">${esc(f.first)}</td></tr>`).join('') + '</table>' +
+      ((ex.bazaar || []).length ? '<p class="note">MalwareBazaar: ' + ex.bazaar.map(b => `${esc(b.signature || 'unsigned')} (${esc(b.first)}${b.tags.length ? ', ' + b.tags.slice(0, 4).map(esc).join(', ') : ''})`).join('; ') + '</p>' : ''), 'wide'));
+    if (v.skipped) quiet.push(`VirusTotal rate limit hit, skipped: ${esc(v.skipped.join(', '))}.`);
+  } else if (ex.vt && (ex.vt.error || ex.vt.note)) quiet.push(`VirusTotal: ${esc(ex.vt.error || ex.vt.note)}.`);
   const tf = Array.isArray(ex.threatfox) ? ex.threatfox : [], uh = ex.urlhaus && !bad(ex.urlhaus) && !ex.urlhaus.note ? ex.urlhaus : null;
-  if (tf.length) h += card(`ThreatFox (${tf.length})`, '<table class="tight"><tr><th>indicator</th><th>malware</th><th>type</th><th>conf</th><th>seen</th></tr>' +
-    tf.map(t => `<tr><td class="mono">${esc(defang(t.ioc))}</td><td><span class="err">${esc(t.malware)}</span>${t.tags.length ? '<br><span class="muted">' + t.tags.map(esc).join(', ') + '</span>' : ''}</td><td>${esc(t.type_desc || t.type)}</td><td class="mono">${t.conf}</td><td class="mono">${esc(t.first)}${t.last ? '<br>' + esc(t.last) : ''}</td></tr>`).join('') + '</table>' +
-    `<p class="note">${tf.filter(t => t.reporter).slice(0, 1).map(t => 'Reported by ' + esc(t.reporter)).join('')}${tf.find(t => t.reference) ? ` · <a class="go" href="${esc(tf.find(t => t.reference).reference)}" target="_blank" rel="noopener noreferrer">source ↗</a>` : ''}</p>`, 'wide');
-  if (uh && uh.count) h += card(`URLhaus (${uh.count})`, '<table class="tight"><tr><th>url</th><th>status</th><th>threat</th><th>added</th></tr>' +
-    uh.urls.map(u => `<tr><td class="mono">${esc(defang(u.url))}</td><td>${esc(u.status)}</td><td>${esc(u.threat || '')}${u.tags.length ? '<br><span class="muted">' + u.tags.map(esc).join(', ') + '</span>' : ''}</td><td class="mono">${esc(u.added)}</td></tr>`).join('') + '</table>', 'wide');
-  if (!tf.length || !(uh && uh.count)) h += `<p class="quiet">abuse.ch: ${[!tf.length ? 'no ThreatFox hits' : '', !(uh && uh.count) ? 'no URLhaus URLs' : '', !(ex.bazaar || []).length && v && v.communicating_files && v.communicating_files.length ? 'no MalwareBazaar samples for the linked files' : ''].filter(Boolean).join(', ')}.</p>`;
-  // passive DNS
+  if (tf.length) wide.push(card(`ThreatFox (${tf.length})`, '<table class="tight"><tr><th>indicator</th><th>malware</th><th>type</th><th>conf</th><th>first seen</th><th>last seen</th></tr>' +
+    tf.map(t => `<tr><td class="url">${esc(defang(t.ioc))}</td><td><span class="err">${esc(t.malware)}</span>${t.tags.length ? '<br><span class="muted">' + t.tags.map(esc).join(', ') + '</span>' : ''}</td><td>${esc(t.type_desc || t.type)}</td><td class="mono">${t.conf}</td><td class="mono">${esc(t.first)}</td><td class="mono">${esc(t.last || '')}</td></tr>`).join('') + '</table>' +
+    `<p class="note">${tf.find(t => t.reporter) ? 'Reported by ' + esc(tf.find(t => t.reporter).reporter) : ''}${tf.find(t => t.reference) ? ` · <a class="go" href="${esc(tf.find(t => t.reference).reference)}" target="_blank" rel="noopener noreferrer">source ↗</a>` : ''}</p>`, 'wide'));
+  if (uh && uh.count) wide.push(card(`URLhaus (${uh.count})`, '<table class="tight"><tr><th>url</th><th>status</th><th>threat</th><th>added</th></tr>' +
+    uh.urls.map(u => `<tr><td class="url">${esc(defang(u.url))}</td><td>${esc(u.status)}</td><td>${esc(u.threat || '')}${u.tags.length ? '<br><span class="muted">' + u.tags.map(esc).join(', ') + '</span>' : ''}</td><td class="mono">${esc(u.added)}</td></tr>`).join('') + '</table>', 'wide'));
+  const none = [!tf.length ? 'no ThreatFox hits' : '', !(uh && uh.count) ? 'no URLhaus URLs' : '', !(ex.bazaar || []).length && v && (v.communicating_files || []).length ? 'no MalwareBazaar samples for the linked files' : ''].filter(Boolean);
+  if (none.length) quiet.push(`abuse.ch: ${none.join(', ')}.`);
   const res = [];
   if (v && v.resolutions) for (const x of v.resolutions) res.push({first: x.date, last: '', host: x.host, ip: x.ip});
   if (ex.pdns && ex.pdns.rows) for (const x of ex.pdns.rows) if (x.type === 'a' || x.type === 'aaaa') res.push({first: x.first, last: x.last, host: x.q, ip: x.a});
-  if (res.length) h += card(`Passive DNS (${res.length})`, '<table class="tight"><tr><th>seen</th><th>domain</th><th>IP</th></tr>' +
-    res.sort((a, b) => a.first < b.first ? 1 : -1).slice(0, 25).map(x => `<tr><td class="mono">${esc(x.first)}${x.last && x.last !== x.first ? '<br>' + esc(x.last) : ''}</td><td>${go(x.host)}</td><td>${go(x.ip)}</td></tr>`).join('') + '</table>');
-  else h += `<p class="quiet">Passive DNS: ${isIP ? 'no domain has pointed here, so the certificate is the better anchor' : 'no resolutions on record'}.</p>`;
-  if (ex.crtsh) h += bad(ex.crtsh) ? `<p class="quiet" id="crtline">crt.sh didn’t answer. <button class="cp" data-crt="${esc(q)}">try again</button></p>` :
-    card('crt.sh', kv([['certs', ex.crtsh.certs], ['issuers', ex.crtsh.issuers.map(([i, n]) => `<span class="pill">${esc(i)} ${n}</span>`).join('')]]) +
-      '<table class="tight"><tr><th>first cert</th><th>name</th></tr>' + ex.crtsh.names.slice(0, 25).map(([n, d]) => `<tr><td class="mono">${esc(d)}</td><td>${go(n)}</td></tr>`).join('') + '</table>');
-  return h;
+  if (res.length) cols.push(card(`Passive DNS (${res.length})`, '<table class="tight"><tr><th>seen</th><th>domain</th><th>IP</th></tr>' +
+    res.sort((a, b) => a.first < b.first ? 1 : -1).slice(0, 25).map(x => `<tr><td class="mono">${esc(x.first)}</td><td class="url">${go(x.host)}</td><td class="nw">${go(x.ip)}</td></tr>`).join('') + '</table>'));
+  else quiet.push(`Passive DNS: ${isIP ? 'no domain has pointed here, so the certificate is the better anchor' : 'no resolutions on record'}.`);
+  if (ex.crtsh) {
+    if (bad(ex.crtsh)) quiet.push(`<span id="crtline">crt.sh didn’t answer. <button class="cp" data-crt="${esc(q)}">try again</button></span>`);
+    else cols.push(card(`crt.sh (${ex.crtsh.certs} certs)`, `<div>${ex.crtsh.issuers.map(([i, n]) => `<span class="pill">${esc(i)} ${n}</span>`).join('')}</div>` +
+      '<table class="tight"><tr><th>first cert</th><th>name</th></tr>' + ex.crtsh.names.slice(0, 25).map(([n, d]) => `<tr><td class="mono">${esc(d)}</td><td class="url">${go(n)}</td></tr>`).join('') + '</table>'));
+  }
+  return top.join('') + (cols.length ? `<div class="flow2">${cols.join('')}</div>` : '') + wide.join('') + quiet.map(x => `<p class="quiet">${x}</p>`).join('');
 }
 
 function ipCards(r) {
@@ -625,7 +635,7 @@ function renderIP(r, dom) {
   h += `<h2>Details</h2><div class="grid">${ipCards(r)}</div>`;
   h += `<h2>Routing history for this address</h2><div class="flowbox">${bad(r.hist) ? err(r.hist) : svgTimeline(r.hist, r.cy && r.cy.asn)}</div>`;
   h += `<p class="note">Each row is one network announcing a block that covers this IP. Highlighted bars are the current host. A block that recently moved to a small host is worth noting.</p>`;
-  const ic = intelCards(dom ? dom.ex : r.ex, !dom, dom ? dom.dom : r.ip); if (ic) h += `<h2>Threat intel</h2><div class="grid">${ic}</div>`;
+  const ic = intelCards(dom ? dom.ex : r.ex, !dom, dom ? dom.dom : r.ip); if (ic) h += `<h2>Threat intel</h2><div class="intel">${ic}</div>`;
   h += `<h2>Open elsewhere</h2>${linksIP(r.ip, !bad(r.cy) && r.cy.asn)}`;
   return h;
 }
@@ -677,7 +687,7 @@ async function pivot(raw) {
     let h;
     if (k === 'ip') h = renderIP(await workIP(q));
     else if (k === 'asn') h = renderASN(await workASN(q.replace(/^as/, '')));
-    else { const d = await workDomain(q); h = d.main ? renderIP(d.main, d) : `<p class="summary"><b>${esc(defang(q))}</b> doesn't resolve and no past IPs are on record.</p><div class="grid">${card('Registration', bad(d.rd) ? err(d.rd) : kv([['registrar', esc(d.rd.registrar)], ['created', esc(d.rd.created)], ['expires', esc(d.rd.expires)]]))}${intelCards(d.ex, false, q)}</div>`; }
+    else { const d = await workDomain(q); h = d.main ? renderIP(d.main, d) : `<p class="summary"><b>${esc(defang(q))}</b> doesn't resolve and no past IPs are on record.</p><div class="grid">${card('Registration', bad(d.rd) ? err(d.rd) : kv([['registrar', esc(d.rd.registrar)], ['created', esc(d.rd.created)], ['expires', esc(d.rd.expires)]]))}</div><div class="intel">${intelCards(d.ex, false, q)}</div>`; }
     if (id === runId) $('#out').innerHTML = h;
   } catch (e) { if (id === runId) $('#out').innerHTML = `<p class="err">${esc(e.message)}</p>`; }
 }
