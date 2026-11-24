@@ -128,6 +128,12 @@ th{font:600 11px var(--mono); color:var(--faint); text-transform:uppercase; lett
 td.mono{font-size:12.5px; white-space:nowrap}
 td.url{font:12.5px var(--mono); word-break:break-all}
 .nw{white-space:nowrap}
+.scope{border-left:3px solid var(--acc)}
+.scope-head{display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:4px}
+.scope-label{font:700 17px var(--mono); color:var(--h1)}
+.scope p{margin:4px 0 8px}
+table.sig td:first-child{white-space:nowrap; font:12.5px var(--mono)}
+table.sig td:nth-child(3){white-space:nowrap}
 .intel{display:flex; flex-direction:column; gap:12px}
 .intel .card{margin:0; min-width:0; overflow-x:auto}
 .grid > *{min-width:0}
@@ -211,7 +217,11 @@ async function getJSON(url, ms = 20000) {
   try { const r = await fetch(url, {signal: c.signal}); if (!r.ok) throw new Error('HTTP ' + r.status); return await r.json(); }
   finally { clearTimeout(t); }
 }
-const ripe = (call, p, ms = 30000) => getJSON(`https://stat.ripe.net/data/${call}/data.json?${new URLSearchParams({...p, sourceapp: 'fieldkit-pivot'})}`, ms).then(j => j.data);
+async function ripe(call, p, ms = 30000) {
+  const url = `https://stat.ripe.net/data/${call}/data.json?${new URLSearchParams({...p, sourceapp: 'fieldkit-pivot'})}`;
+  try { return (await getJSON(url, ms)).data; }
+  catch (e) { if (ms < 20000) throw e; await new Promise(r => setTimeout(r, 1500)); return (await getJSON(url, 45000)).data; }  // RIPEstat is often slow; one patient retry
+}
 const TYPES = {A:1, NS:2, PTR:12, MX:15, TXT:16, AAAA:28};
 async function doh(name, type) {
   const j = await getJSON(`https://dns.google/resolve?name=${encodeURIComponent(name)}&type=${type}`, 10000);
@@ -231,7 +241,7 @@ const HELPER = (/^(127\.0\.0\.1|localhost)$/.test(location.hostname) && location
   (localStorage.getItem('fk_pivot_helper') || 'http://127.0.0.1:8787');
 let helperOn = false;
 async function pingHelper() {
-  try { const j = await getJSON(HELPER + '/api/ping', 1500); helperOn = !!j.ok;
+  try { const j = await getJSON(HELPER + '/api/ping', 1500); helperOn = !!j.ok; ENVCHECK = j.envcheck || null;
     $('#helper').innerHTML = `<b>Local helper on.</b> VirusTotal, abuse.ch, passive DNS and certificates included${j.keys.length ? '' : ' (no API keys configured)'}.`;
   } catch (e) { $('#helper').innerHTML = ''; }
 }
@@ -340,6 +350,9 @@ async function workIP(ip, light = false) {
     const [name, up, fp, rp] = await Promise.all([asName(cy.asn), tick('upstreams', upstreams(cy.asn)),
       tick('network size', footprint(cy.asn)), tick('route signing', rpki(cy.asn, cy.prefix))]);
     Object.assign(r, {name, up, fp, rp});
+    const [pdb, dens] = await Promise.all([tick('network type (PeeringDB)', peeringdb(cy.asn)),
+      helperOn ? tick('neighbour abuse (ThreatFox)', densityFor(fp, cy.prefix, ip)) : null]);
+    Object.assign(r, {pdb, dens});
   }
   return r;
 }
@@ -355,7 +368,9 @@ async function workDomain(dom) {
 async function workASN(asn) {
   const [name, up, fp, ab, hist] = await Promise.all([asName(asn), tick('upstreams', upstreams(asn, 10)), tick('network size', footprint(asn)),
     tick('abuse desk', abuse('AS' + asn)), tick('routing history', ripe('routing-history', {resource: 'AS' + asn}))]);
-  return {asn, name, up, fp, ab, hist};
+  const [pdb, dens] = await Promise.all([tick('network type (PeeringDB)', peeringdb(asn)),
+    helperOn && !bad(fp) && fp.v4 ? tick('neighbour abuse (ThreatFox)', densityFor(fp, null)) : null]);
+  return {asn, name, up, fp, ab, hist, pdb, dens};
 }
 
 /* ---------- flow visual ---------- */
@@ -450,6 +465,144 @@ function svgTimeline(rows, curAsn) {
     for (const r of groups[k]) s += `<rect class="bar${o === curAsn ? ' cur' : ''}" x="${X(r.first)}" y="${y + 3}" width="${Math.max(2, X(r.last) - X(r.first))}" height="13" rx="3"><title>AS${o} ${p}: ${r.first} to ${r.last}</title></rect>`;
   });
   return s + '</svg>';
+}
+
+
+/* ---------- block scope ---------- */
+async function peeringdb(asn) {
+  try { const j = await getJSON(`https://www.peeringdb.com/api/net?asn=${asn}&fields=name,info_type,info_types,info_scope`, 10000); return (j.data || [])[0] || {none: true}; }
+  catch (e) { if (/404/.test(e.message)) return {none: true}; throw e; }  // 404 = network has no PeeringDB record
+}
+function densityFor(fp, prefix, ip) {
+  // small networks: every v4 block; larger ones: just the /24 holding the IP
+  const v4 = bad(fp) ? [] : fp.list.map(p => p.prefix).filter(p => !p.includes(':'));
+  const ps = v4.length && fp.addrs <= 4096 ? v4 : ip && !ip.includes(':') ? [ip.split('.').slice(0, 3).join('.') + '.0/24'] : prefix ? [prefix] : v4.slice(0, 4);
+  return getJSON(HELPER + '/api/density?p=' + encodeURIComponent(ps.join(',')), 90000);
+}
+const CDN_ASNS = new Set([13335, 209242, 20940, 16625, 12222, 21342, 35994, 32787, 54113, 16509, 14618, 8075, 8068, 8069, 15169, 396982, 19527, 32934, 2635, 22822, 15133, 30081]);
+const BIG_HOSTS = new Set([24940, 213230, 14061, 20473, 16276, 63949, 8560, 51167, 12876, 31898, 45102, 132203, 36352, 9009, 197540, 47583, 26496, 46606, 398101, 22612, 16125, 40021, 62567, 393406, 23470, 19318, 8100, 35916, 55286, 200651]);
+const daysSince = d => d ? Math.round((Date.now() - new Date(d).getTime()) / 864e5) : null;
+
+function scopeSignals(r, dom, asnMode) {
+  const S = []; // {name, value, lean: 'wide'|'narrow'|'neutral'|'none', why}
+  const asn = +(asnMode ? r.asn : r.cy && r.cy.asn);
+  const fp = r.fp && !bad(r.fp) ? r.fp : null;
+  const nm = (r.name && r.name.name) || '';
+  const pdb = r.pdb && !bad(r.pdb) && !r.pdb.none ? r.pdb : null;
+  const tags = !asnMode && r.ports && !bad(r.ports) && !r.ports.none ? r.ports.tags || [] : [];
+  // 1. provider type
+  let ptype = 'unknown', pwhy = '';
+  const pt = pdb ? (pdb.info_types && pdb.info_types.length ? pdb.info_types : [pdb.info_type]).join(' ') : '';
+  const hosting = /Content|NSP/.test(pt);
+  if (CDN_ASNS.has(asn) || tags.includes('cdn') || (/Content/.test(pt) && fp && fp.addrs > 65536 && !BIG_HOSTS.has(asn))) { ptype = 'cdn'; pwhy = 'CDN or big content network: one IP fronts many unrelated sites.'; }
+  else if (!hosting && /Cable\/DSL\/ISP/.test(pt)) { ptype = 'isp'; pwhy = 'Access ISP: addresses belong to subscribers and get reassigned.'; }
+  else if (!hosting && /Educational|Government|Enterprise|Non-Profit/.test(pt)) { ptype = 'org'; pwhy = `Registered as ${pdb.info_type} network: legitimate organisation space.`; }
+  else if (BIG_HOSTS.has(asn) || tags.includes('cloud') || (fp && fp.addrs > 65536)) { ptype = 'big'; pwhy = 'Large hosting or cloud provider: many unrelated customers, addresses recycled.'; }
+  else if (fp && fp.addrs <= 4096) { ptype = 'small'; pwhy = 'Small hosting network.'; }
+  else if (fp) { ptype = 'mid'; pwhy = 'Mid-size network.'; }
+  S.push({name: 'Provider type', value: (pdb ? `${pdb.info_type || 'type not stated'} in PeeringDB` : 'no PeeringDB record') + (tags.length ? ` · Shodan tags: ${tags.join(', ')}` : ''), lean: ['cdn', 'isp', 'org', 'big'].includes(ptype) ? 'narrow' : ptype === 'small' ? 'wide' : 'neutral', why: pwhy || 'Not enough to classify.', ptype});
+  // 2. size
+  S.push(fp ? {name: 'Network size', value: `${fmt(fp.v4)} IPv4 blocks, ${fmt(fp.addrs)} addresses, ${fp.v6} IPv6`, lean: fp.addrs <= 4096 ? 'wide' : fp.addrs > 65536 ? 'narrow' : 'neutral',
+    why: fp.addrs <= 4096 ? 'Small enough that blocking all of it has little collateral.' : fp.addrs > 65536 ? 'Too large to block without collateral.' : 'Medium; a whole-network block needs strong evidence.'}
+    : {name: 'Network size', value: 'unavailable', lean: 'none', why: 'RIPEstat did not answer.'});
+  // 3. neighbour abuse
+  const d = r.dens && !bad(r.dens) ? r.dens : null;
+  if (d) {
+    const hit = d.rows.filter(x => x.ips && x.ips.length), others = asnMode ? hit.reduce((a, x) => a + x.ips.length, 0) : hit.reduce((a, x) => a + x.ips.filter(i => i !== r.ip).length, 0);
+    const fams = [...new Set(hit.flatMap(x => x.families))].filter(f => f !== 'Unknown malware');
+    const capped = hit.some(x => x.capped);
+    S.push({name: 'Abuse on neighbouring addresses', value: `${others}${capped ? '+' : ''} other ThreatFox-listed IP${others === 1 ? '' : 's'} across ${hit.length} of ${d.checked} /24${d.checked === 1 ? '' : 's'} checked${d.of > d.checked ? ` (of ${fmt(d.of)} in total)` : ''}${fams.length ? ' · ' + fams.slice(0, 5).join(', ') : ''}`,
+      lean: others >= 2 ? 'wide' : 'neutral', why: others >= 2 ? 'Repeated abuse beyond this one address.' : 'No pattern of abuse beyond this address in ThreatFox.', hit, others, checked: d.checked, of: d.of, fams});
+  } else S.push({name: 'Abuse on neighbouring addresses', value: 'unavailable', lean: 'none', why: helperOn ? 'ThreatFox did not answer.' : 'Abuse history for neighbouring addresses isn’t available on this page, so nothing here supports going wider than the IP.'});
+  // 4. tenure / re-homing
+  if (!asnMode && r.hist && !bad(r.hist) && r.cy && !bad(r.cy)) {
+    const mine = r.hist.filter(h => h.origin === r.cy.asn && h.prefix === r.cy.prefix).sort((a, b) => a.first < b.first ? -1 : 1);
+    const since = mine.length ? mine[mine.length - 1].first : null, days = daysSince(since);
+    const prev = r.hist.filter(h => h.origin !== r.cy.asn && (!since || h.last <= since)).sort((a, b) => a.last < b.last ? 1 : -1)[0];
+    S.push({name: 'Time on this network', value: since ? `since ${since} (${fmt(days)} days)${prev ? ` · before that AS${prev.origin} until ${prev.last}` : ''}` : 'unknown',
+      lean: days != null && days < 365 ? 'wide' : 'neutral', why: days != null && days < 365 ? 'Recently moved here, a common pattern for space rented for abuse.' : 'Long-standing announcement.'});
+  } else if (asnMode && r.name && r.name.alloc) {
+    const days = daysSince(r.name.alloc);
+    S.push({name: 'ASN age', value: `registered ${r.name.alloc} (${fmt(days)} days)`, lean: days < 730 ? 'wide' : 'neutral', why: days < 730 ? 'Young network.' : 'Established network.'});
+  }
+  // 5. leased / registrant
+  if (!asnMode && r.rd && !bad(r.rd)) {
+    const announcer = nm.toLowerCase(), owner = `${r.rd.netname || ''} ${r.rd.org || ''}`.toLowerCase();
+    const match = announcer.split(/[^a-z0-9]+/).some(w => w.length >= 4 && owner.includes(w));
+    const ab = (Array.isArray(r.ab) ? r.ab.join(' ') : '').toLowerCase();
+    const broker = /interlir|ipxo|ipv4mall|lease|heficed|brokers?|ipxo/.test(owner + ' ' + ab);
+    S.push({name: 'Registration', value: `registered to ${r.rd.org || r.rd.netname}${match ? ', same as the network announcing it' : ', not the network announcing it'}${broker ? ' · abuse contact is an IP-leasing broker' : ''}`,
+      lean: !match || broker ? 'wide' : 'neutral', why: !match || broker ? 'Leased space: the block can be re-leased to someone else, so a prefix block needs an expiry.' : 'Own space.', leased: !match || broker});
+  } else if (!asnMode) S.push({name: 'Registration', value: 'unavailable', lean: 'none', why: 'RDAP did not answer.'});
+  // 6. upstream concentration
+  const m = r.up && !bad(r.up) && r.up.ups.length ? r.up.ups[0] : null;
+  S.push(m ? {name: 'Upstream concentration', value: `AS${m.asn} carries about ${Math.round(m.share * 100)}% of routes`, lean: m.share >= .6 ? 'wide' : 'neutral', why: m.share >= .6 ? 'Single-homed networks are typical of small rented or bulletproof hosts.' : 'Spread across carriers, typical of established networks.'}
+    : {name: 'Upstream concentration', value: 'unavailable', lean: 'none', why: 'RIPEstat did not answer.'});
+  // 7. RPKI
+  if (!asnMode) S.push(r.rp && !bad(r.rp) ? {name: 'Route signing (RPKI)', value: r.rp.status, lean: r.rp.status === 'invalid' ? 'wide' : 'neutral', why: r.rp.status === 'invalid' ? 'Announcement breaks the owner’s signed statement, a hijack sign.' : r.rp.status === 'valid' ? 'Signed and consistent.' : 'Unsigned; common for small hosts, weak on its own.'}
+    : {name: 'Route signing (RPKI)', value: 'unavailable', lean: 'none', why: 'RIPEstat timed out.'});
+  // 8. shared IP / recycled
+  if (!asnMode) {
+    const ex = dom ? null : r.ex, res = ex && ex.vt && ex.vt.resolutions ? ex.vt.resolutions : null;
+    const hosts = res ? [...new Set(res.filter(x => x.ip === r.ip).map(x => x.host.replace(/^(www|mail|autodiscover|autoconfig|mta-sts|cpanel|webmail)\./, '')))] : null;
+    const ptrv = r.rev || '', generic = ptrv && r.ip.split('.').some(o => o.length > 1 && ptrv.includes(o)) && /\d/.test(ptrv);
+    const rnd = hosts ? hosts.filter(hn => { const l = hn.split('.')[0]; return l.length >= 10 && /\d/.test(l) && /[a-z]/.test(l) && !/-/.test(l); }).length : 0;
+    const dga = hosts && hosts.length >= 5 && rnd / hosts.length >= .5;
+    S.push({name: 'Who else uses this IP', value: (hosts ? `${hosts.length} domain${hosts.length === 1 ? '' : 's'} in passive DNS${dga ? `, ${rnd} of them random-looking` : ''}` : 'passive DNS unavailable') + ` · PTR ${ptrv ? defang(ptrv) + (generic ? ' (provider default)' : ' (set by a tenant)') : 'none'}`,
+      lean: dga ? 'wide' : hosts && hosts.length > 15 ? 'narrow' : 'neutral', why: dga ? 'The domains look machine-generated, so they likely belong to the same operator rather than unrelated tenants.' : hosts && hosts.length > 15 ? 'Many unrelated domains share it; even an IP block has collateral, prefer domain blocks.' : ptrv && !generic && ptype === 'big' ? 'A tenant-set PTR on a big provider suggests the address has been reassigned since the activity.' : 'No sign of heavy sharing.', shared: hosts && hosts.length > 15});
+  }
+  return S;
+}
+
+function scopeVerdict(r, dom, asnMode) {
+  const S = scopeSignals(r, dom, asnMode), get = n => S.find(x => x.name === n) || {};
+  const ptype = get('Provider type').ptype, ab = get('Abuse on neighbouring addresses'), fp = r.fp && !bad(r.fp) ? r.fp : null;
+  const wideCount = S.filter(x => x.lean === 'wide').length, unknown = S.filter(x => x.lean === 'none').map(x => x.name);
+  let scope = 'ip', label, expiry, reason;
+  const prefix = !asnMode && r.cy && !bad(r.cy) ? r.cy.prefix : null, plen = prefix ? +prefix.split('/')[1] : 0;
+  if (asnMode && fp && !fp.v4) { scope = 'none'; label = 'Nothing to block by network'; reason = `AS${r.asn} announces no addresses today. Its old blocks may now belong to other networks, so block the specific indicators you have instead, and check where the blocks went before assuming the same operator.`; }
+  else if (ptype === 'cdn') { scope = 'domain'; label = asnMode ? 'Never block this network' : 'Block the domain or URL, not the IP'; reason = 'This is a CDN or large content network. Its addresses serve thousands of unrelated sites, so any IP or network block causes collateral damage. Block by domain, URL or SNI instead.'; expiry = null; }
+  else if (['isp', 'org'].includes(ptype)) { scope = asnMode ? 'none' : 'ip'; label = asnMode ? 'Don’t block this network' : 'Block the IP only, short expiry'; expiry = '7 days'; reason = 'The address belongs to an access ISP or a legitimate organisation and is likely reassigned or compromised rather than attacker-owned.'; }
+  else if (ptype === 'big' || ptype === 'mid' && !(ab.others >= 2)) { scope = asnMode ? 'none' : 'ip'; label = asnMode ? 'Don’t block this network' : 'Block the IP only'; expiry = '30 days'; reason = `${ptype === 'big' ? 'A large mainstream provider' : 'A mid-size network'} with many unrelated customers. Addresses are recycled after takedowns, so block the single IP with an expiry and report it to the host.`; }
+  else {
+    const smallAll = fp && fp.addrs <= 4096 && ab.hit && ab.checked >= ab.of;  // every /24 of the network was checked
+    const spread = ab.hit ? ab.hit.length : 0;
+    if (fp && fp.addrs <= 4096 && ab.others >= 2 && (spread >= 2 || (fp.v4 === 1)) && wideCount >= 4 && smallAll) { scope = 'asn'; label = `Block the whole network (AS${asMode(r)})`; expiry = 'review every 90 days'; reason = `Small network with abuse across ${spread} of its blocks and ${wideCount} supporting signals. Collateral is limited to ${fmt(fp.addrs)} addresses.`; }
+    else if (!asnMode && prefix && ab.others >= 2 && plen >= 22) { scope = 'prefix'; label = `Block the prefix ${prefix}`; expiry = get('Registration').leased ? '30 days (leased space)' : '90 days'; reason = `${ab.others} other addresses in this block are already listed for abuse${fp && fp.addrs <= 4096 ? ', but the evidence does not cover the rest of the network' : ''}.`; }
+    else if (!asnMode && prefix && ab.others >= 2 && plen < 22) { scope = 'prefix24'; label = `Block the /24 around the IP`; expiry = '90 days'; reason = `Abuse clusters in this /24, but the announced block ${prefix} is too large to block whole.`; }
+    else { scope = asnMode ? 'none' : 'ip'; label = asnMode ? 'Evidence doesn’t support a network block' : 'Block the IP only'; expiry = '90 days'; reason = ab.lean === 'none' ? 'Neighbour abuse could not be checked, so nothing supports going wider than the IP.' : 'Nothing beyond this address shows abuse, so a wider block isn’t justified yet.'; }
+  }
+  if (unknown.length) reason += ` Unavailable: ${unknown.join(', ')}.`;
+  return {S, scope, label, expiry, reason};
+}
+const asMode = r => r.asn || (r.cy && r.cy.asn);
+
+function blockList(r, v, asnMode) {
+  if (v.scope === 'ip') return [r.ip + (r.ip.includes(':') ? '/128' : '/32')];
+  if (v.scope === 'prefix') return [r.cy.prefix];
+  if (v.scope === 'prefix24') return [r.ip.split('.').slice(0, 3).join('.') + '.0/24'];
+  if (v.scope === 'asn') return r.fp.list.map(p => p.prefix);
+  return [];
+}
+
+function scopeHTML(r, dom, asnMode) {
+  const v = scopeVerdict(r, dom, asnMode), list = blockList(r, v, asnMode);
+  if (asnMode && r.fp && !bad(r.fp) && !r.fp.v4) return `<div class="card scope"><div class="scope-head"><span class="scope-label">${esc(v.label)}</span></div><p>${esc(v.reason)}</p></div>`;
+  const leanIcon = {wide: '<span class="pill bad">wider</span>', narrow: '<span class="pill good">narrower</span>', neutral: '<span class="pill">neutral</span>', none: '<span class="pill warn">unavailable</span>'};
+  let h = `<div class="card scope"><div class="scope-head"><span class="scope-label">${esc(v.label)}</span>${v.expiry ? `<span class="pill">expiry ${esc(v.expiry)}</span>` : ''}</div><p>${esc(v.reason)}</p>`;
+  if (list.length) h += `<div class="q"><span class="qlabel">block list</span><code>${esc(list.slice(0, 6).join(', '))}${list.length > 6 ? ` … (${list.length})` : ''}</code><button data-copy="${esc(list.join('\n'))}">copy ${list.length > 1 ? list.length : ''}</button><span></span></div>`;
+  if (dom && v.scope !== 'domain') h += `<div class="q"><span class="qlabel">domain</span><code>${esc(dom.dom)}</code><button data-copy="${esc(dom.dom)}">copy</button><span></span></div>`;
+  h += '<table class="tight sig"><tr><th>signal</th><th>finding</th><th>pushes</th><th>why</th></tr>' + v.S.map(x => `<tr><td>${esc(x.name)}</td><td>${esc(x.value)}</td><td>${leanIcon[x.lean]}</td><td class="muted">${esc(x.why)}</td></tr>`).join('') + '</table>';
+  if (['prefix', 'prefix24', 'asn'].includes(v.scope)) {
+    h += `<p class="note"><b>Before you block:</b> check your own network logs for any traffic to ${list.length > 1 ? 'these ranges' : esc(list[0])} over the last 30 days. If anything legitimate talks to them, block the IP only.</p>`;
+    if (ENVCHECK) h += `<div class="q"><span class="qlabel">${esc(ENVCHECK.label)}</span><code>${esc(envCheck(list))}</code><button data-copy="${esc(envCheck(list))}">copy</button><span></span></div>`;
+  }
+  return h + '</div>';
+}
+let ENVCHECK = null;  // supplied by the local helper only
+function envCheck(list) {
+  const e = ENVCHECK; if (!e) return '';
+  return e.template.replace('{OR}', list.slice(0, 40).map(p => e.each.replace('{CIDR}', p)).join(e.join));
 }
 
 /* ---------- render pieces ---------- */
@@ -634,6 +787,7 @@ function renderIP(r, dom) {
   let h = `<p class="summary">${summaryIP(r, dom)}</p>`;
   h += `<h2>How it reaches the internet</h2><div class="flowbox">${svgFlow(ipFlowCols(r, dom))}</div>`;
   if (!bad(r.cy)) h += `<p class="note">Percentages are each upstream's share of the routes seen by public route collectors. The highlighted path is the main one, and red tags mark where the chain can be cut.</p>`;
+  if (!bad(r.cy)) h += `<h2>Block scope</h2>${scopeHTML(r, dom, false)}`;
   h += `<h2>Where it can be cut off</h2><div class="cuts">${cutsHTML(r, dom)}</div>`;
   if (dom) h += `<h2>Domain</h2><div class="grid">${card('Registration', bad(dom.rd) ? err(dom.rd) : kv([['registrar', esc(dom.rd.registrar)], ['abuse', esc(dom.rd.abuse)], ['created', esc(dom.rd.created)], ['updated', esc(dom.rd.updated)], ['expires', esc(dom.rd.expires)],
     ['nameservers', dom.rd.ns.map(n => go(n)).join('<br>')], ['status', dom.rd.status.map(x => `<span class="pill">${esc(x)}</span>`).join('')]]))}
@@ -660,6 +814,7 @@ function renderASN(r) {
       {k: 'Internet', v: '75k networks', d: ['global routing table']}];
     h += `<h2>How it reaches the internet</h2><div class="flowbox">${svgFlow(cols)}</div>`;
   }
+  h += `<h2>Block scope</h2>${scopeHTML(r, null, true)}`;
   h += `<h2>Details</h2><div class="grid">`;
   h += card('Upstreams and peers', bad(r.up) ? err(r.up) : '<table><tr><th>network</th><th>name</th><th>share</th></tr>' + r.up.ups.map(u => `<tr><td>${go('AS' + u.asn)}</td><td>${esc(u.name)}</td><td class="mono">${Math.round(u.share * 100)}%</td></tr>`).join('') + '</table>' +
     `<p class="note">Share is the slice of route-collector sightings on each link. ${r.up.nLeft} upstream or peer links seen in total.</p>`);
